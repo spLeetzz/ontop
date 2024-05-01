@@ -20,8 +20,13 @@ HELP_CHANNEL_ID = 1225025227285856316
 # Define the emoji users will react with to ENROLL
 REACTION_EMOJI = '✅'
 
-# Authenticate with Google Sheets using the JSON key file
-json_keyfile_path = "D:/Google Cloud JSON Key/clear-healer-415920-7abc2cda379e.json"
+# Get the JSON key file path from an environment variable
+json_keyfile_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "default_path")
+
+# Check if the environment variable is set and use it, otherwise use a default path
+if json_keyfile_path == "default_path":
+    # If the environment variable is not set, use a default path
+    json_keyfile_path = "D:/Google Cloud JSON Key/clear-healer-415920-7abc2cda379e.json"
 
 # Define the ID of the channel where validation will occur
 VALIDATION_CHANNEL_ID = 1225025227285856316  # Replace with the actual channel ID
