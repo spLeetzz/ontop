@@ -10,90 +10,31 @@ import logging
 import time
 import os
 import threading
-
-# Define the ID of the channel where users will react to ENROLL
-ENROLLMENT_CHANNEL_ID = 1225025227285856316  # Replace with the actual channel ID
-
-# Ticket channel
-HELP_CHANNEL_ID = 1225025227285856316
-
-# Define the emoji users will react with to ENROLL
-REACTION_EMOJI = '✅'
-
-# Get the JSON key file path from an environment variable
-json_keyfile_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "default_path")
-
-# Check if the environment variable is set and use it, otherwise use a default path
-if json_keyfile_path == "default_path":
-    # If the environment variable is not set, use a default path
-    json_keyfile_path = "D:/Google Cloud JSON Key/clear-healer-415920-7abc2cda379e.json"
-
-# Define the ID of the channel where validation will occur
-VALIDATION_CHANNEL_ID = 1225025227285856316  # Replace with the actual channel ID
-
-REGISTRATION_CHANNEL_ID = 1225025227285856316  # Replace with the actual enrollment channel ID
-
-INFO_CHANNEL_ID = 1225025227285856316 # Channel where info of scrims is available
-
-MOD_CHANNEL_ID = 1225025227285856316 # Private Channel to Send Csv 
-
-SCHEDULE_CHANNEL_ID = 1225025227285856316 # Jaha scrims ka schedule likha ho
-
-SLOTS_LIMIT = 132  # Number of available slots
-
-INTERACTION_MESSAGE_ID = 1232223855469269013
-
-# Define the role required for validation
-REQUIRED_ROLE_NAME = "new role"  # Replace with the name of the required role
-
-YOUR_GUILD_ID = 798542556970614816
-
-# Define the ID of the role to assign to confirmed users
-CONFIRMED_ROLE_ID = 1231821911667900537 
-
-# Initialize a dictionary to store registered teams' data
-registered_teams = {}
-
-REGISTRATION_PROMPT = "" 
-
-cached_data = None
-
-# Flag to indicate if a process is already running
-running_process = False
-
-# Initialize the sheet variable
-sheet = None
-service = None
-sheet_id = "1yJozWjOMMc9uIhobk0xtyODWUInV7GWwQXOZlydU0i8"
-
-# try:
-#     credentials = Credentials.from_service_account_file(json_keyfile_path, scopes=['https://www.googleapis.com/auth/spreadsheets'])
-#     gc = gspread.authorize(credentials)
-#     print("Successfully authenticated with Google Sheets.")
-
-#     service = build('sheets', 'v4', credentials=credentials)
-    
-#     # Open the Google Sheets document by its ID
-#     sheet_id = "1yJozWjOMMc9uIhobk0xtyODWUInV7GWwQXOZlydU0i8"
-#     sheet = gc.open_by_key(sheet_id).sheet1
-#     print("Successfully opened Google Sheets document by ID:", sheet_id)
-    
-# except Exception as e:
-#     print("Error while connecting to Google Sheets:", e)
-
-intents = discord.Intents().all()
+from constants import constants
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 
 # Create a new instance of the Discord bot with command functionality
-bot = commands.Bot(command_prefix='-', intents=intents)
+bot = commands.Bot(command_prefix='-', intents=discord.Intents().all())
 
 # Event handler for when the bot is ready
 @bot.event
 async def on_ready():
     global service
     global sheet
+
+    # Get the JSON key file path from an environment variable
+    json_keyfile_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "default_path")
+    
+    # Check if the environment variable is set and use it, otherwise use a default path
+    if json_keyfile_path == "default_path":
+        # If the environment variable is not set, use a default path
+        json_keyfile_path = "D:/Google Cloud JSON Key/clear-healer-415920-7abc2cda379e.json"
+        
+    global INTERACTION_MESSAGE_ID
+    INTERACTION_MESSAGE_ID = constants.INTERACTION_MESSAGE_ID
+
     try:
         # Attempt to connect to Google Sheets
         sheet, service = connect_to_google_sheets(json_keyfile_path)
@@ -101,9 +42,9 @@ async def on_ready():
         print("Error while connecting to Google Sheets:", e)
     
     print(f'We have logged in as {bot.user}')
-    global INTERACTION_MESSAGE_ID
+    
     # Fetch the channel
-    channel = bot.get_channel(ENROLLMENT_CHANNEL_ID)
+    channel = bot.get_channel(constants.ENROLLMENT_CHANNEL_ID)
     # Check if the interaction message ID is stored and the channel is valid
     if INTERACTION_MESSAGE_ID and channel:
         try:
@@ -213,14 +154,14 @@ async def setprompt(ctx, *, prompt: str = None):
 @bot.command()
 @commands.has_permissions(manage_roles=True)
 async def start(ctx):
-    channel_id = REGISTRATION_CHANNEL_ID
+    channel_id = constants.REGISTRATION_CHANNEL_ID
     await unlock_channel(channel_id)
     await ctx.send("## STARTED")
 
 @bot.event
 async def on_message(message):
     # Check if the message is in the desired channel
-    if message.channel.id == REGISTRATION_CHANNEL_ID:
+    if message.channel.id == constants.REGISTRATION_CHANNEL_ID:
         if message.content.strip() == REGISTRATION_PROMPT:
             await confirm(message.author.id,message.id)
 
@@ -236,7 +177,7 @@ async def on_message(message):
 
 async def confirm(user_id, message_id):
 
-    channel = bot.get_channel(REGISTRATION_CHANNEL_ID) 
+    channel = bot.get_channel(constants.REGISTRATION_CHANNEL_ID) 
     if channel:
         try:
             message = await channel.fetch_message(message_id)  # Fetch message from the channel
@@ -248,15 +189,15 @@ async def confirm(user_id, message_id):
     # Check if the user is already enrolled
     team_name = validateRegistration(user_id)
     if team_name:
-        if user_id not in registered_teams:  # Check if the user is not already registered
+        if user_id not in constants.registered_teams:  # Check if the user is not already registered
             if available_slots() > 0:
                 print("Available slots:", available_slots())
                 # Mark registration as confirmed
                 await confirm_registration(user_id, team_name)  # Pass team_name
                 print("Registration confirmed for user:", user_id)
                 # Save the registered team's data
-                registered_teams[user_id] = team_name
-                print("Registered teams' data:", registered_teams)  # Log the registered teams' data
+                constants.registered_teams[user_id] = team_name
+                print("Registered teams' data:", constants.registered_teams)  # Log the registered teams' data
                 print("Available slots:", available_slots())
                 await message.add_reaction('✅')
                 
@@ -265,20 +206,21 @@ async def confirm(user_id, message_id):
 
                     # After sending the message with the CSV file and all slots are filled
                     # Call the assign_role function for each confirmed user
-                    for user_id in registered_teams.keys():
-                        await assign_role(user_id, CONFIRMED_ROLE_ID)
+                    for user_id in constants.registered_teams.keys():
+                        await assign_role(user_id, constants.CONFIRMED_ROLE_ID)
 
                     # Create and save the CSV file
-                    saveAsCsv(registered_teams, 'registered_teams.csv')
+                    saveAsCsv(constants.registered_teams, 'constants.registered_teams.csv')
                     
                     # Send the CSV file to the designated channel
-                    channel = bot.get_channel(MOD_CHANNEL_ID)
+                    channel = bot.get_channel(constants.MOD_CHANNEL_ID)
                     if channel:
-                        await channel.send(file=discord.File('registered_teams.csv'))
+                        await channel.send(file=discord.File('constants.registered_teams.csv'))
                     else:
                         print("Error: Designated channel not found.")
                     
-                    await lock_channel(REGISTRATION_CHANNEL_ID)
+                    await lock_channel(constants.REGISTRATION_CHANNEL_ID
+            )
 
                     # Allocate lobby channels
                     await allocate_lobby_channels()
@@ -293,7 +235,7 @@ async def confirm(user_id, message_id):
             await message.add_reaction('❌')
     else:
         print("User is not enrolled.")
-        await reject_registration(user_id, f"Your team is not enrolled yet, please do checkout <#{INFO_CHANNEL_ID}>.")
+        await reject_registration(user_id, f"Your team is not enrolled yet, please do checkout <#{constants.INFO_CHANNEL_ID}>.")
         await message.add_reaction('❌')
 
 async def enrollTeam(user):
@@ -314,7 +256,7 @@ async def enrollTeam(user):
         if team_details:
             existing_team_message = f"Your enrollment can't proceed as either You or One of your teammate is already a part of some other team:\n"
             existing_team_message += team_details
-            existing_team_message += f"\nIf they're not a part of listed team, reach out to the support team via <#{HELP_CHANNEL_ID}>."
+            existing_team_message += f"\nIf they're not a part of listed team, reach out to the support team via <#{constants.HELP_CHANNEL_ID}>."
             await user.send(existing_team_message)
             raise EnrollmentCompleteError
 
@@ -408,7 +350,7 @@ async def updateTeam(user):
         response = await ask_yes_no_question(user, confirmation_message)
         if response == 'yes':
             running_process = False
-            delete_team_from_sheet(user.id,sheet_id)
+            delete_team_from_sheet(user.id,constants.sheet_id)
             await user.send("Your previous team data was deleted so even if you are timed out from here, you will need to start enrollment fresh.\n\nLet's Start new enrollment!")
             # Proceed with the update process
             await enrollTeam(user)
@@ -453,7 +395,7 @@ async def deleteTeam(user):
         response = await ask_yes_no_question(user, confirmation_message)
         if response == 'yes':
             running_process = False
-            delete_team_from_sheet(user.id,sheet_id)
+            delete_team_from_sheet(user.id,constants.sheet_id)
             await user.send("Deleted successfully")
             return
         else:
@@ -521,10 +463,10 @@ async def send_registration_details(user, team_name, player_igns):
     registration_details += "```"
 
     await user.send(registration_details)
-    await user.send(f"\nValidate your details by mentioning players against their IGNs in <#{VALIDATION_CHANNEL_ID}>.")
+    await user.send(f"\nValidate your details by mentioning players against their IGNs in <#{constants.VALIDATION_CHANNEL_ID}>.")
 
 async def validate_enrollment(user, team_name, player_igns):
-    validation_channel = bot.get_channel(VALIDATION_CHANNEL_ID)
+    validation_channel = bot.get_channel(constants.VALIDATION_CHANNEL_ID)
     if validation_channel:
         await validation_channel.send(f"Please validate the enrollment for team {team_name} by mentioning all your teammates in this channel. {user.mention}")
 
@@ -534,7 +476,7 @@ async def validate_enrollment(user, team_name, player_igns):
         while datetime.datetime.now() - start_time < timeout_duration:
             async for message in validation_channel.history(limit=None, after=start_time):
                 if message.author == user:
-                    guild = bot.get_guild(YOUR_GUILD_ID)  # Replace YOUR_GUILD_ID with your actual guild ID
+                    guild = bot.get_guild(constants.YOUR_GUILD_ID)  # Replace YOUR_GUILD_ID with your actual guild ID
                     member = guild.get_member(user.id)  # Get the Member object
 
                     if member is None:
@@ -551,7 +493,7 @@ async def validate_enrollment(user, team_name, player_igns):
 
                         existing_team_message = f"Your enrollment can't proceed as either You or One of your teammate is already a part of some other team:\n"
                         existing_team_message += isAlreadyEnrolled(discord_id)
-                        existing_team_message += f"\nIf they're not a part of listed team, reach out to the support team via <#{HELP_CHANNEL_ID}>."
+                        existing_team_message += f"\nIf they're not a part of listed team, reach out to the support team via <#{constants.HELP_CHANNEL_ID}>."
 
                         
 
@@ -569,7 +511,7 @@ async def validate_enrollment(user, team_name, player_igns):
                     # Check if at least 4 mentioned users have the required role
                     for mentioned_user in mentioned_users[:4]:
                         member = guild.get_member(mentioned_user.id)
-                        if member is None or not any(role.name == REQUIRED_ROLE_NAME for role in member.roles):
+                        if member is None or not any(role.name == constants.REQUIRED_ROLE_NAME for role in member.roles):
                             await user.send("One or more teammates haven't verified on the discord server yet. Reapply once it's done.")
                             await message.add_reaction("❌")
                             return False
@@ -742,7 +684,7 @@ def validateRegistration(user_id):
 # Function to check the number of available slots
 def available_slots():
     # Subtract the number of registered teams from the total slots limit
-    return SLOTS_LIMIT - len(registered_teams)
+    return constants.SLOTS_LIMIT - len(constants.registered_teams)
 
 async def confirm_registration(user_id, team_name):
     try:
@@ -779,7 +721,7 @@ def saveAsCsv(teams_data, csv_file):
 async def assign_role(user_id, role_id):
     try:
         # Fetch the guild object
-        guild = bot.get_guild(YOUR_GUILD_ID)  # Replace YOUR_GUILD_ID with your actual guild ID
+        guild = bot.get_guild(constants.YOUR_GUILD_ID)  # Replace YOUR_GUILD_ID with your actual guild ID
 
         # Fetch the member object corresponding to the user ID
         member = guild.get_member(user_id)
@@ -814,7 +756,7 @@ async def unlock_channel(channel_id):
 
 async def allocate_lobby_channels():
     # Determine the number of lobbies needed based on the number of registered teams
-    num_teams = len(registered_teams)
+    num_teams = len(constants.registered_teams)
     num_lobbies = (num_teams + 21) // 22  # Round up to the nearest multiple of 22
 
     # Iterate over each lobby and allocate channels
@@ -822,7 +764,7 @@ async def allocate_lobby_channels():
         lobby_role_name = f"Lobby {lobby_number}"
         lobby_channel_name = f"lobby-{lobby_number}"  # Adjust this according to your channel naming convention
 
-        guild = bot.get_guild(YOUR_GUILD_ID) 
+        guild = bot.get_guild(constants.YOUR_GUILD_ID) 
 
         # Fetch the lobby role and channel
         lobby_role = discord.utils.get(guild.roles, name=lobby_role_name)
@@ -834,10 +776,10 @@ async def allocate_lobby_channels():
             end_index = min(start_index + 22, num_teams)
 
             # Extract team names for this lobby
-            team_names = [team_data['team_name'] for _, team_data in list(registered_teams.items())[start_index:end_index]]
+            team_names = [team_data['team_name'] for _, team_data in list(constants.registered_teams.items())[start_index:end_index]]
 
             # Allocate channels to teams in this lobby
-            for index, (user_id, team_name) in enumerate(list(registered_teams.items())[start_index:end_index], start=1):
+            for index, (user_id, team_name) in enumerate(list(constants.registered_teams.items())[start_index:end_index], start=1):
                 member = guild.get_member(user_id)
                 if member:
                     # Assign lobby role to the team member
@@ -873,7 +815,7 @@ async def send_slots_list(team_names, lobby_channel):
         slots_list_message += f"{formatted_index}. RESERVED\n"
 
     # Close the code block and send the slots list message to the lobby channel
-    slots_list_message += f"```\nMake sure to checkout your lobbies schedule here <#{SCHEDULE_CHANNEL_ID}>."
+    slots_list_message += f"```\nMake sure to checkout your lobbies schedule here <#{constants.SCHEDULE_CHANNEL_ID}>."
     await lobby_channel.send(slots_list_message)
 
 # Run the bot with the specified token
