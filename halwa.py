@@ -76,10 +76,8 @@ def connect_to_google_sheets(json_keyfile_path, retry_interval=10):
 
             service = build('sheets', 'v4', credentials=credentials)
 
-            # Open the Google Sheets document by its ID
-            sheet_id = "1yJozWjOMMc9uIhobk0xtyODWUInV7GWwQXOZlydU0i8"
-            sheet = gc.open_by_key(sheet_id).sheet1
-            print("Successfully opened Google Sheets document by ID:", sheet_id)
+            sheet = gc.open_by_key(constants.GOOGLE_SHEET_ID).sheet1
+            print("Successfully opened Google Sheets document by ID:", constants.GOOGLE_SHEET_ID)
             
             return sheet, service
 
@@ -242,15 +240,14 @@ async def confirm(user_id, message_id):
         await message.add_reaction('❌')
 
 async def enrollTeam(user):
-    global running_process
-    
+
     # If a process is already running, ignore the request
-    if running_process:
+    if constants.running_processes.get(user.id):
         await user.send("Another process is already running.\nWait until previous process is timed out (that'll take upto 2 mins of inactivity)")
         return
 
     # Set the flag to indicate that a process is running
-    running_process = True
+    constants.running_processes[user.id] = True
 
     try:
         # Check if the user is already enrolled
@@ -324,19 +321,18 @@ async def enrollTeam(user):
         await user.send(f"An unexpected error occurred during enrollment: {e}")
 
     finally:
-        # Reset the flag once the process is finished
-        running_process = False
+        # Reset the flag once the process is finished for this user
+        constants.running_processes.pop(user.id, None)
 
 async def updateTeam(user):
-    global running_process
     
     # If a process is already running, ignore the request
-    if running_process:
+    if constants.running_processes.get(user.id):
         await user.send("Another process is already running.\nWait until previous process is timed out (that'll take upto 2 mins of inactivity)")
         return
 
     # Set the flag to indicate that a process is running
-    running_process = True
+    constants.running_processes[user.id] = True
 
     try:
         # Check if the user is already enrolled
@@ -352,12 +348,11 @@ async def updateTeam(user):
 
         response = await ask_yes_no_question(user, confirmation_message)
         if response == 'yes':
-            running_process = False
-            delete_team_from_sheet(user.id,constants.sheet_id)
+            constants.running_process = False
+            delete_team_from_sheet(user.id,constants.GOOGLE_SHEET_ID)
             await user.send("Your previous team data was deleted so even if you are timed out from here, you will need to start enrollment fresh.\n\nLet's Start new enrollment!")
-            # Proceed with the update process
+            constants.running_processes.pop(user.id, None)
             await enrollTeam(user)
-            bypass_process = True
         else:
             await user.send("Update cancelled.")
             return
@@ -370,19 +365,18 @@ async def updateTeam(user):
         await user.send(f"An unexpected error occurred during update: {e}")
         
     finally:
-        # Reset the flag once the process is finished
-        running_process = False
+        # Reset the flag once the process is finished for this user
+        constants.running_processes.pop(user.id, None)
         
 async def deleteTeam(user):
-    global running_process
     
     # If a process is already running, ignore the request
-    if running_process:
+    if constants.running_processes.get(user.id):
         await user.send("Another process is already running.\nWait until previous process is timed out (that'll take upto 2 mins of inactivity)")
         return
 
     # Set the flag to indicate that a process is running
-    running_process = True
+    constants.running_processes[user.id] = True
 
     try:
         # Check if the user is already enrolled
@@ -397,8 +391,8 @@ async def deleteTeam(user):
 
         response = await ask_yes_no_question(user, confirmation_message)
         if response == 'yes':
-            running_process = False
-            delete_team_from_sheet(user.id,constants.sheet_id)
+            constants.running_process = False
+            delete_team_from_sheet(user.id,constants.GOOGLE_SHEET_ID)
             await user.send("Deleted successfully")
             return
         else:
@@ -413,8 +407,8 @@ async def deleteTeam(user):
         await user.send(f"An unexpected error occurred during delete: {e}")
  
     finally:
-        # Reset the flag once the process is finished
-        running_process = False
+        # Reset the flag once the process is finished for this user
+        constants.running_processes.pop(user.id, None)
 
 class EnrollmentCompleteError(Exception):
     pass

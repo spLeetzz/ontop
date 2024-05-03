@@ -24,6 +24,6 @@ GOOGLE_SHEET_ID = "1yJozWjOMMc9uIhobk0xtyODWUInV7GWwQXOZlydU0i8"
 registered_teams = {}
 REGISTRATION_PROMPT = ""
 cached_data = None
-running_process = False
+running_processes = {}
 sheet = None
 service = None
