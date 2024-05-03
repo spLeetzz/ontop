@@ -116,14 +116,14 @@ class TournamentDropdown(discord.ui.Select):
 # Define the TournamentView class inheriting from discord.ui.View
 class TournamentView(discord.ui.View):
     def __init__(self):
-        super().__init__()
+        super().__init__(timeout=None)  # Set timeout to None to make the view persistent
         self.add_item(TournamentDropdown())
 
 async def send_selectmenu(channel):
     embed = discord.Embed(title="Team Enrollment", description="Select appropriate option to CREATE/UPDATE/DELETE your team from the dropdown below", color=0x007CFF)
     select = TournamentDropdown()
 
-    view = discord.ui.View()
+    view = TournamentView()  # Initialize TournamentView with timeout=None
     view.add_item(select)
 
     await channel.send(embed=embed, view=view)
