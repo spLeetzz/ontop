@@ -67,7 +67,6 @@ async def on_ready():
         # If the channel or message ID is not valid, send the select menu
         await send_selectmenu(channel)
 
-
 def connect_to_google_sheets(json_keyfile_path, retry_interval=10):
     while True:
         try:
@@ -141,8 +140,7 @@ async def setprompt(ctx, *, prompt: str = None):
 
         # Check if the prompt is not an empty string
         if prompt.strip():
-            global REGISTRATION_PROMPT
-            REGISTRATION_PROMPT = prompt
+            constants.REGISTRATION_PROMPT = prompt
             await ctx.send(f"Registration prompt set to: {prompt}")
         else:
             await ctx.send("Invalid prompt. Please provide a non-empty prompt.")
@@ -154,15 +152,20 @@ async def setprompt(ctx, *, prompt: str = None):
 @bot.command()
 @commands.has_permissions(manage_roles=True)
 async def start(ctx):
-    channel_id = constants.REGISTRATION_CHANNEL_ID
-    await unlock_channel(channel_id)
+    constants.registered_teams = {}
+    try:
+        os.remove('registered_teams.csv')
+        print("CSV file deleted successfully.")
+    except FileNotFoundError:
+        await bot.get_channel(constants.MOD_CHANNEL_ID).send("Error: CSV file not found.")
+    await unlock_channel(constants.REGISTRATION_CHANNEL_ID)
     await ctx.send("## STARTED")
 
 @bot.event
 async def on_message(message):
     # Check if the message is in the desired channel
     if message.channel.id == constants.REGISTRATION_CHANNEL_ID:
-        if message.content.strip() == REGISTRATION_PROMPT:
+        if message.content.strip() == constants.REGISTRATION_PROMPT:
             await confirm(message.author.id,message.id)
 
         elif message.author.bot:
@@ -210,12 +213,12 @@ async def confirm(user_id, message_id):
                         await assign_role(user_id, constants.CONFIRMED_ROLE_ID)
 
                     # Create and save the CSV file
-                    saveAsCsv(constants.registered_teams, 'constants.registered_teams.csv')
+                    saveAsCsv(constants.registered_teams, 'registered_teams.csv')
                     
                     # Send the CSV file to the designated channel
                     channel = bot.get_channel(constants.MOD_CHANNEL_ID)
                     if channel:
-                        await channel.send(file=discord.File('constants.registered_teams.csv'))
+                        await channel.send(file=discord.File('registered_teams.csv'))
                     else:
                         print("Error: Designated channel not found.")
                     
