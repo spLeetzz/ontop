@@ -146,7 +146,6 @@ async def setprompt(ctx, *, prompt: str = None):
     except Exception as e:
         await ctx.send(f"An error occurred: {e}")
 
-
 @bot.command()
 @commands.has_permissions(manage_roles=True)
 async def start(ctx):
@@ -188,16 +187,24 @@ async def confirm(user_id, message_id):
         print("Error: Channel not found.")
 
     # Check if the user is already enrolled
-    team_name = validateRegistration(user_id)
-    if team_name:
+    team_info = validateRegistration(user_id)
+    if team_info:
         if user_id not in constants.registered_teams:  # Check if the user is not already registered
-            if available_slots() > 0:
+            if team_info == 'banned':
+                # Send a DM to the user with the reason for the ban
+                user = bot.get_user(user_id)
+                if user:
+                    await user.send("Someone from your team is banned atm, reach out to the support team via <#{constants.HELP_CHANNEL_ID}>.")
+                else:
+                    print("Error: User not found.")
+                await message.add_reaction('❌')
+            elif available_slots() > 0:
                 print("Available slots:", available_slots())
                 # Mark registration as confirmed
-                await confirm_registration(user_id, team_name)  # Pass team_name
+                await confirm_registration(user_id, team_info['team_name'])  # Pass team name
                 print("Registration confirmed for user:", user_id)
                 # Save the registered team's data
-                constants.registered_teams[user_id] = team_name
+                constants.registered_teams[user_id] = team_info['team_name']
                 print("Registered teams' data:", constants.registered_teams)  # Log the registered teams' data
                 print("Available slots:", available_slots())
                 await message.add_reaction('✅')
@@ -220,8 +227,7 @@ async def confirm(user_id, message_id):
                     else:
                         print("Error: Designated channel not found.")
                     
-                    await lock_channel(constants.REGISTRATION_CHANNEL_ID
-            )
+                    await lock_channel(constants.REGISTRATION_CHANNEL_ID)
 
                     # Allocate lobby channels
                     await allocate_lobby_channels()
@@ -637,13 +643,12 @@ def isAlreadyEnrolled(user_id):
 
 # Function to fetch data from the worksheet and update the cache
 def refresh_cache():
-    global cached_data
     while True:
         try:
             # Fetch all values from the worksheet
             rows = sheet.get_all_values()
             # Update the cached data
-            cached_data = rows
+            constants.cached_data = rows
             print("cached_data refreshed!")
             
         except Exception as e:
@@ -660,16 +665,34 @@ def validateRegistration(user_id):
     try:
         global cached_data
         # Use the cached data to validate registration
-        if cached_data:
-            for row in cached_data:
+        if constants.cached_data:
+            for row in constants.cached_data:
                 if str(user_id) in row:
+                    # Check if any player in the team has a banned role
+                    for discord_id in row[2::2]: # Discord IDs are in even indices
+                        if discord_id and discord_id.isdigit():
+                            member = bot.get_guild(constants.GUILD_ID).get_member(int(discord_id))
+                            if member:
+                                if any(role.id == constants.BANNED_ROLE_ID for role in member.roles):
+                                    print(f"Someone from User {user_id} wali team has a banned role.")
+                                    return 'banned'  # Return 'banned' if any player has a banned role
+                    # If no player has a banned role, return the team name
                     team_name = row[1]
                     return {'team_name': team_name}
         # If cached data is not available, fetch fresh data
         else:
-            cached_data = sheet.get_all_values()
-            for row in cached_data:
+            constants.cached_data = sheet.get_all_values()
+            for row in constants.cached_data:
                 if str(user_id) in row:
+                    # Check if any player in the team has a banned role
+                    for discord_id in row[2::2]: # Discord IDs are in even indices
+                        if discord_id and discord_id.isdigit():
+                            member = bot.get_guild(constants.GUILD_ID).get_member(int(discord_id))
+                            if member:
+                                if any(role.id == constants.BANNED_ROLE_ID for role in member.roles):
+                                    print(f"User with ID {user_id} has a banned role.")
+                                    return 'banned'  # Return 'banned' if any player has a banned role
+                    # If no player has a banned role, return the team name
                     team_name = row[1]
                     return {'team_name': team_name}
         # If the user's team is not found, return None
