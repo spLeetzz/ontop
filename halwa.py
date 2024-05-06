@@ -471,6 +471,7 @@ async def send_registration_details(user, team_name, player_igns):
 async def validate_enrollment(user, team_name, player_igns):
     validation_channel = bot.get_channel(constants.VALIDATION_CHANNEL_ID)
     if validation_channel:
+        existing_team_message = ""
         await validation_channel.send(f"Please validate the enrollment for team {team_name} by mentioning all your teammates in this channel. {user.mention}")
 
         start_time = datetime.datetime.now()
@@ -479,7 +480,7 @@ async def validate_enrollment(user, team_name, player_igns):
         while datetime.datetime.now() - start_time < timeout_duration:
             async for message in validation_channel.history(limit=None, after=start_time):
                 if message.author == user:
-                    guild = bot.get_guild(constants.YOUR_GUILD_ID)  # Replace YOUR_GUILD_ID with your actual guild ID
+                    guild = bot.get_guild(constants.GUILD_ID)  # Replace GUILD_ID with your actual guild ID
                     member = guild.get_member(user.id)  # Get the Member object
 
                     if member is None:
@@ -493,14 +494,13 @@ async def validate_enrollment(user, team_name, player_igns):
 
                     # Check if any of the mentioned players are already enrolled
                     for discord_id in player_discord_ids:
+                        text = isAlreadyEnrolled(discord_id)
 
-                        existing_team_message = f"Your enrollment can't proceed as either You or One of your teammate is already a part of some other team:\n"
-                        existing_team_message += isAlreadyEnrolled(discord_id)
-                        existing_team_message += f"\nIf they're not a part of listed team, reach out to the support team via <#{constants.HELP_CHANNEL_ID}>."
+                        if text:
+                            existing_team_message += f"Your enrollment can't proceed as either You or One of your teammate is already a part of some other team:\n"
+                            existing_team_message += text
+                            existing_team_message += f"\nIf they're not a part of listed team, reach out to the support team via <#{constants.HELP_CHANNEL_ID}>."
 
-                        
-
-                        if existing_team_message:
                             await user.send(existing_team_message)
                             await message.add_reaction("❌")
                             raise EnrollmentCompleteError
@@ -741,7 +741,7 @@ def saveAsCsv(teams_data, csv_file):
 async def assign_role(user_id, role_id):
     try:
         # Fetch the guild object
-        guild = bot.get_guild(constants.YOUR_GUILD_ID)  # Replace YOUR_GUILD_ID with your actual guild ID
+        guild = bot.get_guild(constants.GUILD_ID)  # Replace GUILD_ID with your actual guild ID
 
         # Fetch the member object corresponding to the user ID
         member = guild.get_member(user_id)
@@ -784,7 +784,7 @@ async def allocate_lobby_channels():
         lobby_role_name = f"Lobby {lobby_number}"
         lobby_channel_name = f"lobby-{lobby_number}"  # Adjust this according to your channel naming convention
 
-        guild = bot.get_guild(constants.YOUR_GUILD_ID) 
+        guild = bot.get_guild(constants.GUILD_ID) 
 
         # Fetch the lobby role and channel
         lobby_role = discord.utils.get(guild.roles, name=lobby_role_name)
