@@ -187,17 +187,27 @@ async def confirm(user_id, message_id):
         print("Error: Channel not found.")
 
     # Check if the user is already enrolled
-    team_info = validateRegistration(user_id)
+    team_info = validate_registration(user_id)
     if team_info:
         if user_id not in constants.registered_teams:  # Check if the user is not already registered
             if team_info == 'banned':
                 # Send a DM to the user with the reason for the ban
                 user = bot.get_user(user_id)
                 if user:
-                    await user.send("Someone from your team is banned atm, reach out to the support team via <#{constants.HELP_CHANNEL_ID}>.")
+                    await user.send("Someone from your team is banned at the moment.\nReach out to the support team in case there's an issue via <#{constants.HELP_CHANNEL_ID}>.")
                 else:
                     print("Error: User not found.")
                 await message.add_reaction('❌')
+
+            elif team_info == 'cooldown':
+                # Send a DM to the user informing about the cooldown
+                user = bot.get_user(user_id)
+                if user:
+                    await user.send("Someone from your team is on cooldown, please wait for the cooldown period to end\nReach out to the support team in case there's an issue via <#{constants.HELP_CHANNEL_ID}>.")
+                else:
+                    print("Error: User not found.")
+                await message.add_reaction('❌')
+
             elif available_slots() > 0:
                 print("Available slots:", available_slots())
                 # Mark registration as confirmed
@@ -215,7 +225,7 @@ async def confirm(user_id, message_id):
                     # After sending the message with the CSV file and all slots are filled
                     # Call the assign_role function for each confirmed user
                     for user_id in constants.registered_teams.keys():
-                        await assign_role(user_id, constants.CONFIRMED_ROLE_ID)
+                        await assign_role(user_id, constants.COOLDOWN_ROLE_ID)
 
                     # Create and save the CSV file
                     saveAsCsv(constants.registered_teams, 'registered_teams.csv')
@@ -661,40 +671,68 @@ refresh_thread = threading.Thread(target=refresh_cache)
 refresh_thread.daemon = True
 refresh_thread.start()
 
-def validateRegistration(user_id):
+def validate_registration(user_id):
     try:
         global cached_data
         # Use the cached data to validate registration
         if constants.cached_data:
             for row in constants.cached_data:
                 if str(user_id) in row:
-                    # Check if any player in the team has a banned role
+                    banned_flag = False
+                    cooldown_flag = False
+                    
+                    # Check if any player in the team has a banned or cooldown role
                     for discord_id in row[2::2]: # Discord IDs are in even indices
                         if discord_id and discord_id.isdigit():
                             member = bot.get_guild(constants.GUILD_ID).get_member(int(discord_id))
                             if member:
-                                if any(role.id == constants.BANNED_ROLE_ID for role in member.roles):
-                                    print(f"Someone from User {user_id} wali team has a banned role.")
-                                    return 'banned'  # Return 'banned' if any player has a banned role
-                    # If no player has a banned role, return the team name
-                    team_name = row[1]
-                    return {'team_name': team_name}
+                                for role in member.roles:
+                                    if role.id == constants.BANNED_ROLE_ID:
+                                        print(f"Someone from User {user_id} wali team has a banned role.")
+                                        banned_flag = True
+                                    elif role.id == constants.COOLDOWN_ROLE_ID:
+                                        print(f"Someone from User {user_id} wali team is on cooldown.")
+                                        cooldown_flag = True
+                                    
+                    if banned_flag:
+                        return 'banned'
+                    elif cooldown_flag:
+                        return 'cooldown'
+                    else:
+                        # If no player has a banned or cooldown role, return the team name
+                        team_name = row[1]
+                        return {'team_name': team_name}
+        
         # If cached data is not available, fetch fresh data
         else:
             constants.cached_data = sheet.get_all_values()
             for row in constants.cached_data:
                 if str(user_id) in row:
-                    # Check if any player in the team has a banned role
+                    banned_flag = False
+                    cooldown_flag = False
+                    
+                    # Check if any player in the team has a banned or cooldown role
                     for discord_id in row[2::2]: # Discord IDs are in even indices
                         if discord_id and discord_id.isdigit():
                             member = bot.get_guild(constants.GUILD_ID).get_member(int(discord_id))
                             if member:
-                                if any(role.id == constants.BANNED_ROLE_ID for role in member.roles):
-                                    print(f"User with ID {user_id} has a banned role.")
-                                    return 'banned'  # Return 'banned' if any player has a banned role
-                    # If no player has a banned role, return the team name
-                    team_name = row[1]
-                    return {'team_name': team_name}
+                                for role in member.roles:
+                                    if role.id == constants.BANNED_ROLE_ID:
+                                        print(f"Someone from User {user_id} wali team has a banned role.")
+                                        banned_flag = True
+                                    elif role.id == constants.COOLDOWN_ROLE_ID:
+                                        print(f"Someone from User {user_id} wali team is on cooldown.")
+                                        cooldown_flag = True
+                                    
+                    if banned_flag:
+                        return 'banned'
+                    elif cooldown_flag:
+                        return 'cooldown'
+                    else:
+                        # If no player has a banned or cooldown role, return the team name
+                        team_name = row[1]
+                        return {'team_name': team_name}
+        
         # If the user's team is not found, return None
         return None
     except Exception as e:
