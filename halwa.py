@@ -194,7 +194,7 @@ async def confirm(user_id, message_id):
                 # Send a DM to the user with the reason for the ban
                 user = bot.get_user(user_id)
                 if user:
-                    await user.send("Someone from your team is banned at the moment.\nReach out to the support team in case there's an issue via <#{constants.HELP_CHANNEL_ID}>.")
+                    await user.send(f"Someone from your team is banned at the moment.\nReach out to the support team in case there's an issue via <#{constants.HELP_CHANNEL_ID}>.")
                 else:
                     print("Error: User not found.")
                 await message.add_reaction('❌')
@@ -203,7 +203,7 @@ async def confirm(user_id, message_id):
                 # Send a DM to the user informing about the cooldown
                 user = bot.get_user(user_id)
                 if user:
-                    await user.send("Someone from your team is on cooldown, please wait for the cooldown period to end\nReach out to the support team in case there's an issue via <#{constants.HELP_CHANNEL_ID}>.")
+                    await user.send(f"Someone from your team is on cooldown, please wait for the cooldown period to end\nReach out to the support team in case there's an issue via <#{constants.HELP_CHANNEL_ID}>.")
                 else:
                     print("Error: User not found.")
                 await message.add_reaction('❌')
