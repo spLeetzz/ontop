@@ -100,14 +100,31 @@ class TournamentDropdown(discord.ui.Select):
         # Handle the interaction response based on the selected value
         selected_value = self.values[0]
         user = interaction.user
+
+        # Check if a process is already running
+        if constants.running_processes.get(user.id):
+            await interaction.response.send_message("Another process is already running. Please wait until the previous process is finished (up to 2 minutes of inactivity).", ephemeral=True,delete_after=30)
+            return
+        
         if selected_value == "enroll":
+            # Check if the user is already enrolled
+            team_details = isAlreadyEnrolled(user.id)
+            if team_details:
+                existing_team_message = f"{user.mention} Your enrollment can't proceed as either You or One of your teammates is already a part of some other team:\n"
+                existing_team_message += team_details
+                existing_team_message += f"\nIf they're not a part of the listed team, reach out to the support team via <#{constants.HELP_CHANNEL_ID}>."
+                await interaction.response.send_message(existing_team_message, ephemeral=True,delete_after=300)
+                return
+            
             await interaction.response.send_message("Enrollment Started, Check your DM!",ephemeral=True, delete_after=30)
             await enrollTeam(user)
             await interaction.message.edit(view=TournamentView())
+
         elif selected_value == "update":
             await interaction.response.send_message("Update selected, Check your DM",ephemeral=True, delete_after=30)
             await updateTeam(user)
             await interaction.message.edit(view=TournamentView())
+
         elif selected_value == "delete":
             await interaction.response.send_message("Delete selected, Check your DM!",ephemeral=True, delete_after=30)
             await deleteTeam(user)
@@ -194,7 +211,7 @@ async def confirm(user_id, message_id):
                 # Send a DM to the user with the reason for the ban
                 user = bot.get_user(user_id)
                 if user:
-                    await user.send(f"Someone from your team is banned at the moment.\nReach out to the support team in case there's an issue via <#{constants.HELP_CHANNEL_ID}>.")
+                    await bot.get_channel(constants.SCRIMS_LOG_CHANNEL_ID).send(f"{user.mention} Someone from your team is banned at the moment.\nReach out to the support team in case there's an issue via <#{constants.HELP_CHANNEL_ID}>.")
                 else:
                     print("Error: User not found.")
                 await message.add_reaction('❌')
@@ -203,7 +220,7 @@ async def confirm(user_id, message_id):
                 # Send a DM to the user informing about the cooldown
                 user = bot.get_user(user_id)
                 if user:
-                    await user.send(f"Someone from your team is on cooldown, please wait for the cooldown period to end\nReach out to the support team in case there's an issue via <#{constants.HELP_CHANNEL_ID}>.")
+                    await bot.get_channel(constants.SCRIMS_LOG_CHANNEL_ID).send(f"{user.mention} Someone from your team is on cooldown, please wait for the cooldown period to end\nReach out to the support team in case there's an issue via <#{constants.HELP_CHANNEL_ID}>.")
                 else:
                     print("Error: User not found.")
                 await message.add_reaction('❌')
@@ -257,29 +274,15 @@ async def confirm(user_id, message_id):
 
 async def enrollTeam(user):
 
-    # If a process is already running, ignore the request
-    if constants.running_processes.get(user.id):
-        await user.send("Another process is already running.\nWait until previous process is timed out (that'll take upto 2 mins of inactivity)")
-        return
-
     # Set the flag to indicate that a process is running
     constants.running_processes[user.id] = True
+    thread = await create_private_thread(user, "enroll")
 
     try:
-        # Check if the user is already enrolled
-        team_details = isAlreadyEnrolled(user.id)
-
-        if team_details:
-            existing_team_message = f"Your enrollment can't proceed as either You or One of your teammate is already a part of some other team:\n"
-            existing_team_message += team_details
-            existing_team_message += f"\nIf they're not a part of listed team, reach out to the support team via <#{constants.HELP_CHANNEL_ID}>."
-            await user.send(existing_team_message)
-            raise EnrollmentCompleteError
-
         # Loop until a unique team name is provided
         while True:
             # Get the team name from the user
-            team_name = await get_user_response(user, "Please enter your team name:")
+            team_name = await get_user_response_in_thread(user, thread, "Please enter your team name:")
 
             # Check if the team name is empty
             if not team_name or team_name == None:
@@ -287,140 +290,149 @@ async def enrollTeam(user):
 
             # Check if the team name already exists
             if not is_team_name_unique(team_name):
-                await user.send("This team name already exists.\nYou can modify team name slightly for it to pass.\nEx: Team Chamabal Ke Daku can be written any way like ChambalKeDaku, Chambal Thukai, Chambal ESP, Team Chambal, Chambal Squad. Lets restart your enrollment my friend!")
+                await thread.send(f"{user.mention} This team name already exists.\nYou can modify the team name slightly for it to pass.\nEx: Team Chambal Ke Daku can be written any way like ChambalKeDaku, Chambal Thukai, Chambal ESP, Team Chambal, Chambal Squad. Let's restart your enrollment, my friend!")
             else:
                 break  # Exit the loop if a unique team name is provided
 
-        # # Check if team_name starts with "Team " and remove it
-        # if team_name.lower().startswith("team "):
-        #     team_name = team_name[5:]
-
-        player1_ign = await get_user_response(user, "Please enter Player 1's IGN:")
-        if not player1_ign:
-            raise ValueError("Player 1's IGN cannot be empty.")
-
-        player2_ign = await get_user_response(user, "Please enter Player 2's IGN:")
-        if not player2_ign:
-            raise ValueError("Player 2's IGN cannot be empty.")
-
-        player3_ign = await get_user_response(user, "Please enter Player 3's IGN:")
-        if not player3_ign:
-            raise ValueError("Player 3's IGN cannot be empty.")
-
-        player4_ign = await get_user_response(user, "Please enter Player 4's IGN:")
-        if not player4_ign:
-            raise ValueError("Player 4's IGN cannot be empty.")
+        # Get IGNs from players
+        player_igns = []
+        for i in range(1, 5):
+            player_ign = await get_user_response_in_thread(user, thread, f"Please enter Player {i}'s IGN:")
+            if not player_ign:
+                raise ValueError(f"Player {i}'s IGN cannot be empty.")
+            player_igns.append(player_ign)
 
         # Ask if there is a fifth player
-        fifth_player_response = await ask_yes_no_question(user, "Do you have a fifth player?")
-        player5_ign = None
+        fifth_player_response = await ask_yes_no_question_in_thread(user, thread, "Do you have a fifth player?")
         if fifth_player_response == 'yes':
-            player5_ign = await get_user_response(user, "Please enter Player 5's IGN:")
+            player5_ign = await get_user_response_in_thread(user, thread, "Please enter Player 5's IGN:")
             if not player5_ign:
                 raise ValueError("Player 5's IGN cannot be empty.")
-
-        # Write registration details to Google Sheets
-        player_igns = [player1_ign, player2_ign, player3_ign, player4_ign]
-        if player5_ign:
             player_igns.append(player5_ign)
 
-        await send_registration_details(user, team_name, player_igns)
-        await validate_enrollment(user, team_name, player_igns)
+        # Write registration details to Google Sheets
+        await send_registration_details(user, team_name, player_igns, thread)
+        validate_result = await validate_enrollment(user, team_name, player_igns, thread)
+    
+        # Delete thread if validation fails
+        if not validate_result:
+            await thread.delete()
+            return
 
     except EnrollmentCompleteError:
-        pass  # Do nothing, the code execution will stop  
+        # Schedule the deletion of the thread after 5 minutes
+        await asyncio.sleep(300)  # 300 seconds = 5 minutes
+        await thread.delete()
+        pass  # Do nothing, the code execution will stop
     except asyncio.TimeoutError:
-        await user.send("Enrollment timed out. Please try again later.")
+        await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} Enrollment timed out. Please try again later.")
+        await thread.delete()
     except ValueError as ve:
-        await user.send(f"An error occurred during enrollemnt: {ve}")
+        await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} An error occurred during enrollment: {ve}")
+        await thread.delete()
     except Exception as e:
-        await user.send(f"An unexpected error occurred during enrollment: {e}")
+        await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} An unexpected error occurred during enrollment: {e}")
+        await thread.delete()
 
     finally:
         # Reset the flag once the process is finished for this user
         constants.running_processes.pop(user.id, None)
 
+async def create_private_thread(user, name_suffix):
+    # Create the private thread with the provided suffix
+    thread_name = f"{user.name}-{name_suffix}"
+    private_thread = await bot.get_guild(constants.GUILD_ID).get_channel(constants.ENROLLMENT_CHANNEL_ID).create_thread(name=thread_name)
+
+    # Add the user to the private thread
+    await private_thread.add_user(user)
+
+    # Return the private thread
+    return private_thread
+
 async def updateTeam(user):
-    
-    # If a process is already running, ignore the request
-    if constants.running_processes.get(user.id):
-        await user.send("Another process is already running.\nWait until previous process is timed out (that'll take upto 2 mins of inactivity)")
-        return
 
     # Set the flag to indicate that a process is running
     constants.running_processes[user.id] = True
+    thread = await create_private_thread(user, "update")
 
     try:
         # Check if the user is already enrolled
         existing_team_message = isAlreadyEnrolled(user.id)
         if existing_team_message:
-            await user.send(existing_team_message)
+            await thread.send(existing_team_message)
         else:
-            await user.send("You aren't enrolled in any team as of now. Please select 'Enroll' to create one.")
+            await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} You aren't enrolled in any team as of now. Please select 'Enroll' to create one.")
+            await thread.delete()
             return
         
         # Send a message to confirm the user's decision to update their team
         confirmation_message = "Are you sure you want to update your team?\nYou will need to add complete details again of each player if you continue."
 
-        response = await ask_yes_no_question(user, confirmation_message)
+        response = await ask_yes_no_question_in_thread(user, thread, confirmation_message)
         if response == 'yes':
             constants.running_processes = False
             delete_team_from_sheet(user.id,constants.GOOGLE_SHEET_ID)
-            await user.send("Your previous team data was deleted so even if you are timed out from here, you will need to start enrollment fresh.\n\nLet's Start new enrollment!")
+            await thread.send("Your previous team data was deleted so even if you are timed out from here, you will need to start enrollment fresh.\n\nLet's Start new enrollment!")
             constants.running_processes.pop(user.id, None)
             await enrollTeam(user)
         else:
-            await user.send("Update cancelled.")
+            await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user} Update cancelled.")
+            await thread.delete()
             return
  
     except asyncio.TimeoutError:
-        await user.send("Update timed out. Please try again later.")
+        await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} Update timed out. Please try again later.")
+        await thread.delete()
     except ValueError as ve:
-        await user.send(f"An error occurred during update: {ve}")
+        await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} An error occurred during update: {ve}")
+        await thread.delete()
     except Exception as e:
-        await user.send(f"An unexpected error occurred during update: {e}")
+        await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} An unexpected error occurred during update: {e}")
+        await thread.delete()
         
     finally:
         # Reset the flag once the process is finished for this user
         constants.running_processes.pop(user.id, None)
         
 async def deleteTeam(user):
-    
-    # If a process is already running, ignore the request
-    if constants.running_processes.get(user.id):
-        await user.send("Another process is already running.\nWait until previous process is timed out (that'll take upto 2 mins of inactivity)")
-        return
 
     # Set the flag to indicate that a process is running
     constants.running_processes[user.id] = True
+    thread = await create_private_thread(user, "delete")
 
     try:
         # Check if the user is already enrolled
         existing_team_message = isAlreadyEnrolled(user.id)
         if existing_team_message:
-            await user.send(existing_team_message)
+            await thread.send(existing_team_message)
         else:
-            await user.send("You aren't enrolled in any team as of now. Please select 'Enroll' to create one.")
+            await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} You aren't enrolled in any team as of now. Please select 'Enroll' to create one.")
+            await thread.delete()
             return
         
         confirmation_message = "Are you sure you want to delete your team? (yes/no)\nIt cant be reverted."
 
-        response = await ask_yes_no_question(user, confirmation_message)
+        response = await ask_yes_no_question_in_thread(user, confirmation_message)
         if response == 'yes':
             constants.running_processes = False
             delete_team_from_sheet(user.id,constants.GOOGLE_SHEET_ID)
-            await user.send("Deleted successfully")
+            await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} Your team was deleted successfully.")
+            await thread.delete()
             return
         else:
-            await user.send("Delete cancelled.")
+            await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user} Delete cancelled.")
+            await thread.delete()
             return
         
     except asyncio.TimeoutError:
-        await user.send("Delete timed out. Please try again later.")
+        await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} Delete timed out. Please try again later.")
+        await thread.delete()
     except ValueError as ve:
-        await user.send(f"An error occurred during delete: {ve}")
+        await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} An error occurred during delete: {ve}")
+        await thread.delete()
     except Exception as e:
-        await user.send(f"An unexpected error occurred during delete: {e}")
+        await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} An unexpected error occurred during delete: {e}")
+        await thread.delete()
  
     finally:
         # Reset the flag once the process is finished for this user
@@ -429,27 +441,67 @@ async def deleteTeam(user):
 class EnrollmentCompleteError(Exception):
     pass
 
-async def get_user_response(user, prompt=""):
+# async def get_user_response(user, prompt=""):
+#     try:
+#         await user.send(prompt)
+#         response = await bot.wait_for('message', check=lambda msg: msg.author == user and msg.channel.type == discord.ChannelType.private, timeout=120)
+#         if response.content.strip():  # Check if the response is not empty after stripping whitespace
+#             return response.content
+#         else:
+#             await user.send("Please provide a non-empty response.")
+#             return await get_user_response(user, prompt)  # Ask for response again recursively
+#     except asyncio.TimeoutError:
+#         await user.send("Response timed out. Please try again later.")
+#         return None
+
+async def get_user_response_in_thread(user, channel, prompt=""):
     try:
-        await user.send(prompt)
-        response = await bot.wait_for('message', check=lambda msg: msg.author == user and msg.channel.type == discord.ChannelType.private, timeout=120)
+        await channel.send(prompt)
+        response = await bot.wait_for('message', check=lambda msg: msg.author == user and msg.channel == channel, timeout=120)
         if response.content.strip():  # Check if the response is not empty after stripping whitespace
             return response.content
         else:
-            await user.send("Please provide a non-empty response.")
-            return await get_user_response(user, prompt)  # Ask for response again recursively
+            await channel.send("Please provide a non-empty response.")
+            return await get_user_response_in_thread(user, channel, prompt)  # Ask for response again recursively
     except asyncio.TimeoutError:
-        await user.send("Response timed out. Please try again later.")
+        await channel.send("Response timed out. Please try again later.")
         return None
 
-async def ask_yes_no_question(user, question):
+# async def ask_yes_no_question(user, question):
+#     try:
+#         # Ask the user the question
+#         await user.send(question + " (yes/no)")
+
+#         # Wait for the user's response with a timeout of 2 minutes (120 seconds)
+#         response = await asyncio.wait_for(
+#             bot.wait_for('message', check=lambda msg: msg.author == user and msg.channel.type == discord.ChannelType.private),
+#             timeout=120
+#         )
+
+#         # Get the content of the response and convert it to lowercase
+#         response = response.content.lower()
+
+#         # Check if the response is either 'yes' or 'no'
+#         if response in ['yes', 'no']:
+#             return response
+#         else:
+#             await user.send("Enter either 'yes' or 'no'.")
+#             # Recursively call the function to ask the question again
+#             return await ask_yes_no_question(user, question)
+            
+#     except asyncio.TimeoutError:
+#         # Handle the case when the timeout occurs
+#         await user.send("Response timed out. Please try again later.")
+#         return None
+
+async def ask_yes_no_question_in_thread(user, channel, question):
     try:
-        # Ask the user the question
-        await user.send(question + " (yes/no)")
+        # Ask the user the question in the thread
+        await channel.send(question + " (yes/no)")
 
         # Wait for the user's response with a timeout of 2 minutes (120 seconds)
         response = await asyncio.wait_for(
-            bot.wait_for('message', check=lambda msg: msg.author == user and msg.channel.type == discord.ChannelType.private),
+            bot.wait_for('message', check=lambda msg: msg.author == user and msg.channel == channel),
             timeout=120
         )
 
@@ -460,41 +512,39 @@ async def ask_yes_no_question(user, question):
         if response in ['yes', 'no']:
             return response
         else:
-            await user.send("Enter either 'yes' or 'no'.")
+            await channel.send("Enter either 'yes' or 'no'.")
             # Recursively call the function to ask the question again
-            return await ask_yes_no_question(user, question)
+            return await ask_yes_no_question_in_thread(user, channel, question)
             
     except asyncio.TimeoutError:
         # Handle the case when the timeout occurs
-        await user.send("Response timed out. Please try again later.")
+        await channel.send("Response timed out. Please try again later.")
         return None
 
-async def send_registration_details(user, team_name, player_igns):
+async def send_registration_details(user, team_name, player_igns, thread):
     registration_details = f"## Copy the meta data beneath\n\n```Team {team_name}\n\n"
     for ign in player_igns:
         registration_details += f"{ign} -\n"
     registration_details += "```"
 
-    await user.send(registration_details)
-    await user.send(f"\nValidate your details by mentioning players against their IGNs in <#{constants.VALIDATION_CHANNEL_ID}>.")
+    await thread.send(registration_details)
+    await thread.send(f"\nValidate your details by mentioning players against their IGNs in <#{constants.VALIDATION_CHANNEL_ID}> <@{user.id}>.")
 
-async def validate_enrollment(user, team_name, player_igns):
+async def validate_enrollment(user, team_name, player_igns, thread):
     validation_channel = bot.get_channel(constants.VALIDATION_CHANNEL_ID)
     if validation_channel:
         existing_team_message = ""
         await validation_channel.send(f"Please validate the enrollment for team {team_name} by mentioning all your teammates in this channel. {user.mention}")
 
         start_time = datetime.datetime.now()
-        timeout_duration = datetime.timedelta(minutes=10)  # Set a timeout duration of 10 minutes
+        timeout_duration = datetime.timedelta(minutes=1)  # Set a timeout duration of 10 minutes
 
         while datetime.datetime.now() - start_time < timeout_duration:
             async for message in validation_channel.history(limit=None, after=start_time):
                 if message.author == user:
-                    guild = bot.get_guild(constants.GUILD_ID)  # Replace GUILD_ID with your actual guild ID
-                    member = guild.get_member(user.id)  # Get the Member object
 
-                    if member is None:
-                        await user.send("Failed to retrieve your member information. Please try again later or contact the server administrator.")
+                    if bot.get_guild(constants.GUILD_ID).get_member(user.id) is None:
+                        await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} Failed to retrieve your member information. Please try again later or contact the server administrator.")
                         return False
 
                     mentioned_users = message.mentions
@@ -511,27 +561,26 @@ async def validate_enrollment(user, team_name, player_igns):
                             existing_team_message += text
                             existing_team_message += f"\nIf they're not a part of listed team, reach out to the support team via <#{constants.HELP_CHANNEL_ID}>."
 
-                            await user.send(existing_team_message)
+                            await thread.send(existing_team_message)
                             await message.add_reaction("❌")
                             raise EnrollmentCompleteError
 
                     # Check if at least 4 users are mentioned
                     if len(player_discord_ids) < 4:
-                        await user.send("You didn't mentioned all of your teammates. Please restart the enrollment process and mention correctly next time.")
+                        await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} You didn't mentioned all of your teammates. Please restart the enrollment process and mention correctly next time.")
                         await message.add_reaction("❌")
                         return False
 
                     # Check if at least 4 mentioned users have the required role
-                    for mentioned_user in mentioned_users[:4]:
-                        member = guild.get_member(mentioned_user.id)
-                        if member is None or not any(role.name == constants.REQUIRED_ROLE_NAME for role in member.roles):
-                            await user.send("One or more teammates haven't verified on the discord server yet. Reapply once it's done.")
+                    for discord_id in player_discord_ids[:]:
+                        if bot.get_guild(constants.GUILD_ID).get_member(discord_id) is None or not any(role.name == constants.REQUIRED_ROLE_NAME for role in bot.get_guild(constants.GUILD_ID).get_member(discord_id).roles):
+                            await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} One or more teammates haven't verified on the discord server yet. Reapply once it's done.")
                             await message.add_reaction("❌")
                             return False
                 
                     # All validation checks passed
                     await message.add_reaction("✅")
-                    await user.send(f"## Enrollment for team {team_name} validated.")
+                    await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"## Enrollment for team {team_name} validated. {user.mention} ")
 
                     # Write enrollment details to Google Sheets
                     write_to_sheet(user.id, team_name, player_igns, player_discord_ids)
@@ -539,12 +588,12 @@ async def validate_enrollment(user, team_name, player_igns):
                     return True
 
         # Timeout reached, inform the user
-        await user.send("Validation timeout reached. Please reapply.")
+        await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} Validation timeout reached. Please reapply.")
+        await thread.delete()
         return False
     else:
         print("Validation channel not found.")
         return False
-
     
 # Function to write enrollment details to Google Sheets
 def write_to_sheet(initiator_id, team_name, player_igns, player_discord_ids):
@@ -750,7 +799,7 @@ async def confirm_registration(user_id, team_name):
         user = await bot.fetch_user(user_id)
         
         # Send a message to the user confirming their registration
-        await user.send("Your registration has been confirmed.")
+        await bot.get_channel(constants.SCRIMS_LOG_CHANNEL_ID).send(f"{user.mention} Your registration has been confirmed.")
     except Exception as e:
         print(f"An error occurred while confirming registration: {e}")
 
@@ -760,7 +809,7 @@ async def reject_registration(user_id, reason):
         # Fetch the discord.User object corresponding to the user_id
         user = await bot.fetch_user(user_id)
         # Implement your logic to reject the registration
-        await user.send(reason)
+        await bot.get_channel(constants.SCRIMS_LOG_CHANNEL_ID).send(f"{user.mention} {reason}")
     except Exception as e:
         print(f"An error occurred while confirming registration: {e}")
 
@@ -844,7 +893,7 @@ async def allocate_lobby_channels():
                     await member.add_roles(lobby_role)
 
                     # Mention the lobby channel in a message
-                    await member.send(f"Your team has been assigned to {lobby_role_name}. Access your lobby channel here: {lobby_channel.mention}")
+                    await bot.get_channel(constants.SCRIMS_LOG_CHANNEL_ID).send(f"{member.mention} Your team has been assigned to {lobby_role_name}. Access your lobby channel here: {lobby_channel.mention}")
                 else:
                     print(f"Member with user ID {user_id} not found.")
                 
