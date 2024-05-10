@@ -534,6 +534,10 @@ async def validate_enrollment(user, team_name, player_igns, thread):
     validation_channel = bot.get_channel(constants.VALIDATION_CHANNEL_ID)
     if validation_channel:
         existing_team_message = ""
+        
+        # Allow user to send messages in the validation channel
+        await validation_channel.set_permissions(user, send_messages=True, view_channel=True)
+        
         await validation_channel.send(f"Please validate the enrollment for team {team_name} by mentioning all your teammates in this channel. {user.mention}")
 
         start_time = datetime.datetime.now()
@@ -572,24 +576,36 @@ async def validate_enrollment(user, team_name, player_igns, thread):
                         return False
 
                     # Check if at least 4 mentioned users have the required role
+                    verified_count = 0
                     for discord_id in player_discord_ids[:]:
                         if bot.get_guild(constants.GUILD_ID).get_member(discord_id) is None or not any(role.name == constants.REQUIRED_ROLE_NAME for role in bot.get_guild(constants.GUILD_ID).get_member(discord_id).roles):
-                            await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} One or more teammates haven't verified on the discord server yet. Reapply once it's done.")
-                            await message.add_reaction("❌")
-                            return False
+                            verified_count += 1
                 
+                    if verified_count < 4:
+                        await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} At least 4 teammates must have the required role to proceed with enrollment. Reapply once they have verified.")
+                        await message.add_reaction("❌")
+                        return False
+                    
                     # All validation checks passed
                     await message.add_reaction("✅")
                     await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"## Enrollment for team {team_name} validated. {user.mention} ")
 
                     # Write enrollment details to Google Sheets
                     write_to_sheet(user.id, team_name, player_igns, player_discord_ids)
+                    await thread.delete()
+                    
+                    # Lock channel permissions for the user after successful validation
+                    await validation_channel.set_permissions(user, send_messages=False, view_channel=False)
                     
                     return True
 
         # Timeout reached, inform the user
         await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} Validation timeout reached. Please reapply.")
         await thread.delete()
+        
+        # Lock channel permissions for the user after timeout
+        await validation_channel.set_permissions(user, send_messages=False, view_channel=False)
+        
         return False
     else:
         print("Validation channel not found.")
