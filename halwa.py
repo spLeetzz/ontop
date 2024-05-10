@@ -370,7 +370,7 @@ async def updateTeam(user):
 
         response = await ask_yes_no_question_in_thread(user, thread, confirmation_message)
         if response == 'yes':
-            constants.running_processes = False
+            constants.running_processes[user.id] = False
             delete_team_from_sheet(user.id,constants.GOOGLE_SHEET_ID)
             await thread.send("Your previous team data was deleted so even if you are timed out from here, you will need to start enrollment fresh.\n\nLet's Start new enrollment!")
             constants.running_processes.pop(user.id, None)
@@ -414,7 +414,7 @@ async def deleteTeam(user):
 
         response = await ask_yes_no_question_in_thread(user, thread, confirmation_message)
         if response == 'yes':
-            constants.running_processes = False
+            constants.running_processes[user.id] = False
             delete_team_from_sheet(user.id,constants.GOOGLE_SHEET_ID)
             await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} Your team was deleted successfully.")
             await thread.delete()
