@@ -412,7 +412,7 @@ async def deleteTeam(user):
         
         confirmation_message = "Are you sure you want to delete your team? (yes/no)\nIt cant be reverted."
 
-        response = await ask_yes_no_question_in_thread(user, confirmation_message)
+        response = await ask_yes_no_question_in_thread(user, thread, confirmation_message)
         if response == 'yes':
             constants.running_processes = False
             delete_team_from_sheet(user.id,constants.GOOGLE_SHEET_ID)
