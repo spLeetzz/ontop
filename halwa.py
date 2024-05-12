@@ -441,7 +441,6 @@ async def deleteTeam(user):
 class EnrollmentError(Exception):
     def __init__(self, timeout=300):
         self.timeout = timeout
-    pass
 
 # async def get_user_response(user, prompt=""):
 #     try:
