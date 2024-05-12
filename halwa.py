@@ -116,17 +116,17 @@ class TournamentDropdown(discord.ui.Select):
                 await interaction.response.send_message(existing_team_message, ephemeral=True,delete_after=300)
                 return
             
-            await interaction.response.send_message("Enrollment Started, Check your DM!",ephemeral=True, delete_after=30)
+            await interaction.response.send_message("Enrollment Started, Check your mentions!",ephemeral=True, delete_after=30)
             await enrollTeam(user)
             await interaction.message.edit(view=TournamentView())
 
         elif selected_value == "update":
-            await interaction.response.send_message("Update selected, Check your DM",ephemeral=True, delete_after=30)
+            await interaction.response.send_message("Update selected, Check your mentions!",ephemeral=True, delete_after=30)
             await updateTeam(user)
             await interaction.message.edit(view=TournamentView())
 
         elif selected_value == "delete":
-            await interaction.response.send_message("Delete selected, Check your DM!",ephemeral=True, delete_after=30)
+            await interaction.response.send_message("Delete selected, Check your mentions!",ephemeral=True, delete_after=30)
             await deleteTeam(user)
             await interaction.message.edit(view=TournamentView())
 
@@ -208,7 +208,7 @@ async def confirm(user_id, message_id):
     if team_info:
         if user_id not in constants.registered_teams:  # Check if the user is not already registered
             if team_info == 'banned':
-                # Send a DM to the user with the reason for the ban
+                # Send a message to the user with the reason for the ban
                 user = bot.get_user(user_id)
                 if user:
                     await bot.get_channel(constants.SCRIMS_LOG_CHANNEL_ID).send(f"{user.mention} Someone from your team is banned at the moment.\nReach out to the support team in case there's an issue via <#{constants.HELP_CHANNEL_ID}>.")
@@ -217,7 +217,7 @@ async def confirm(user_id, message_id):
                 await message.add_reaction('❌')
 
             elif team_info == 'cooldown':
-                # Send a DM to the user informing about the cooldown
+                # Send a message to the user informing about the cooldown
                 user = bot.get_user(user_id)
                 if user:
                     await bot.get_channel(constants.SCRIMS_LOG_CHANNEL_ID).send(f"{user.mention} Someone from your team is on cooldown, please wait for the cooldown period to end\nReach out to the support team in case there's an issue via <#{constants.HELP_CHANNEL_ID}>.")
