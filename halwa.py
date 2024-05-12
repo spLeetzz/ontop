@@ -559,7 +559,7 @@ async def validate_enrollment(user, team_name, player_igns, thread):
         if len(player_discord_ids) < 4:
             await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} You didn't mention all of your teammates. Please restart the enrollment process and mention correctly next time.")
             await response.add_reaction("❌")
-            return False
+            raise EnrollmentCompleteError
 
         # Check if at least 4 mentioned users have the required role
         for discord_id in player_discord_ids:
