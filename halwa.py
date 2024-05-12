@@ -206,26 +206,26 @@ async def confirm(user_id, message_id):
     # Check if the user is already enrolled
     team_info = validate_registration(user_id)
     if team_info:
-        if user_id not in constants.registered_teams:  # Check if the user is not already registered
-            if team_info == 'banned':
-                # Send a message to the user with the reason for the ban
-                user = bot.get_user(user_id)
-                if user:
-                    await bot.get_channel(constants.SCRIMS_LOG_CHANNEL_ID).send(f"{user.mention} Someone from your team is banned at the moment.\nReach out to the support team in case there's an issue via <#{constants.HELP_CHANNEL_ID}>.")
-                else:
-                    print("Error: User not found.")
-                await message.add_reaction('❌')
+        if team_info == 'banned':
+            # Send a message to the user with the reason for the ban
+            user = bot.get_user(user_id)
+            if user:
+                await bot.get_channel(constants.SCRIMS_LOG_CHANNEL_ID).send(f"{user.mention} Someone from your team is banned at the moment.\nReach out to the support team in case there's an issue via <#{constants.HELP_CHANNEL_ID}>.")
+            else:
+                print("Error: User not found.")
+            await message.add_reaction('❌')
 
-            elif team_info == 'cooldown':
-                # Send a message to the user informing about the cooldown
-                user = bot.get_user(user_id)
-                if user:
-                    await bot.get_channel(constants.SCRIMS_LOG_CHANNEL_ID).send(f"{user.mention} Someone from your team is on cooldown, please wait for the cooldown period to end\nReach out to the support team in case there's an issue via <#{constants.HELP_CHANNEL_ID}>.")
-                else:
-                    print("Error: User not found.")
-                await message.add_reaction('❌')
+        elif team_info == 'cooldown':
+            # Send a message to the user informing about the cooldown
+            user = bot.get_user(user_id)
+            if user:
+                await bot.get_channel(constants.SCRIMS_LOG_CHANNEL_ID).send(f"{user.mention} Someone from your team is on cooldown, please wait for the cooldown period to end\nReach out to the support team in case there's an issue via <#{constants.HELP_CHANNEL_ID}>.")
+            else:
+                print("Error: User not found.")
+            await message.add_reaction('❌')
 
-            elif available_slots() > 0:
+        elif user_id not in constants.registered_teams:  # Check if the user is not already registered
+            if available_slots() > 0:
                 print("Available slots:", available_slots())
                 # Mark registration as confirmed
                 await confirm_registration(user_id, team_info['team_name'])  # Pass team name
@@ -236,13 +236,11 @@ async def confirm(user_id, message_id):
                 print("Available slots:", available_slots())
                 await message.add_reaction('✅')
                 
+                # Assign COOLDOWN_ROLE_ID to the confirmed user
+                await assign_role(user_id, constants.COOLDOWN_ROLE_ID)
+                
                 # Check if all slots are filled
                 if available_slots() == 0:
-
-                    # After sending the message with the CSV file and all slots are filled
-                    # Call the assign_role function for each confirmed user
-                    for user_id in constants.registered_teams.keys():
-                        await assign_role(user_id, constants.COOLDOWN_ROLE_ID)
 
                     # Create and save the CSV file
                     saveAsCsv(constants.registered_teams, 'registered_teams.csv')
@@ -287,6 +285,10 @@ async def enrollTeam(user):
             # Check if the team name is empty
             if not team_name or team_name == None:
                 raise ValueError("Team name cannot be empty.")
+            
+            # Check if the team name is banned or on cooldown
+            if team_name.lower() == "cooldown" or team_name.lower() == "banned":
+                await thread.send(f"{user.mention} This team name is not allowed. Please choose a different team name.")
 
             # Check if the team name already exists
             if not is_team_name_unique(team_name):
@@ -816,17 +818,8 @@ def saveAsCsv(teams_data, csv_file):
 # Function to assign role to a user
 async def assign_role(user_id, role_id):
     try:
-        # Fetch the guild object
-        guild = bot.get_guild(constants.GUILD_ID)  # Replace GUILD_ID with your actual guild ID
-
-        # Fetch the member object corresponding to the user ID
-        member = guild.get_member(user_id)
-
-        # Fetch the role object corresponding to the role ID
-        role = guild.get_role(role_id)
-
         # Assign the role to the member
-        await member.add_roles(role)
+        await bot.get_guild(constants.GUILD_ID).get_member(user_id).add_roles(bot.get_guild(constants.GUILD_ID).get_role(role_id))
     except Exception as e:
         print(f"An error occurred while assigning role to user {user_id}: {e}")
 
