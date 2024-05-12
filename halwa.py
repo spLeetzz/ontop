@@ -534,7 +534,7 @@ async def validate_enrollment(user, team_name, player_igns, thread):
         existing_team_message = ""
 
         # Wait for user response with timeout
-        response = await get_user_response_in_thread(user, thread, f"Now fill up the details mentioning players against their IGNs and send it here.\n_Yea you can mention anyone here∆_", 6,True)  # Timeout set to 10 minutes (600 seconds)
+        response = await get_user_response_in_thread(user, thread, f"Now fill up the details mentioning players against their IGNs and send it here.\n_Yea you can mention anyone here∆_", 600,True)  # Timeout set to 10 minutes (600 seconds)
         
         if response is None:
             await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} Validation timeout reached. Please reapply.")
