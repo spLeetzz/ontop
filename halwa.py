@@ -341,7 +341,7 @@ async def enrollTeam(user):
 async def create_private_thread(user, name_suffix):
     # Create the private thread with the provided suffix
     thread_name = f"{user.name}-{name_suffix}"
-    private_thread = await bot.get_guild(constants.GUILD_ID).get_channel(constants.ENROLLMENT_CHANNEL_ID).create_thread(name=thread_name)
+    private_thread = await bot.get_guild(constants.GUILD_ID).get_channel(constants.ENROLLMENT_CHANNEL_ID).create_thread(name=thread_name,invitable=True)
 
     # Add the user to the private thread
     await private_thread.add_user(user)
@@ -454,18 +454,17 @@ class EnrollmentCompleteError(Exception):
 #         await user.send("Response timed out. Please try again later.")
 #         return None
 
-async def get_user_response_in_thread(user, channel, prompt=""):
-    try:
-        await channel.send(prompt)
-        response = await bot.wait_for('message', check=lambda msg: msg.author == user and msg.channel == channel, timeout=120)
-        if response.content.strip():  # Check if the response is not empty after stripping whitespace
-            return response.content
+async def get_user_response_in_thread(user, channel, prompt="", timeout=120, return_message_object=False):
+    await channel.send(prompt)
+    response = await bot.wait_for('message', check=lambda msg: msg.author == user and msg.channel == channel, timeout = int(timeout))
+    if response.content.strip():  # Check if the response is not empty after stripping whitespace
+        if return_message_object:
+            return response  # Return the message object if requested
         else:
-            await channel.send("Please provide a non-empty response.")
-            return await get_user_response_in_thread(user, channel, prompt)  # Ask for response again recursively
-    except asyncio.TimeoutError:
-        await channel.send("Response timed out. Please try again later.")
-        return None
+            return response.content  # Return the content of the message by default
+    else:
+        await channel.send("Please provide a non-empty response.")
+        return await get_user_response_in_thread(user, channel, prompt, return_message_object)  # Ask for response again recursively
 
 # async def ask_yes_no_question(user, question):
 #     try:
@@ -522,87 +521,63 @@ async def ask_yes_no_question_in_thread(user, channel, question):
         return None
 
 async def send_registration_details(user, team_name, player_igns, thread):
-    registration_details = f"## Copy the meta data beneath\n\n```Team {team_name}\n\n"
+    await thread.send(f"**Copy the meta data beneath**")
+    registration_details = "## Team H\n"
     for ign in player_igns:
         registration_details += f"{ign} -\n"
-    registration_details += "```"
 
     await thread.send(registration_details)
-    await thread.send(f"\nValidate your details by mentioning players against their IGNs in <#{constants.VALIDATION_CHANNEL_ID}> <@{user.id}>.")
 
 async def validate_enrollment(user, team_name, player_igns, thread):
-    validation_channel = bot.get_channel(constants.VALIDATION_CHANNEL_ID)
-    if validation_channel:
+
+    if thread:
         existing_team_message = ""
+
+        # Wait for user response with timeout
+        response = await get_user_response_in_thread(user, thread, f"Now fill up the details mentioning players against their IGNs and send it here.\n_Yea you can mention anyone here∆_", 6,True)  # Timeout set to 10 minutes (600 seconds)
         
-        # Allow user to send messages in the validation channel
-        await validation_channel.set_permissions(user, send_messages=True, view_channel=True)
-        
-        await validation_channel.send(f"Please validate the enrollment for team {team_name} by mentioning all your teammates in this channel. {user.mention}")
-
-        start_time = datetime.datetime.now()
-        timeout_duration = datetime.timedelta(minutes=10)  # Set a timeout duration of 10 minutes
-
-        try:
-            while datetime.datetime.now() - start_time < timeout_duration:
-                async for message in validation_channel.history(limit=None, after=start_time):
-                    if message.author == user:
-
-                        if bot.get_guild(constants.GUILD_ID).get_member(user.id) is None:
-                            await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} Failed to retrieve your member information. Please try again later or contact the server administrator.")
-                            return False
-
-                        mentioned_users = message.mentions
-
-                        # Assign mentioned users to new collection
-                        player_discord_ids = [user.id for user in mentioned_users[:5]]
-
-                        # Check if any of the mentioned players are already enrolled
-                        for discord_id in player_discord_ids:
-                            text = isAlreadyEnrolled(discord_id)
-
-                            if text:
-                                existing_team_message += f"Your enrollment can't proceed as either You or One of your teammate is already a part of some other team:\n"
-                                existing_team_message += text
-                                existing_team_message += f"\nIf they're not a part of listed team, reach out to the support team via <#{constants.HELP_CHANNEL_ID}>."
-
-                                await thread.send(existing_team_message)
-                                await message.add_reaction("❌")
-                                raise EnrollmentCompleteError
-
-                        # Check if at least 4 users are mentioned
-                        if len(player_discord_ids) < 4:
-                            await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} You didn't mention all of your teammates. Please restart the enrollment process and mention correctly next time.")
-                            await message.add_reaction("❌")
-                            return False
-
-                        # Check if at least 4 mentioned users have the required role
-                        for discord_id in player_discord_ids[:]:
-                            if bot.get_guild(constants.GUILD_ID).get_member(discord_id) is None or not any(role.name == constants.REQUIRED_ROLE_NAME for role in bot.get_guild(constants.GUILD_ID).get_member(discord_id).roles):
-                                await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} One or more teammates haven't verified on the discord server yet. Reapply once it's done.")
-                                await message.add_reaction("❌")
-                                return False
-                        
-                        # All validation checks passed
-                        await message.add_reaction("✅")
-                        await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"## Enrollment for team {team_name} validated. {user.mention} ")
-
-                        # Write enrollment details to Google Sheets
-                        write_to_sheet(user.id, team_name, player_igns, player_discord_ids)
-                        await thread.delete()
-                        
-                        # Lock channel permissions for the user after successful validation
-                        await validation_channel.set_permissions(user, send_messages=False, view_channel=False)
-                        
-                        return True
-
-            # Timeout reached, inform the user
+        if response is None:
             await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} Validation timeout reached. Please reapply.")
-            await thread.delete()
             return False
-        finally:
-            # Lock channel permissions for the user after timeout
-            await validation_channel.set_permissions(user, send_messages=False, view_channel=False)
+
+        # Process user response
+        mentioned_users = response.mentions
+        player_discord_ids = [user.id for user in mentioned_users[:5]]
+        
+        # Check if any of the mentioned players are already enrolled
+        for discord_id in player_discord_ids:
+            text = isAlreadyEnrolled(discord_id)
+            if text:
+                existing_team_message += f"Your enrollment can't proceed as either You or One of your teammate is already a part of some other team:\n"
+                existing_team_message += text
+                existing_team_message += f"\nIf they're not a part of listed team, reach out to the support team via <#{constants.HELP_CHANNEL_ID}>."
+                await thread.send(existing_team_message)
+                await response.add_reaction("❌")
+                raise EnrollmentCompleteError
+
+        # Check if at least 4 users are mentioned
+        if len(player_discord_ids) < 4:
+            await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} You didn't mention all of your teammates. Please restart the enrollment process and mention correctly next time.")
+            await response.add_reaction("❌")
+            return False
+
+        # Check if at least 4 mentioned users have the required role
+        for discord_id in player_discord_ids:
+            member = bot.get_guild(constants.GUILD_ID).get_member(discord_id)
+            if member is None or not any(role.name == constants.REQUIRED_ROLE_NAME for role in member.roles):
+                await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} One or more teammates haven't verified on the discord server yet. Reapply once it's done.")
+                await response.add_reaction("❌")
+                return False
+                    
+        # All validation checks passed
+        await response.add_reaction("✅")
+        await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"## Enrollment for team {team_name} validated. {user.mention} ")
+
+        # Write enrollment details to Google Sheets
+        write_to_sheet(user.id, team_name, player_igns, player_discord_ids)
+        await thread.delete()          
+        return True
+
     else:
         print("Validation channel not found.")
         return False
