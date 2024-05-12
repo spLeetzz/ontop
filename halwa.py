@@ -319,9 +319,9 @@ async def enrollTeam(user):
             await thread.delete()
             return
 
-    except EnrollmentCompleteError:
-        # Schedule the deletion of the thread after 5 minutes
-        await asyncio.sleep(300)  # 300 seconds = 5 minutes
+    except EnrollmentError as ee:
+        # Schedule the deletion of the thread 
+        await asyncio.sleep(int(ee.timeout))  # default = 5 minutes
         await thread.delete()
         pass  # Do nothing, the code execution will stop
     except asyncio.TimeoutError:
@@ -438,7 +438,9 @@ async def deleteTeam(user):
         # Reset the flag once the process is finished for this user
         constants.running_processes.pop(user.id, None)
 
-class EnrollmentCompleteError(Exception):
+class EnrollmentError(Exception):
+    def __init__(self, timeout=300):
+        self.timeout = timeout
     pass
 
 # async def get_user_response(user, prompt=""):
@@ -553,13 +555,13 @@ async def validate_enrollment(user, team_name, player_igns, thread):
                 existing_team_message += f"\nIf they're not a part of listed team, reach out to the support team via <#{constants.HELP_CHANNEL_ID}>."
                 await thread.send(existing_team_message)
                 await response.add_reaction("❌")
-                raise EnrollmentCompleteError
+                raise EnrollmentError
 
         # Check if at least 4 users are mentioned
         if len(player_discord_ids) < 4:
             await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} You didn't mention all of your teammates. Please restart the enrollment process and mention correctly next time.")
             await response.add_reaction("❌")
-            raise EnrollmentCompleteError
+            raise EnrollmentError(60)
 
         # Check if at least 4 mentioned users have the required role
         for discord_id in player_discord_ids:
@@ -567,7 +569,7 @@ async def validate_enrollment(user, team_name, player_igns, thread):
             if member is None or not any(role.name == constants.REQUIRED_ROLE_NAME for role in member.roles):
                 await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} One or more teammates haven't verified on the discord server yet. Reapply once it's done.")
                 await response.add_reaction("❌")
-                return False
+                raise EnrollmentError(60)
                     
         # All validation checks passed
         await response.add_reaction("✅")
@@ -575,11 +577,12 @@ async def validate_enrollment(user, team_name, player_igns, thread):
 
         # Write enrollment details to Google Sheets
         write_to_sheet(user.id, team_name, player_igns, player_discord_ids)
+        await asyncio.sleep(60)
         await thread.delete()          
         return True
 
     else:
-        print("Validation channel not found.")
+        print("Validation thread not found.")
         return False
     
 # Function to write enrollment details to Google Sheets
