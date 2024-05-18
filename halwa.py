@@ -31,9 +31,6 @@ async def on_ready():
     if json_keyfile_path == "default_path":
         # If the environment variable is not set, use a default path
         json_keyfile_path = "D:/Google Cloud JSON Key/clear-healer-415920-7abc2cda379e.json"
-        
-    global INTERACTION_MESSAGE_ID
-    INTERACTION_MESSAGE_ID = constants.INTERACTION_MESSAGE_ID
 
     try:
         # Attempt to connect to Google Sheets
@@ -46,13 +43,13 @@ async def on_ready():
     # Fetch the channel
     channel = bot.get_channel(constants.ENROLLMENT_CHANNEL_ID)
     # Check if the interaction message ID is stored and the channel is valid
-    if INTERACTION_MESSAGE_ID and channel:
+    if constants.INTERACTION_MESSAGE_ID and channel:
         try:
             # Fetch the message
-            message = await channel.fetch_message(INTERACTION_MESSAGE_ID)
+            message = await channel.fetch_message(constants.INTERACTION_MESSAGE_ID)
         except discord.NotFound:
             # If the message is not found, reset the interaction message ID
-            INTERACTION_MESSAGE_ID = None
+            constants.INTERACTION_MESSAGE_ID = None
             return
         # Check if the message exists
         if message:
@@ -62,7 +59,7 @@ async def on_ready():
             # Send the initial message with the dropdown menu
             message = await send_selectmenu(channel)
             # Store the interaction message ID
-            INTERACTION_MESSAGE_ID = message.id
+            constants.INTERACTION_MESSAGE_ID = message.id
     else:
         # If the channel or message ID is not valid, send the select menu
         await send_selectmenu(channel)
