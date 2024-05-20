@@ -634,7 +634,7 @@ async def validate_enrollment(user, team_name, player_igns, thread):
                     
         # All validation checks passed
         await response.add_reaction("✅")
-        await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"## Enrollment for team {team_name} validated. {user.mention} ")
+        await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"Enrollment for team **{team_name}** validated. {user.mention} ")
 
         # Write enrollment details to Google Sheets
         write_to_sheet(user.id, team_name, player_igns, player_discord_ids)
