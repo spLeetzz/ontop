@@ -179,9 +179,9 @@ class CheckPreferencesButton(discord.ui.Button):
     async def callback(self, interaction: discord.Interaction):
         user = interaction.user
         if constants.preferences_dict.get(user.id):
-            await interaction.response.send_message(f"{user.mention} Current preferences are set to: {', '.join(constants.preferences_dict.get(user.id))}", ephemeral=True,delete_after=60)
+            await interaction.response.send_message(f"Current preferences are set to: {', '.join(constants.preferences_dict.get(user.id))}", ephemeral=True,delete_after=60)
         else:
-            await interaction.response.send_message(f"{user.mention} Current preferences are set to: None, your chances for confirmed slot are maxmimum!", ephemeral=True,delete_after=60)
+            await interaction.response.send_message(f"Current preferences are set to: None, your chances for confirmed slot are maxmimum! {user.mention}", ephemeral=True,delete_after=60)
 
 class ClearPreferencesButton(discord.ui.Button):
     def __init__(self):
@@ -954,7 +954,8 @@ async def allocate_lobby_channels():
             preferred_lobbies = constants.preferences_dict[user_id]
             allocated = False
 
-            for lobby_number in preferred_lobbies:
+            for lobby_number_str in preferred_lobbies:
+                lobby_number = int(lobby_number_str)
                 if len(lobby_teams[lobby_number - 1]) < constants.LOBBY_SIZE:  # Adjusted index
                     lobby_teams[lobby_number - 1][user_id] = team_name  # Adjusted index
                     await assign_team_to_lobby(user_id, team_name, lobby_number)
@@ -969,14 +970,15 @@ async def allocate_lobby_channels():
     # Notify users whose registrations were not confirmed
     for user_id, team_name in unconfirmed_users:
         await reject_registration(user_id, "We weren't able to find a match for your lobby preference, so your slot was not confirmed.")
-        await bot.get_channel(constants.MOD_CHANNEL_ID).send(f"LAFDA MISHAP PARESHANI, yaar {user_id} ki {team_name} ki vajah se ek slot empty rahega for sure, preference f for my rememberance")
+        await bot.get_channel(constants.MOD_CHANNEL_ID).send(f"LAFDA MISHAP PARESHANI, yaar {bot.get_guild(constants.GUILD_ID).get_member(user_id).mention} ki Team {team_name} ki vajah se ek slot empty rahega for sure, preference f for my rememberance")
 
     # Make another copy of registered_teams for safe iteration of remaining users
     remaining_teams = constants.registered_teams.copy()
 
     # Allocate remaining users to available lobbies
     for user_id, team_name in remaining_teams.items():
-        for lobby_number, lobby_teams_dict in enumerate(lobby_teams):
+        for lobby_number_str, lobby_teams_dict in enumerate(lobby_teams):
+            lobby_number = int(lobby_number_str)
             if len(lobby_teams_dict) < constants.LOBBY_SIZE:
                 lobby_teams[lobby_number][user_id] = team_name
                 await assign_team_to_lobby(user_id, team_name, lobby_number + 1)  # Adjusted index
