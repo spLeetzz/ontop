@@ -148,7 +148,7 @@ class TournamentView(discord.ui.View):
         self.add_item(TournamentDropdown())
 
 async def send_selectmenu(channel):
-    embed = discord.Embed(title="Team Enrollment", description="Select desirable option to create or edit your team details\n\n a. \"**Enroll**\" team to pull the ropes now, introduce your crew nd here we sail!\n\n b. \"**Update**\" your team if you are just fed of someone midway.\n\n c.\"**Delete**\" your team if stuck on some lonesome island.", color=0x229db7)
+    embed = discord.Embed(title="Team Enrollment", description="Select desirable option to create or edit your team details\n\n a. \"**Enroll**\" team to pull the ropes now, introduce your crew nd here we sail!\n\n b. \"**Update**\" your team if you are just fed of someone midway.\n\n c. \"**Delete**\" your team if stuck on some lonesome island.\n\n\nWait until previous process is timed out (that'll take upto 2 mins of inactivity) in case you wanna redo/alter your selection", color=0x229db7)
     select = TournamentDropdown()
 
     view = TournamentView()  # Initialize TournamentView with timeout=None
@@ -301,7 +301,7 @@ async def confirm(user_id, message_id):
                     await lock_channel(constants.REGISTRATION_CHANNEL_ID)
 
                     # Create and save the CSV file
-                    await saveAsCsv(constants.registered_teams, 'registered_teams.csv')
+                    await save_as_csv(constants.registered_teams, 'registered_teams.csv')
                     
                     # Send the CSV file to the designated channel
                     channel = bot.get_channel(constants.MOD_CHANNEL_ID)
@@ -379,11 +379,12 @@ async def enrollTeam(user):
 
     except EnrollmentError as ee:
         # Schedule the deletion of the thread 
+        await thread.send(f"Clearin' this channel in {(int(ee.timeout)/60)} minutes")
         await asyncio.sleep(int(ee.timeout))  # default = 5 minutes
         await thread.delete()
         pass  # Do nothing, the code execution will stop
     except asyncio.TimeoutError:
-        await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} Enrollment timed out. Please try again later.")
+        await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} Enrollment timed out. \nPlease try again later.")
         await thread.delete()
     except ValueError as ve:
         await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} An error occurred during enrollment: {ve}")
@@ -430,9 +431,12 @@ async def updateTeam(user):
         if response == 'yes':
             constants.running_processes[user.id] = False
             delete_team_from_sheet(user.id,constants.GOOGLE_SHEET_ID)
-            await thread.send("Your previous team data was deleted so even if you are timed out from here, you will need to start enrollment fresh.\n\nLet's Start new enrollment!")
+            await thread.send("Your previous team data was deleted so even if you are timed out from here, you will need to start enrollment fresh.\n\nLet's Start new enrollment! Check new mention, clearin' this channel is 5 minutes.")
             constants.running_processes.pop(user.id, None)
             await enrollTeam(user)
+            asyncio.sleep(300)
+            await thread.delete()
+            
         else:
             await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user} Update cancelled.")
             await thread.delete()
@@ -634,8 +638,9 @@ async def validate_enrollment(user, team_name, player_igns, thread):
 
         # Write enrollment details to Google Sheets
         write_to_sheet(user.id, team_name, player_igns, player_discord_ids)
+        await thread.send("Clearin' this channel in 1 minute")
         await asyncio.sleep(60)
-        await thread.delete()          
+        await thread.delete()
         return True
 
     else:
@@ -859,7 +864,7 @@ async def reject_registration(user_id, reason):
     except Exception as e:
         print(f"An error occurred while confirming registration: {e}")
 
-async def saveAsCsv(teams_dict, csv_file):
+async def save_as_csv(teams_dict, csv_file):
     # Extract User IDs and team names from the dictionary
     user_ids = [key for key in teams_dict.keys()]
     team_names = [teams_dict[user_id] for user_id in user_ids]
@@ -990,7 +995,8 @@ async def allocate_lobby_channels():
         # Generate CSV files for each lobby
         for lobby_number, lobby_teams_dict in enumerate(lobby_teams, 1):
             csv_file = f"lobby_{lobby_number}_teams.csv"
-            await saveAsCsv(lobby_teams_dict, csv_file)
+            await save_as_csv(lobby_teams_dict, csv_file)
+            await bot.get_channel(constants.MOD_CHANNEL_ID).send(file=discord.File(csv_file))
             user_ids = list(lobby_teams_dict.keys())
             team_names = [lobby_teams_dict[user_id] for user_id in user_ids]
             await send_slots_list(team_names, discord.utils.get(bot.get_guild(constants.GUILD_ID).channels, name=f"lobby-{lobby_number}"))
