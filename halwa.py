@@ -2,6 +2,8 @@ import asyncio
 import datetime
 import discord
 from discord.ext import commands
+from discord import app_commands
+from discord.ext.commands import MissingPermissions
 import gspread
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
@@ -11,6 +13,7 @@ import time
 import os
 import threading
 from constants import constants
+from datetime import datetime, timedelta
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -37,6 +40,8 @@ async def on_ready():
         print("Error while connecting to Google Sheets:", e)
     
     print(f'We have logged in as {bot.user}')
+
+    await bot.tree.sync()  # For both text and slash commands
     
     if constants.ENROLLMENT_MESSAGE_ID and bot.get_channel(constants.ENROLLMENT_CHANNEL_ID):
         try:
@@ -77,6 +82,12 @@ async def on_ready():
     else:
         # If the channel or message ID is not valid, send the select menu
         await send_pref_menu(bot.get_channel(constants.PREF_SELECTION_CHANNEL_ID))
+
+@bot.event
+async def on_guild_join(guild):
+    # Sync commands for the new guild
+    await bot.tree.sync(guild=guild)
+    print(f"Slash commands synced in new guild: {guild.name}")
     
 def connect_to_google_sheets(json_keyfile_path, retry_interval=10):
     while True:
@@ -201,8 +212,9 @@ class LobbyPreferencesView(discord.ui.View):
         self.add_item(CheckPreferencesButton())
         self.add_item(ClearPreferencesButton())
 
-@bot.command()
-@commands.has_permissions(manage_roles=True)
+@bot.hybrid_command(name="setprompt")
+@app_commands.describe(prompt="karle bhai prompt set koi ni dekhra")
+@commands.has_permissions(view_audit_log=True, manage_roles=True)
 async def setprompt(ctx, *, prompt: str = None):
     try:
         if prompt is None:
@@ -216,20 +228,75 @@ async def setprompt(ctx, *, prompt: str = None):
         else:
             await ctx.send("Invalid prompt. Please provide a non-empty prompt.")
 
+    except MissingPermissions as e:
+        await ctx.send(f"You don't have the required permissions to use this command: {', '.join(e.missing_perms)}")
     except Exception as e:
         await ctx.send(f"An error occurred: {e}")
 
-@bot.command()
-@commands.has_permissions(manage_roles=True)
+@setprompt.error
+async def setprompt(ctx, error):
+    if isinstance(error, commands.MissingPermissions):
+        missing_perms = ', '.join(error.missing_permissions)
+        await ctx.send(f"You don't have the required permissions to use this command: {missing_perms}")
+    else:
+        await ctx.send(f"An error occurred: {error}")
+
+@bot.hybrid_command(name="start")
+@commands.has_permissions(view_audit_log=True, manage_roles=True)
 async def start(ctx):
     constants.registered_teams = {}
     try:
         os.remove('registered_teams.csv')
         print("CSV file deleted successfully.")
+
     except FileNotFoundError:
         await bot.get_channel(constants.MOD_CHANNEL_ID).send("Error: CSV file not found.")
+
     await unlock_channel(constants.REGISTRATION_CHANNEL_ID)
     await ctx.send("## STARTED")
+
+@start.error
+async def start_error(ctx, error):
+    if isinstance(error, commands.MissingPermissions):
+        missing_perms = ', '.join(error.missing_permissions)
+        await ctx.send(f"You don't have the required permissions to use this command: {missing_perms}")
+    else:
+        await ctx.send(f"An error occurred: {error}")
+
+@bot.hybrid_command(name="clearlb", description="Clear lobby Channels and role")
+@commands.has_permissions(view_audit_log=True, manage_roles=True)
+async def clear_lb(ctx):
+    lobby_role_names = [f"Lobby {i}" for i in range(1, int(constants.SLOTS_LIMIT / constants.LOBBY_SIZE) + 1)]
+    lobby_channel_names = [f"lobby-{i}" for i in range(1, int(constants.SLOTS_LIMIT / constants.LOBBY_SIZE) + 1)]
+
+    try:
+        for role_name in lobby_role_names:
+            role = discord.utils.get(ctx.guild.roles, name=role_name)
+            if role:
+                for member in role.members:
+                    await member.remove_roles(role)
+
+        for channel_name in lobby_channel_names:
+            channel = discord.utils.get(ctx.guild.channels, name=channel_name)
+            if channel:
+                await channel.purge(after=(datetime.now() - timedelta(hours=24)))
+
+        await ctx.send("Lobby channels (last 24 hrs) and roles are cleared now.")
+    
+    except discord.Forbidden:
+        await ctx.send("I do not have permission to manage roles or channels.")
+    except discord.HTTPException as e:
+        await ctx.send(f"An HTTP error occurred: {e}")    
+    except Exception as e:
+        await ctx.send(f"An error occurred: {e}")
+
+@clear_lb.error
+async def clear_lb(ctx, error):
+    if isinstance(error, commands.MissingPermissions):
+        missing_perms = ', '.join(error.missing_permissions)
+        await ctx.send(f"You don't have the required permissions to use this command: {missing_perms}")
+    else:
+        await ctx.send(f"An error occurred: {error}")
 
 @bot.event
 async def on_message(message):
@@ -634,7 +701,7 @@ async def validate_enrollment(user, team_name, player_igns, thread):
                     
         # All validation checks passed
         await response.add_reaction("✅")
-        await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"Enrollment for team **{team_name}** validated. {user.mention} ")
+        await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} Enrollment for team **{team_name}** validated.")
 
         # Write enrollment details to Google Sheets
         write_to_sheet(user.id, team_name, player_igns, player_discord_ids)
