@@ -244,7 +244,7 @@ async def setprompt(ctx, error):
 @bot.hybrid_command(name="start")
 @commands.has_permissions(view_audit_log=True, manage_roles=True)
 async def start(ctx):
-    constants.registered_teams = {}
+    constants.registered_teams.clear()
     try:
         os.remove('registered_teams.csv')
         print("CSV file deleted successfully.")
