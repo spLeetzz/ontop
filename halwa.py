@@ -215,7 +215,7 @@ class CaptchaModal(discord.ui.Modal):
                 constants.disabled_status = True
                 message = await bot.get_channel(constants.REGISTRATION_CHANNEL_ID).fetch_message(constants.REG_MESSAGE_ID)
                 await message.edit(view=RegistrationView())
-                await bot.get_channel(constants.INFO_CHANNEL_ID).send(f"You can download the Google Sheets app to view the list of users and their registration timestamps of {datetime.today().strftime("%d %b")} from this CSV file (for transparency). If you cant find you name in these, you were later than all these 😢.",file=discord.File('timestamps.csv'))
+                await bot.get_channel(constants.INFO_CHANNEL_ID).send(f"You can download the Google Sheets app to view the list of users and their registration timestamps of {datetime.today().strftime('%d %b')} from this CSV file (for transparency). If you cant find you name in these, you were later than all these 😢.",file=discord.File('timestamps.csv'))
                 await save_as_csv(constants.registered_teams, 'registered_teams.csv')
                 await bot.get_channel(constants.MOD_CHANNEL_ID).send(file=discord.File('registered_teams.csv'))
 
