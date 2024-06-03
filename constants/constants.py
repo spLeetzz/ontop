@@ -1,4 +1,5 @@
 # constants.py
+import asyncio
 
 # Discord channel IDs
 ENROLLMENT_CHANNEL_ID = 1238661754519814216
@@ -14,20 +15,29 @@ PREF_SELECTION_CHANNEL_ID = 1241547499416588409
 # Other constants
 SLOTS_LIMIT = 3
 LOBBY_SIZE = 1
+NUM_LOBBIES = int(SLOTS_LIMIT/LOBBY_SIZE)
 REQUIRED_ROLE_NAME = "new role"
 GUILD_ID = 798542556970614816
 COOLDOWN_ROLE_ID = 1231821911667900537
 BANNED_ROLE_ID = 1236442273718341764
-ENROLLMENT_MESSAGE_ID = 1242260743244615715
-PREFERENCE_MESSAGE_ID = 1241579889442689040
+ENROLLMENT_MESSAGE_ID = 1246472440263999491
+PREFERENCE_MESSAGE_ID = None
+REG_MESSAGE_ID = 1246816052604698695
 
 # Google Sheets details
 GOOGLE_SHEET_ID = "1yJozWjOMMc9uIhobk0xtyODWUInV7GWwQXOZlydU0i8"
 
-registered_teams = {}
+disabled_status = True #(RegistrationView)
+# Initialize a list to store dictionaries for each lobby
+lobby_teams = [{} for _ in range(int(SLOTS_LIMIT // LOBBY_SIZE))]
+lobby_locks = [asyncio.Lock() for _ in range(int(SLOTS_LIMIT // LOBBY_SIZE))]
+registered_teams = []
 preferences_dict = {}
 REGISTRATION_PROMPT = ""
 cached_data = None
 running_processes = {}
+captcha_question_variables = []
 sheet = None
 service = None
+emotes_list = ["<:number1:1246465778480447611>", "<:number2:1246465786202034326>", "<:number3:1246465780845908079>", "<:number4:1246465783530389614>"]
+practice_emoteid = "<:Untitleddesign20:1246793790199431231>"
