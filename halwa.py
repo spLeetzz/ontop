@@ -93,6 +93,11 @@ async def send_remenu(channel):
     message = await channel.send(embed=embed, view=view)
     return message
 
+async def send_overview_menu(channel):
+    view = ScrimsOverviewView()  
+    message = await channel.send(content=f"Hey there, here's a complete overview of BGMI scrims at Trident:\n\nThere are 4 tiers basically,\n\n`Trident Rookie Scrims(Tier 3):`\n\n- Open for all, anyone can participate, registrations open at 12 PM Tuesday-Saturday in <#{constants.REGISTRATION_CHANNEL_ID}>\n- 4 Groups every day, Top 2 from each Group qualify for Amateur Scrims\n- Every Group plays 3 matches, Erangle-Miramar-Sanhok\n- One team can participate once a week\n\n`Amateur Scrims(T2 filtration):`\n\n- 2 Groups on Sunday, Top 5 from each Group qualify for Tier 2 scrims\n- Every Group plays 3 matches, Erangle-Miramar-Sanhok\n\n`Trident Elite Scrims(Tier 2):`\n\n- 2 Groups, Every team plays 24 matches over 6 days.\n- Tuesday-Sunday daily 4 matches, Erangle-Miramar-Sanhok-Vikendi\n- Top 10 teams based on cumulative leaderboard of both Groups qualify for Tier 1.\n- Bottom 10 teams are demoted from Tier 2 to Tier 3.\n\n`Trident Pro Scrims(Tier 1):`\n\n- Single Group, Every team plays 24 matches over 6 days, Daily streams of every match.\n- Tuesday-Sunday daily 4 matches, Erangle-Miramar-Sanhok-Vikendi\n- Top 8 teams based on leaderboard retain their Tier 1 spots.\n- Bottom 10 teams are demoted from Tier 1 to Tier 2.\n\nAny announcements and updates would be shared thru the <#{constants.ANNOUNCEMENTS_CHANNEL_ID}> <#{constants.UPDATES_CHANNEL_ID}> channels.\nReact with buttons beneath for more information and make sure to follow all rules.",view=view)
+    return message
+
 class LobbySelectDropdown(discord.ui.Select):
     def __init__(self,disabled = False):
         options = [discord.SelectOption(label=f"Lobby {i}", value=f"{int(i)}", emoji="🌟") for i in range(1, (int(constants.SLOTS_LIMIT / constants.LOBBY_SIZE)) + 1)]
@@ -215,7 +220,7 @@ class CaptchaModal(discord.ui.Modal):
                 constants.disabled_status = True
                 message = await bot.get_channel(constants.REGISTRATION_CHANNEL_ID).fetch_message(constants.REG_MESSAGE_ID)
                 await message.edit(view=RegistrationView())
-                await bot.get_channel(constants.INFO_CHANNEL_ID).send(f"You can download the Google Sheets app to view the list of users and their registration timestamps of {datetime.today().strftime('%d %b')} from this CSV file (for transparency). If you cant find you name in these, you were later than all these 😢.",file=discord.File('timestamps.csv'))
+                await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"You can download the Google Sheets app to view the list of users and their registration timestamps of {datetime.today().strftime('%d %b')} from this CSV file (for transparency). If you cant find you name in these, you were later than all these 😢.",file=discord.File('timestamps.csv'))
                 await save_as_csv(constants.registered_teams, 'registered_teams.csv')
                 await bot.get_channel(constants.MOD_CHANNEL_ID).send(file=discord.File('registered_teams.csv'))
 
@@ -282,6 +287,36 @@ class RegistrationView(discord.ui.View):
         for i in range(1, constants.NUM_LOBBIES + 1):
             self.add_item(LobbyButton(i))
         self.add_item(PracticeRegistrationButton())
+
+class HowToPlayButton(discord.ui.Button):
+    def __init__(self):
+        super().__init__(label=f'How To Play', style=discord.ButtonStyle.primary)
+
+    async def callback(self, interaction: discord.Interaction):
+        embed = discord.Embed(title="How To Play", description=f"1. Enroll your team from <#{constants.ENROLLMENT_CHANNEL_ID}>, just have to select \"Enroll my team\" option from there, fill simple details, mention your teammates, and you're fine to Go, you can even Update/Delete your team later on.\n\n2. Book your slot for your preferred lobby from <#{constants.REGISTRATION_CHANNEL_ID}> at 12 PM Tuesday-Saturday. The buttons there will remain disabled whole time, and will open up at registration time.", color=0x229db7)
+        await interaction.response.send_message(embed=embed,ephemeral=True,delete_after=180)
+    
+class RulesButton(discord.ui.Button):
+    def __init__(self):
+        super().__init__(label=f'Scrims Rules', style=discord.ButtonStyle.primary)
+
+    async def callback(self, interaction: discord.Interaction):
+        embed = discord.Embed(title="Scrims Rules", description=f"1. IGNs(In Game Name) of all players must have some similar prefix/suffix, you'll be kicked from the room if found so.To tackle this you can even play from a new id with a condition of pov recording as per the Guidelines.\n\n2. All mic toxicity and rants are not allowed while in lobby and in match, you can be banned for this.\n\n3. Exploiting Bugs/Glitches or Hacking will lead to serious consequences.\n\n4. Complete POV recording is must for all the players of every team! Management may ask for 'Raw POV' anytime.You must also make sure to keep match end results screenshot with you for every match.", color=0x229db7)
+        await interaction.response.send_message(embed=embed,ephemeral=True,delete_after=180)
+
+class PointsSystemButton(discord.ui.Button):
+    def __init__(self):
+        super().__init__(label=f'Points System', style=discord.ButtonStyle.primary)
+
+    async def callback(self, interaction: discord.Interaction):
+        await interaction.response.send_message(f"https://cdn.discordapp.com/attachments/1247528043455578152/1247554655815471144/Frame_16.png?ex=66607350&is=665f21d0&hm=63be537f9154ff00baf92aba81050b978b5bd66d758cee638beb9ca28d89e297&",ephemeral=True,delete_after=180)
+
+class ScrimsOverviewView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+        self.add_item(HowToPlayButton())
+        self.add_item(RulesButton())
+        self.add_item(PointsSystemButton())
 
 def validate_captcha(captcha_phrase : str, sum1_answer : int, sum2_answer : int):
     # Placeholder for actual captcha validation logic
@@ -372,6 +407,29 @@ async def on_ready():
         # If the channel or message ID is not valid, send the select menu
         message = await send_remenu(bot.get_channel(constants.REGISTRATION_CHANNEL_ID))
         constants.REG_MESSAGE_ID = message.id
+
+    if constants.SCRIMS_INFO_MESSAGE_ID and bot.get_channel(constants.INFO_CHANNEL_ID):
+        try:
+            # Fetch the message
+            message = await bot.get_channel(constants.INFO_CHANNEL_ID).fetch_message(constants.SCRIMS_INFO_MESSAGE_ID)
+        except discord.NotFound:
+            # If the message is not found, handle the case gracefully
+            message = None
+
+        if message:
+            # Edit the existing message with the dropdown menu
+            await message.edit(view=ScrimsOverviewView())
+        else:
+            # Send a new message with the dropdown menu
+            message = await send_overview_menu(bot.get_channel(constants.INFO_CHANNEL_ID))
+        
+        # Update the interaction message ID
+        constants.SCRIMS_INFO_MESSAGE_ID = message.id
+
+    else:
+        # If the channel or message ID is not valid, send the select menu
+        message = await send_overview_menu(bot.get_channel(constants.INFO_CHANNEL_ID))
+        constants.SCRIMS_INFO_MESSAGE_ID = message.id
 
 @bot.event
 async def on_guild_join(guild):
@@ -882,7 +940,7 @@ async def validate_enrollment(user, team_name, player_igns, thread):
         existing_team_message = ""
 
         # Wait for user response with timeout
-        response = await get_user_response_in_thread(user, thread, f"Now fill up the details mentioning players against their IGNs like this [example](<https://bit.ly/exampleHow2mention>) and send it here.\n_Go ahead, mention your teammates now∆_", 300,True)  # Timeout set to 10 minutes (300 seconds)
+        response = await get_user_response_in_thread(user, thread, f"Now fill up the details mentioning players against their IGNs like this [example](<https://bit.ly/exampleHow2Mention>) and send it here.\n_Go ahead, mention your teammates now∆_", 300,True)  # Timeout set to 10 minutes (300 seconds)
         
         if response is None:
             await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} Validation timeout reached. Please reapply.")
