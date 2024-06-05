@@ -301,7 +301,7 @@ class RulesButton(discord.ui.Button):
         super().__init__(label=f'Scrims Rules', style=discord.ButtonStyle.primary)
 
     async def callback(self, interaction: discord.Interaction):
-        embed = discord.Embed(title="Scrims Rules", description=f"1. IGNs(In Game Name) of all players must have some similar pattern of characters as prefix/suffix, you'll be kicked from the room if not found such.To tackle this you can even play from a new id with a condition of pov recording as per the Guidelines.\n\n2. All mic toxicity and rants are not allowed while in lobby and in match, you can be banned for this.\n\n3. Exploiting Bugs/Glitches or Hacking will lead to serious consequences.\n\n4. Complete POV recording is must for all the players of every team! Management may ask for 'Raw POV' anytime.You must also make sure to keep match end results screenshot with you for every match.", color=0x229db7)
+        embed = discord.Embed(title="Scrims Rules", description=f"1. IGNs(In Game Name) of all players must have some similar pattern of characters as prefix/suffix, you'll be kicked from the room if not found such. To tackle this you can even play from a new id with a condition of pov recording as per the Guidelines.\n\n2. All mic toxicity and rants are not allowed while in lobby and in match, you can be banned for this.\n\n3. Exploiting Bugs/Glitches or Hacking will lead to serious consequences.\n\n4. Complete POV recording is must for all the players of every team! Management may ask for 'Raw POV' anytime. You must also make sure to keep match end results screenshot with you for every match.", color=0x229db7)
         await interaction.response.send_message(embed=embed,ephemeral=True,delete_after=180)
 
 class PointsSystemButton(discord.ui.Button):
