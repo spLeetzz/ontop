@@ -301,7 +301,7 @@ class RulesButton(discord.ui.Button):
         super().__init__(label=f'Scrims Rules', style=discord.ButtonStyle.primary)
 
     async def callback(self, interaction: discord.Interaction):
-        embed = discord.Embed(title="Scrims Rules", description=f"1. IGNs(In Game Name) of all players must have some similar prefix/suffix, you'll be kicked from the room if found so.To tackle this you can even play from a new id with a condition of pov recording as per the Guidelines.\n\n2. All mic toxicity and rants are not allowed while in lobby and in match, you can be banned for this.\n\n3. Exploiting Bugs/Glitches or Hacking will lead to serious consequences.\n\n4. Complete POV recording is must for all the players of every team! Management may ask for 'Raw POV' anytime.You must also make sure to keep match end results screenshot with you for every match.", color=0x229db7)
+        embed = discord.Embed(title="Scrims Rules", description=f"1. IGNs(In Game Name) of all players must have some similar pattern of characters as prefix/suffix, you'll be kicked from the room if not found such.To tackle this you can even play from a new id with a condition of pov recording as per the Guidelines.\n\n2. All mic toxicity and rants are not allowed while in lobby and in match, you can be banned for this.\n\n3. Exploiting Bugs/Glitches or Hacking will lead to serious consequences.\n\n4. Complete POV recording is must for all the players of every team! Management may ask for 'Raw POV' anytime.You must also make sure to keep match end results screenshot with you for every match.", color=0x229db7)
         await interaction.response.send_message(embed=embed,ephemeral=True,delete_after=180)
 
 class PointsSystemButton(discord.ui.Button):
@@ -311,12 +311,21 @@ class PointsSystemButton(discord.ui.Button):
     async def callback(self, interaction: discord.Interaction):
         await interaction.response.send_message(f"https://cdn.discordapp.com/attachments/1247528043455578152/1247554655815471144/Frame_16.png?ex=66607350&is=665f21d0&hm=63be537f9154ff00baf92aba81050b978b5bd66d758cee638beb9ca28d89e297&",ephemeral=True,delete_after=180)
 
+class ScheduleButton(discord.ui.Button):
+    def __init__(self):
+        super().__init__(label=f'Tier-3 Schedule', style=discord.ButtonStyle.primary)
+
+    async def callback(self, interaction: discord.Interaction):
+        embed = discord.Embed(title="Tier-3 Schedule", description=f"{constants.stary_emote} Group 1 {constants.stary_emote}\n\n⦾ MATCH-1 -> IDP : 03:00 PM | START : 03:10 PM\n\n⦾ MATCH-2 -> IDP : 03:40 PM | START : 03:50 PM\n\n⦾ MATCH-3 -> IDP : 04:20 PM | START : 04:30 PM\n\n{constants.stary_emote} Group 2 {constants.stary_emote}\n\n⦾ MATCH-1 -> IDP : 03:15 PM | START : 03:25 PM\n\n⦾ MATCH-2 -> IDP : 03:55 PM | START : 04:05 PM\n\n⦾ MATCH-3 -> IDP : 04:35 PM | START : 04:45 PM\n\n{constants.stary_emote} Group 3 {constants.stary_emote}\n\n⦾ MATCH-1 -> IDP : 04:50 PM | START : 05:00 PM\n\n⦾ MATCH-2 -> IDP : 05:30 PM | START : 05:40 PM\n\n⦾ MATCH-3 -> IDP : 06:10 PM | START : 06:20 PM\n\n{constants.stary_emote} Group 4 {constants.stary_emote}\n\n⦾ MATCH-1 -> IDP : 05:05 PM | START : 05:15 PM\n\n⦾ MATCH-2 -> IDP : 05:45 PM | START : 05:55 PM\n\n⦾ MATCH-3 -> IDP : 06:25 PM | START : 06:35 PM", color=0x229db7)
+        await interaction.response.send_message(embed=embed,ephemeral=True,delete_after=180)
+
 class ScrimsOverviewView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
         self.add_item(HowToPlayButton())
         self.add_item(RulesButton())
         self.add_item(PointsSystemButton())
+        self.add_item(ScheduleButton())
 
 def validate_captcha(captcha_phrase : str, sum1_answer : int, sum2_answer : int):
     # Placeholder for actual captcha validation logic
@@ -1319,7 +1328,7 @@ async def send_slots_list(team_names, lobby_number, lobby_channel):
         slots_list_message += f"{formatted_index}. RESERVED\n"
 
     # Close the code block and send the slots list message to the lobby channel
-    slots_list_message += f"```\n:small_blue_diamond:Make sure to checkout your lobbies schedule here <#{constants.SCHEDULE_CHANNEL_ID}>.\n:small_orange_diamond:Be available on time and participate in all matches with minimum 3 players in lobbies to avoid a ban.\n:small_blue_diamond:You'll be kicked from the room in case IGN's dont have a same pattern of characters as prefix/suffix.\n:small_orange_diamond:If there is an issue with changing IGN's (In Game Name), you can participate from a new id but have to ensure that raw pov is available."
+    slots_list_message += f"```\n:small_blue_diamond:Make sure to checkout your lobbies schedule from the \"Tier-3 Schedule\" button in <#{constants.INFO_CHANNEL_ID}>.\n:small_orange_diamond:Be available on time and participate in all matches with minimum 3 players in lobbies to avoid a ban.\n:small_blue_diamond:You'll be kicked from the room in case IGN's dont have a same pattern of characters as prefix/suffix.\n:small_orange_diamond:If there is an issue with changing IGN's (In Game Name), you can participate from a new id but have to ensure that raw pov is available."
     embed = discord.Embed(title=f"GROUP {lobby_number} SLOTS LIST:", description=slots_list_message,color=0x229db7)
     await lobby_channel.send(embed=embed)
 
