@@ -22,8 +22,12 @@ from datetime import datetime, timedelta
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 
+intents = discord.Intents.default()
+intents.members = True
+# intents.message_content = True
+
 # Create a new instance of the Discord bot with command functionality
-bot = commands.Bot(command_prefix='-', intents=discord.Intents().all())
+bot = commands.Bot(command_prefix='-', intents=intents)
 
 # Define the TournamentDropdown class inheriting from discord.ui.Select
 class TournamentDropdown(discord.ui.Select):
@@ -183,6 +187,7 @@ class CaptchaModal(discord.ui.Modal):
         self.add_item(self.sum2_input)
 
     async def on_submit(self, interaction: discord.Interaction):
+        user = interaction.user
         user_id = interaction.user.id
 
         if validate_captcha(self.sentence_input.value.rstrip(),int(self.sum1_input.value.rstrip()),int(self.sum2_input.value.rstrip())):
@@ -208,9 +213,9 @@ class CaptchaModal(discord.ui.Modal):
             print("Registration confirmed for user:", user_id)
             print(f"Available slots in Lobby {self.lobby_number}:", available_slots(self.lobby_number))
             # Assign COOLDOWN_ROLE_ID to the confirmed user
-            await assign_role(user_id, constants.COOLDOWN_ROLE_ID)
-            await assign_team_to_lobby(user_id, self.lobby_number)
-            await save_timestamp_to_csv(interaction.user, timestamp_ms, self.lobby_number)
+            await assign_role(user, constants.COOLDOWN_ROLE_ID)
+            await assign_team_to_lobby(user, self.lobby_number)
+            await save_timestamp_to_csv(user, timestamp_ms, self.lobby_number)
 
             # Operations that do not need to be locked
             if available_slots(self.lobby_number) == 0:
@@ -1194,10 +1199,10 @@ async def reject_registration(user_id, reason):
     except Exception as e:
         print(f"An error occurred while confirming registration: {e}")
 
-async def save_timestamp_to_csv(user_id, timestamp_ms,lobby_number):
+async def save_timestamp_to_csv(user, timestamp_ms,lobby_number):
     with open('timestamps.csv', 'a', newline='') as csvfile:
         writer = csv.writer(csvfile)
-        writer.writerow([user_id, timestamp_ms,f"Lobby {lobby_number}"])
+        writer.writerow([user, timestamp_ms,f"Lobby {lobby_number}"])
 
 async def save_as_csv(teams_dict, csv_file):
     # Extract User IDs and team names from the dictionary
@@ -1211,12 +1216,12 @@ async def save_as_csv(teams_dict, csv_file):
     df.to_csv(csv_file, index=False)  # Set index=False to exclude row numbers in the CSV file
 
 # Function to assign role to a user
-async def assign_role(user_id, role_id):
+async def assign_role(user, role_id):
     try:
         # Assign the role to the member
-        await bot.get_guild(constants.GUILD_ID).get_member(user_id).add_roles(bot.get_guild(constants.GUILD_ID).get_role(role_id))
+        await user.add_roles(bot.get_guild(constants.GUILD_ID).get_role(role_id))
     except Exception as e:
-        print(f"An error occurred while assigning role to user {user_id}: {e}")
+        print(f"An error occurred while assigning role to user {user}: {e}")
 
 # Function to lock a channel
 async def lock_channel(channel_id):
@@ -1295,19 +1300,13 @@ async def unlock_channel(channel_id):
 #             team_names = [lobby_teams_dict[user_id] for user_id in user_ids]
 #             await send_slots_list(team_names, discord.utils.get(bot.get_guild(constants.GUILD_ID).channels, name=f"lobby-{lobby_number}"))
 
-async def assign_team_to_lobby(user_id, lobby_number):
-    lobby_role_name = f"Lobby {lobby_number}"
-    lobby_channel_name = f"lobby-{lobby_number}"
+async def assign_team_to_lobby(user, lobby_number):
 
-    lobby_role = discord.utils.get(bot.get_guild(constants.GUILD_ID).roles, name=lobby_role_name)
-    lobby_channel = discord.utils.get(bot.get_guild(constants.GUILD_ID).channels, name=lobby_channel_name)
+    lobby_role = discord.utils.get(bot.get_guild(constants.GUILD_ID).roles, name=f"Lobby {lobby_number}")
+    lobby_channel = discord.utils.get(bot.get_guild(constants.GUILD_ID).channels, name=f"lobby-{lobby_number}")
 
     if lobby_role and lobby_channel:
-        member = bot.get_guild(constants.GUILD_ID).get_member(user_id)
-        if member:
-            await member.add_roles(lobby_role)
-        else:
-            print(f"Member with user ID {user_id} not found.")
+        await user.add_roles(lobby_role)
 
 async def send_slots_list(team_names, lobby_number, lobby_channel):
     # Prepare the slots list message
