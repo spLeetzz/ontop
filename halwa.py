@@ -24,7 +24,7 @@ logging.basicConfig(level=logging.INFO)
 
 intents = discord.Intents.default()
 intents.members = True
-# intents.message_content = True
+intents.message_content = True
 
 # Create a new instance of the Discord bot with command functionality
 bot = commands.Bot(command_prefix='-', intents=intents)
@@ -150,20 +150,22 @@ class LobbyButton(discord.ui.Button):
 
     async def callback(self, interaction: discord.Interaction):
         # Check if the lobby has available slots
-        team_name = validate_registration(interaction.user.id)
+        user_id = interaction.user.id
+        user = interaction.user
+        team_name = validate_registration(user)
+        
         if team_name:
             if team_name == 'banned':
-                await interaction.response.send_message(f"{interaction.user.mention} Someone from your team is banned at the moment.\nReach out to the support team in case there's an issue via <#{constants.HELP_CHANNEL_ID}>.",ephemeral=True,delete_after=30)
+                await interaction.response.send_message(f"{user.mention} Someone from your team is banned at the moment.\nReach out to the support team in case there's an issue via <#{constants.HELP_CHANNEL_ID}>.",ephemeral=True,delete_after=30)
 
             elif team_name == 'cooldown':
-                await interaction.response.send_message(f"{interaction.user.mention} Someone from your team is on cooldown, please wait for the cooldown period to end\nReach out to the support team in case there's an issue via <#{constants.HELP_CHANNEL_ID}>.",ephemeral=True,delete_after=30)
+                await interaction.response.send_message(f"{user.mention} Someone from your team is on cooldown, please wait for the cooldown period to end\nReach out to the support team in case there's an issue via <#{constants.HELP_CHANNEL_ID}>.",ephemeral=True,delete_after=30)
 
-            elif any(any(user_id for user_id in team_data) for team_data in constants.registered_teams):
+            elif team_name in constants.registered_teams.keys():
                     await interaction.response.send_message("Someone from your team has already booked a slot for today.", ephemeral=True,delete_after=120)
             
-            elif interaction.user.id not in constants.registered_teams and available_slots(self.lobby_number) > 0:
-                team_data = isAlreadyEnrolled(interaction.user.id,used2returnrow=True)
-                await interaction.response.send_modal(CaptchaModal(self.lobby_number,team_name,team_data))
+            elif user_id not in constants.registered_teams and available_slots(self.lobby_number) > 0:
+                await interaction.response.send_modal(CaptchaModal(self.lobby_number,team_name))
                 
             else:
                 await interaction.response.send_message("Sorry, this lobby is full.", ephemeral=True,delete_after=10)
@@ -171,11 +173,10 @@ class LobbyButton(discord.ui.Button):
         else: await interaction.response.send_message(f"You are not a part of any team right now, please ask your IGL or yourself enlist your team from <#{constants.ENROLLMENT_CHANNEL_ID}>.", ephemeral=True,delete_after=60)
 
 class CaptchaModal(discord.ui.Modal):
-    def __init__(self, lobby_number, team_name,team_data):
+    def __init__(self, lobby_number, team_name):
         super().__init__(title="Let's fill in a captcha real quick!")
         self.lobby_number = lobby_number
         self.team_name = team_name
-        self.team_data = team_data
 
         # Add the captcha input fields
         self.sentence_input = discord.ui.TextInput(label=f"Type this beneath:\n{constants.captcha_question_variables[0]}", placeholder=constants.captcha_question_variables[0],required=True)
@@ -202,12 +203,12 @@ class CaptchaModal(discord.ui.Modal):
                     await save_timestamp_to_csv(interaction.user, timestamp_ms,self.lobby_number)
                     return
                 
-                if any(any(user_id for user_id in team_data) for team_data in constants.registered_teams):
+                if self.team_name in constants.registered_teams.keys():
                     await interaction.followup.send("Someone from your team has already booked a slot for today.", ephemeral=True)
                     return
-
+                
                 # Save the registered team's data
-                constants.registered_teams.append(self.team_data)
+                constants.registered_teams[self.team_name] = isAlreadyEnrolled(user_id,used2returnrow=True)
                 constants.lobby_teams[int(self.lobby_number)-1][user_id] = self.team_name
 
             print("Registration confirmed for user:", user_id)
@@ -226,7 +227,7 @@ class CaptchaModal(discord.ui.Modal):
                 message = await bot.get_channel(constants.REGISTRATION_CHANNEL_ID).fetch_message(constants.REG_MESSAGE_ID)
                 await message.edit(view=RegistrationView())
                 await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"You can download the Google Sheets app to view the list of users and their registration timestamps of {datetime.today().strftime('%d %b')} from this CSV file (for transparency). If you cant find you name in these, you were later than all these 😢.",file=discord.File('timestamps.csv'))
-                await save_as_csv(constants.registered_teams, 'registered_teams.csv')
+                await save_as_csv(constants.registered_teams, 'registered_teams.csv',save_all_flag = True)
                 await bot.get_channel(constants.MOD_CHANNEL_ID).send(file=discord.File('registered_teams.csv'))
 
                 for lobby_number, lobby_teams_dict in enumerate(constants.lobby_teams, 1):
@@ -253,7 +254,7 @@ class PracticeRegistrationButton(discord.ui.Button):
         super().__init__(label=f'PRACTICE REG', style=discord.ButtonStyle.primary,emoji=constants.practice_emoteid,row=1)
 
     async def callback(self, interaction: discord.Interaction):
-        team_name = validate_registration(interaction.user.id)
+        team_name = validate_registration(interaction.user)
         if team_name:
             await interaction.response.send_modal(PracticeRegistrationModal())
         else: await interaction.response.send_message(f"You are not a part of any team right now, please ask your IGL or yourself enlist your team from <#{constants.ENROLLMENT_CHANNEL_ID}>.", ephemeral=True,delete_after=60)
@@ -954,7 +955,7 @@ async def validate_enrollment(user, team_name, player_igns, thread):
         existing_team_message = ""
 
         # Wait for user response with timeout
-        response = await get_user_response_in_thread(user, thread, f"Now fill up the details mentioning players against their IGNs like this [example](<https://bit.ly/exampleHow2Mention>) and send it here.\n_Go ahead, mention your teammates now∆_", 300,True)  # Timeout set to 10 minutes (300 seconds)
+        response = await get_user_response_in_thread(user, thread, f"Now fill up the details mentioning players against their IGNs like this [example](<https://bit.ly/exampleHowToMention>) and send it here.\n_Go ahead, mention your teammates now∆_", 300,True)  # Timeout set to 10 minutes (300 seconds)
         
         if response is None:
             await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} Validation timeout reached. Please reapply.")
@@ -1079,17 +1080,14 @@ def is_team_name_unique(team_name):
 
 def isAlreadyEnrolled(user_id,used2returnrow=False):
     try:
-        # Fetch all values from the worksheet
-        rows = constants.sheet.get_all_values()
-
         # Iterate through each row to find the user's team
-        for row in rows:
+        for row in constants.cached_data:
             # Check if the user's Discord ID is in the row
             if str(user_id) in row:
-                if used2returnrow: return row
+                if used2returnrow: return row[2::2]
                 # Extract team details from the row
                 team_name = row[1]
-                player_igns = row[3::2]  # Player IGNs are in odd indices
+                # player_igns = row[3::2]  # Player IGNs are in odd indices
                 discord_ids = row[2::2]  # Discord IDs are in even indices
 
                 # Construct a message with team details
@@ -1129,9 +1127,10 @@ refresh_thread = threading.Thread(target=refresh_cache)
 refresh_thread.daemon = True
 refresh_thread.start()
 
-def validate_registration(user_id):
+def validate_registration(member):
     try:
-        global cached_data
+        user_id = member.id
+
         # Use the cached data to validate registration
         if constants.cached_data:
             for row in constants.cached_data:
@@ -1140,7 +1139,6 @@ def validate_registration(user_id):
                     # Check if any player in the team has a banned or cooldown role
                     for discord_id in row[2::2]: # Discord IDs are in even indices
                         if discord_id and discord_id.isdigit():
-                            member = bot.get_guild(constants.GUILD_ID).get_member(int(discord_id))
                             if member:
                                 for role in member.roles:
                                     if role.id == constants.COOLDOWN_ROLE_ID:
@@ -1149,6 +1147,7 @@ def validate_registration(user_id):
                                     elif role.id == constants.BANNED_ROLE_ID:
                                         print(f"Someone from User {user_id} wali team has a banned role.")
                                         return 'banned'
+                                    pass
                     else:
                         # If no player has a banned or cooldown role, return the team name
                         team_name = row[1]
@@ -1158,12 +1157,11 @@ def validate_registration(user_id):
         else:
             constants.cached_data = constants.sheet.get_all_values()
             for row in constants.cached_data:
-               if str(user_id) in row:
+                if str(user_id) in row:
                     
                     # Check if any player in the team has a banned or cooldown role
                     for discord_id in row[2::2]: # Discord IDs are in even indices
                         if discord_id and discord_id.isdigit():
-                            member = bot.get_guild(constants.GUILD_ID).get_member(int(discord_id))
                             if member:
                                 for role in member.roles:
                                     if role.id == constants.COOLDOWN_ROLE_ID:
@@ -1172,6 +1170,7 @@ def validate_registration(user_id):
                                     elif role.id == constants.BANNED_ROLE_ID:
                                         print(f"Someone from User {user_id} wali team has a banned role.")
                                         return 'banned'
+                                    pass
                     else:
                         # If no player has a banned or cooldown role, return the team name
                         team_name = row[1]
@@ -1204,7 +1203,19 @@ async def save_timestamp_to_csv(user, timestamp_ms,lobby_number):
         writer = csv.writer(csvfile)
         writer.writerow([user, timestamp_ms,f"Lobby {lobby_number}"])
 
-async def save_as_csv(teams_dict, csv_file):
+async def save_as_csv(teams_dict, csv_file,save_all_flag=False):
+    if save_all_flag:
+        # Extract User IDs and team names from the dictionary
+        team_names = [key for key in teams_dict.keys()]
+        user_ids = [','.join(teams_dict[team_name]) for team_name in team_names]
+
+        # Create a DataFrame with User IDs and team names as columns
+        df = pd.DataFrame({'Team_Name': team_names,'User_IDS': user_ids})
+        
+        # Write the DataFrame to a CSV file
+        df.to_csv(csv_file, index=False)  # Set index=False to exclude row numbers in the CSV file
+        return
+        
     # Extract User IDs and team names from the dictionary
     user_ids = [key for key in teams_dict.keys()]
     team_names = [teams_dict[user_id] for user_id in user_ids]
