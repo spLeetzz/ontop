@@ -37,7 +37,7 @@ class TournamentDropdown(discord.ui.Select):
             discord.SelectOption(label="Update", value="update", description="Update current Team", emoji="📝"),
             discord.SelectOption(label="Delete", value="delete", description="Delete current Team", emoji="🗑️")
         ]
-        super().__init__(placeholder="Select an action", options=options)
+        super().__init__(placeholder="Click here to select an action!", options=options)
 
     async def callback(self, interaction: discord.Interaction):
         # Handle the interaction response based on the selected value
@@ -92,7 +92,7 @@ async def send_pref_menu(channel):
     return message
 
 async def send_remenu(channel):
-    embed = discord.Embed(title="BookMySlot", description=f"*Hey Wanderer, can I lurk on you :>*\n\n**OPENS AT 12 PM TUE-SAT**\n\n1. Make sure that you have completed the enrollment of your team from this channel <#{constants.REGISTRATION_CHANNEL_ID}>\n2. One team can participate once in a week, cooldowns refresh every Tuesday.\n3. Please book a slot only if you wanna participate in the scrims, there wont be any slot cancellation/reassignment later on.\n4. Fastest ones to register in any lobby will be allocated with the slots.\n5. You need to pass in a simple Captcha test for registration, practice it anytime with 'PRACTICE REG' button.", color=0x229db7)# .set_footer(text="GOOD LUCK MERE BHAI/BEHEN")
+    embed = discord.Embed(title="BookMySlot", description=f"*Hey Wanderer, can I lurk on you :>*\n\n**OPENS AT 12 PM TUE-SAT**\n\n1. Make sure that you have completed the enrollment of your team from this channel <#{constants.ENROLLMENT_CHANNEL_ID}>\n2. One team can participate once in a week, cooldowns refresh every Tuesday.\n3. Please book a slot only if you wanna participate in the scrims, there wont be any slot cancellation/reassignment later on.\n4. Fastest ones to register in any lobby will be allocated with the slots.\n5. You need to pass in a simple Captcha test for registration, practice it anytime with 'PRACTICE REG' button.", color=0x229db7)
     view = RegistrationView()  
     message = await channel.send(embed=embed, view=view)
     return message
@@ -307,7 +307,7 @@ class RulesButton(discord.ui.Button):
         super().__init__(label=f'Scrims Rules', style=discord.ButtonStyle.primary)
 
     async def callback(self, interaction: discord.Interaction):
-        embed = discord.Embed(title="Scrims Rules", description=f"1. IGNs(In Game Name) of all players must have some similar pattern of characters as prefix/suffix, you'll be kicked from the room if not found such. To tackle this you can even play from a new id with a condition of pov recording as per the Guidelines.\n\n2. All mic toxicity and rants are not allowed while in lobby and in match, you can be banned for this.\n\n3. Exploiting Bugs/Glitches or Hacking will lead to serious consequences.\n\n4. Complete POV recording is must for all the players of every team! Management may ask for 'Raw POV' anytime. You must also make sure to keep match end results screenshot with you for every match.", color=0x229db7)
+        embed = discord.Embed(title="Scrims Rules", description=f"1. IGNs(In Game Name) of all players must have some similar pattern of characters as prefix/suffix, you'll be kicked from the room if not found such. To tackle this you can even play from a new id meeting the condition of pov recording stated below.\n\n2. All mic toxicity and rants are not allowed while in lobby or in match, you can be banned for this.\n\n3.  EMERGENCY PICKUP is strictly prohibited and shouldn't be used at all, exploiting Bugs/Glitches or Hacking will lead to serious consequences.\n\n4. Complete POV recording is must for all the players of every team! Management may ask for 'Raw POV' anytime. You must also make sure to keep match end results screenshot with you for every match.", color=0x229db7)
         await interaction.response.send_message(embed=embed,ephemeral=True,delete_after=180)
 
 class PointsSystemButton(discord.ui.Button):
@@ -1120,7 +1120,7 @@ def refresh_cache():
         except Exception as e:
             print("Error occurred while refreshing cache:", e)
         # Sleep for 60 seconds before refreshing again
-        time.sleep(10)
+        time.sleep(5)
 
 # Start a separate thread to periodically refresh the cache
 refresh_thread = threading.Thread(target=refresh_cache)
