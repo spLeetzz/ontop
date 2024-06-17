@@ -99,7 +99,7 @@ async def send_remenu(channel):
 
 async def send_overview_menu(channel):
     view = ScrimsOverviewView()  
-    message = await channel.send(content=f"Hey there, here's a complete overview of BGMI scrims at Trident:\n\nThere are 4 tiers basically,\n\n`Trident Rookie Scrims(Tier 3):`\n\n- Open for all, anyone can participate, registrations open at 12 PM Tuesday-Saturday in <#{constants.REGISTRATION_CHANNEL_ID}>\n- 4 Groups every day, Top 2 from each Group qualify for Amateur Scrims\n- Every Group plays 3 matches, Erangle-Miramar-Sanhok\n- One team can participate once a week\n\n`Amateur Scrims(T2 filtration):`\n\n- 2 Groups on Sunday, Top 5 from each Group qualify for Tier 2 scrims\n- Every Group plays 3 matches, Erangle-Miramar-Sanhok\n\n`Trident Elite Scrims(Tier 2):`\n\n- 2 Groups, Every team plays 24 matches over 6 days.\n- Tuesday-Sunday daily 4 matches, Erangle-Miramar-Sanhok-Vikendi\n- Top 10 teams based on cumulative leaderboard of both Groups qualify for Tier 1.\n- Bottom 10 teams are demoted from Tier 2 to Tier 3.\n\n`Trident Pro Scrims(Tier 1):`\n\n- Single Group, Every team plays 24 matches over 6 days, Daily streams of every match.\n- Tuesday-Sunday daily 4 matches, Erangle-Miramar-Sanhok-Vikendi\n- Top 8 teams based on leaderboard retain their Tier 1 spots.\n- Bottom 10 teams are demoted from Tier 1 to Tier 2.\n\nAny announcements and updates would be shared thru the <#{constants.ANNOUNCEMENTS_CHANNEL_ID}> <#{constants.UPDATES_CHANNEL_ID}> channels.\nReact with buttons beneath for more information and make sure to follow all rules.",view=view)
+    message = await channel.send(content=f"Hey there, here's a complete overview of BGMI scrims at Trident:\n\nThere are 4 tiers basically,\n\n`Trident Rookie Scrims(Tier 3):`\n\n- Open for all, anyone can participate, registrations open at 12 PM Tuesday-Saturday in <#{constants.REGISTRATION_CHANNEL_ID}>\n- 4 Groups every day, Top 2 from each Group qualify for Amateur Scrims\n- Every Group plays 2 matches, Erangle-Miramar\n\n`Amateur Scrims(T2 filtration):`\n\n- 2 Groups on Sunday, Top 4 from each Group qualify for Tier 2 scrims\n- Every Group plays 3 matches, Erangle-Miramar-Sanhok\n\n`Trident Elite Scrims(Tier 2):`\n\n- 2 Groups, Every team plays 24 matches over 6 days.\n- Tuesday-Sunday daily 4 matches, Erangle-Miramar-Sanhok-Vikendi\n- Top 10 teams based on cumulative leaderboard of both Groups qualify for Pro Scrims.\n- Bottom 10 teams are demoted from Tier 2 to Tier 3.\n\n`Trident Pro Scrims:`\n\n- Tuesday-Sunday daily 4 matches, Erangle-Miramar-Sanhok-Vikendi\n- Top 6 teams based on leaderboard retain their Tier 1 spots.\n- Rest of the teams are demoted from Pro Scrims to Tier 2.\n\nAny announcements and updates would be shared thru the <#{constants.UPDATES_CHANNEL_ID}> channels.\nReact with buttons beneath for more information and make sure to follow all rules.",view=view)
     return message
 
 class LobbySelectDropdown(discord.ui.Select):
@@ -193,7 +193,7 @@ class CaptchaModal(discord.ui.Modal):
 
         if validate_captcha(self.sentence_input.value.rstrip(),int(self.sum1_input.value.rstrip()),int(self.sum2_input.value.rstrip())):
             timestamp_ms = datetime.now(tz=pytz.timezone('Asia/Kolkata')).strftime("%b %d %H:%M:%S.%f")
-            await interaction.response.defer(ephemeral=True)  # Defer the interaction response
+            await interaction.response.defer(ephemeral=True,thinking=True)  # Defer the interaction response
 
             # Acquire the registration lock for this lobby
             async with constants.lobby_locks[int(int(self.lobby_number) - 1)]:
@@ -315,7 +315,7 @@ class PointsSystemButton(discord.ui.Button):
         super().__init__(label=f'Points System', style=discord.ButtonStyle.primary)
 
     async def callback(self, interaction: discord.Interaction):
-        await interaction.response.send_message(f"https://cdn.discordapp.com/attachments/1247528043455578152/1247554655815471144/Frame_16.png?ex=66607350&is=665f21d0&hm=63be537f9154ff00baf92aba81050b978b5bd66d758cee638beb9ca28d89e297&",ephemeral=True,delete_after=180)
+        await interaction.response.send_message(f"https://cdn.discordapp.com/attachments/1247528043455578152/1252305868767100949/Frame_16_1.png?ex=6671bc39&is=66706ab9&hm=96b83631ad2362319cd1a47bca5e00fb22eb49d6ba8db7db92024a0a46316233&",ephemeral=True,delete_after=180)
 
 class ScheduleButton(discord.ui.Button):
     def __init__(self):
@@ -737,7 +737,7 @@ async def enrollTeam(user):
 
     except EnrollmentError as ee:
         # Schedule the deletion of the thread 
-        await thread.send(f"Clearin' this channel in {(int(ee.timeout)/60)} minutes")
+        await thread.send(f"This thread will be deleted in {(int(ee.timeout)/60)} minutes")
         await asyncio.sleep(int(ee.timeout))  # default = 5 minutes
         await thread.delete()
         pass  # Do nothing, the code execution will stop
@@ -978,17 +978,20 @@ async def validate_enrollment(user, team_name, player_igns, thread):
 
         # Check if at least 4 users are mentioned
         if len(player_discord_ids) < 4:
-            await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} You didn't mention all of your teammates. Please restart the enrollment process and mention correctly next time.")
+            await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"Hey {user.mention}, you missed mentioning all your teammates.\nPlease restart the enrollment process and mention correctly next time.\nThis message can also be sent if someone from your team is not present in the server.")
             await response.add_reaction("❌")
             raise EnrollmentError(60)
 
-        # Check if at least 4 mentioned users have the required role
-        for discord_id in player_discord_ids:
-            member = bot.get_guild(constants.GUILD_ID).get_member(discord_id)
-            if member is None or not any(role.name == constants.REQUIRED_ROLE_NAME for role in member.roles):
-                await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} One or more teammates haven't verified on the discord server yet. Reapply once it's done.")
-                await response.add_reaction("❌")
-                raise EnrollmentError(60)
+        # # Check if at least 4 mentioned users have the required role
+        # for discord_id in player_discord_ids:
+        #     member = bot.get_guild(constants.GUILD_ID).get_member(discord_id)
+
+            # for verify wala lafda :
+            # if member is None or not any(role.name == constants.REQUIRED_ROLE_NAME for role in member.roles):
+            #     await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} One or more teammates haven't verified on the discord server yet. Reapply once it's done.")
+            #     await response.add_reaction("❌")
+            #     raise EnrollmentError(60)
+
                     
         # All validation checks passed
         await response.add_reaction("✅")
@@ -996,7 +999,7 @@ async def validate_enrollment(user, team_name, player_igns, thread):
 
         # Write enrollment details to Google Sheets
         write_to_sheet(user.id, team_name, player_igns, player_discord_ids)
-        await thread.send("Clearin' this channel in 1 minute")
+        await thread.send("This thread will be deleted in 1 minute")
         await asyncio.sleep(60)
         await thread.delete()
         return True
