@@ -13,7 +13,6 @@ import time
 import os
 import threading
 import csv
-import pytz
 import random
 import string
 from constants import constants
@@ -99,7 +98,7 @@ async def send_remenu(channel):
 
 async def send_overview_menu(channel):
     view = ScrimsOverviewView()  
-    message = await channel.send(content=f"Hey there, here's a complete overview of BGMI scrims at Trident:\n\nThere are 4 tiers basically,\n\n`Trident Rookie Scrims(Tier 3):`\n\n- Open for all, anyone can participate, registrations open at 12 PM Tuesday-Saturday in <#{constants.REGISTRATION_CHANNEL_ID}>\n- 4 Groups every day, Top 2 from each Group qualify for Amateur Scrims\n- Every Group plays 2 matches, Erangle-Miramar\n\n`Amateur Scrims(T2 filtration):`\n\n- 2 Groups on Sunday, Top 4 from each Group qualify for Tier 2 scrims\n- Every Group plays 3 matches, Erangle-Miramar-Sanhok\n\n`Trident Elite Scrims(Tier 2):`\n\n- 2 Groups, Every team plays 24 matches over 6 days.\n- Tuesday-Sunday daily 4 matches, Erangle-Miramar-Sanhok-Vikendi\n- Top 10 teams based on cumulative leaderboard of both Groups qualify for Pro Scrims.\n- Bottom 10 teams are demoted from Tier 2 to Tier 3.\n\n`Trident Pro Scrims:`\n\n- Tuesday-Sunday daily 4 matches, Erangle-Miramar-Sanhok-Vikendi\n- Top 6 teams based on leaderboard retain their Tier 1 spots.\n- Rest of the teams are demoted from Pro Scrims to Tier 2.\n\nAny announcements and updates would be shared thru the <#{constants.UPDATES_CHANNEL_ID}> channels.\nReact with buttons beneath for more information and make sure to follow all rules.",view=view)
+    message = await channel.send(content=f"Hey there, here's a complete overview of BGMI scrims at Trident:\n\nThere are 4 tiers basically,\n\n`Trident Rookie Scrims(Tier 3):`\n\n- Open for all, anyone can participate, registrations open at 12 PM Tuesday-Saturday in <#{constants.REGISTRATION_CHANNEL_ID}>\n- 4 Groups every day, Top 2 from each Group qualify for Amateur Scrims\n- Every Group plays 2 matches, Erangle-Miramar\n\n`Amateur Scrims(T2 filtration):`\n\n- 2 Groups on Sunday, Top 4 from each Group qualify for Tier 2 scrims\n- Every Group plays 3 matches, Erangle-Miramar-Sanhok\n\n`Trident Elite Scrims(Tier 2):`\n\n- 2 Groups, Every team plays 24 matches over 6 days.\n- Tuesday-Sunday daily 4 matches, Erangle-Miramar-Sanhok-Vikendi\n- Top 10 teams based on cumulative leaderboard of both Groups qualify for Pro Scrims.\n- Bottom 10 teams are demoted from Tier 2 to Tier 3.\n\n`Trident Pro Scrims:`\n\n- Tuesday-Sunday daily 4 matches, Erangle-Miramar-Sanhok-Vikendi\n- Top 6 teams based on leaderboard retain their spots in Pro Scrims.\n- Rest of the teams are demoted from Pro Scrims to Tier 2.\n\nAny announcements and updates would be shared thru the <#{constants.UPDATES_CHANNEL_ID}> channels.\nReact with buttons beneath for more information and make sure to follow all rules.",view=view)
     return message
 
 class LobbySelectDropdown(discord.ui.Select):
@@ -155,11 +154,15 @@ class LobbyButton(discord.ui.Button):
         team_name = validate_registration(user)
         
         if team_name:
-            if team_name == 'banned':
+            # if team_name == 'banned':
+            if team_name in constants.banned_team_list:
                 await interaction.response.send_message(f"{user.mention} Someone from your team is banned at the moment.\nReach out to the support team in case there's an issue via <#{constants.HELP_CHANNEL_ID}>.",ephemeral=True,delete_after=30)
 
             elif team_name == 'cooldown':
                 await interaction.response.send_message(f"{user.mention} Someone from your team is on cooldown, please wait for the cooldown period to end\nReach out to the support team in case there's an issue via <#{constants.HELP_CHANNEL_ID}>.",ephemeral=True,delete_after=30)
+
+            elif team_name == 'left_server':
+                await interaction.response.send_message(f"{user.mention} Someone from your team is not present in this server rn.",ephemeral=True,delete_after=60)
 
             elif team_name in constants.registered_teams.keys():
                     await interaction.response.send_message("Someone from your team has already booked a slot for today.", ephemeral=True,delete_after=120)
@@ -192,12 +195,12 @@ class CaptchaModal(discord.ui.Modal):
         user_id = interaction.user.id
 
         if validate_captcha(self.sentence_input.value.rstrip(),int(self.sum1_input.value.rstrip()),int(self.sum2_input.value.rstrip())):
-            timestamp_ms = datetime.now(tz=pytz.timezone('Asia/Kolkata')).strftime("%b %d %H:%M:%S.%f")
+            timestamp_ms = datetime.now(tz=constants.timezone).strftime("%b %d %H:%M:%S.%f")
             await interaction.response.defer(ephemeral=True,thinking=True)  # Defer the interaction response
 
             # Acquire the registration lock for this lobby
             async with constants.lobby_locks[int(int(self.lobby_number) - 1)]:
-                timestamp_ms = datetime.now(tz=pytz.timezone('Asia/Kolkata')).strftime("%b %d %H:%M:%S.%f")
+                timestamp_ms = datetime.now(tz=constants.timezone).strftime("%b %d %H:%M:%S.%f")
                 if available_slots(self.lobby_number) <= 0:
                     await interaction.followup.send("Sorry, this lobby is full.", ephemeral=True)
                     await save_timestamp_to_csv(interaction.user, timestamp_ms,self.lobby_number)
@@ -322,7 +325,7 @@ class ScheduleButton(discord.ui.Button):
         super().__init__(label=f'Tier-3 Schedule', style=discord.ButtonStyle.primary)
 
     async def callback(self, interaction: discord.Interaction):
-        embed = discord.Embed(title="Tier-3 Schedule", description=f"{constants.stary_emote} Group 1 {constants.stary_emote}\n\n⦾ MATCH-1 -> IDP : 03:00 PM | START : 03:10 PM\n\n⦾ MATCH-2 -> IDP : 03:40 PM | START : 03:50 PM\n\n⦾ MATCH-3 -> IDP : 04:20 PM | START : 04:30 PM\n\n{constants.stary_emote} Group 2 {constants.stary_emote}\n\n⦾ MATCH-1 -> IDP : 03:15 PM | START : 03:25 PM\n\n⦾ MATCH-2 -> IDP : 03:55 PM | START : 04:05 PM\n\n⦾ MATCH-3 -> IDP : 04:35 PM | START : 04:45 PM\n\n{constants.stary_emote} Group 3 {constants.stary_emote}\n\n⦾ MATCH-1 -> IDP : 04:50 PM | START : 05:00 PM\n\n⦾ MATCH-2 -> IDP : 05:30 PM | START : 05:40 PM\n\n⦾ MATCH-3 -> IDP : 06:10 PM | START : 06:20 PM\n\n{constants.stary_emote} Group 4 {constants.stary_emote}\n\n⦾ MATCH-1 -> IDP : 05:05 PM | START : 05:15 PM\n\n⦾ MATCH-2 -> IDP : 05:45 PM | START : 05:55 PM\n\n⦾ MATCH-3 -> IDP : 06:25 PM | START : 06:35 PM", color=0x229db7)
+        embed = discord.Embed(title="Tier-3 Schedule", description=f"{constants.stary_emote} Group 1 {constants.stary_emote}\n\n⦾ MATCH-1 -> IDP : 03:00 PM | START : 03:10 PM\n\n⦾ MATCH-2 -> IDP : 03:40 PM | START : 03:50 PM\n\n{constants.stary_emote} Group 2 {constants.stary_emote}\n\n⦾ MATCH-1 -> IDP : 03:15 PM | START : 03:25 PM\n\n⦾ MATCH-2 -> IDP : 03:55 PM | START : 04:05 PM\n\n{constants.stary_emote} Group 3 {constants.stary_emote}\n\n⦾ MATCH-1 -> IDP : 04:10 PM | START : 04:20 PM\n\n⦾ MATCH-2 -> IDP : 04:50 PM | START : 05:00 PM\n\n{constants.stary_emote} Group 4 {constants.stary_emote}\n\n⦾ MATCH-1 -> IDP : 04:25 PM | START : 04:35 PM\n\n⦾ MATCH-2 -> IDP : 05:05 PM | START : 05:15 PM", color=0x229db7)
         await interaction.response.send_message(embed=embed,ephemeral=True,delete_after=180)
 
 class ScrimsOverviewView(discord.ui.View):
@@ -351,7 +354,8 @@ async def on_ready():
 
     try:
         # Attempt to connect to Google Sheets
-        constants.sheet, constants.service = connect_to_google_sheets(json_keyfile_path)
+        constants.sheet, constants.service = connect_to_google_sheets(json_keyfile_path,sheet_id=constants.GOOGLE_SHEET_ID)
+        constants.ban_sheet,_ = connect_to_google_sheets(json_keyfile_path,sheet_id=constants.BAN_SHEET_ID)
     except Exception as e:
         print("Error while connecting to Google Sheets:", e)
     
@@ -452,7 +456,7 @@ async def on_guild_join(guild):
     await bot.tree.sync(guild=guild)
     print(f"Slash commands synced in new guild: {guild.name}")
     
-def connect_to_google_sheets(json_keyfile_path, retry_interval=10):
+def connect_to_google_sheets(json_keyfile_path, sheet_id,retry_interval=10):
     while True:
         try:
             credentials = Credentials.from_service_account_file(json_keyfile_path, scopes=['https://www.googleapis.com/auth/spreadsheets'])
@@ -461,8 +465,8 @@ def connect_to_google_sheets(json_keyfile_path, retry_interval=10):
 
             service = build('sheets', 'v4', credentials=credentials)
 
-            sheet = gc.open_by_key(constants.GOOGLE_SHEET_ID).sheet1
-            print("Successfully opened Google Sheets document by ID:", constants.GOOGLE_SHEET_ID)
+            sheet = gc.open_by_key(sheet_id).sheet1
+            print("Successfully opened Google Sheets document by ID:", sheet_id)
             
             return sheet, service
 
@@ -551,6 +555,60 @@ async def start_error(ctx, error):
     if isinstance(error, commands.MissingPermissions):
         missing_perms = ', '.join(error.missing_permissions)
         await ctx.send(f"You don't have the required permissions to use this command: {missing_perms}")
+    else:
+        await ctx.send(f"An error occurred: {error}")
+
+@bot.hybrid_command(name="delete_from_sheet",description="**SENSITIVE, this team's data can be lost forever from our end.")
+@commands.has_any_role('++D', 'Sr. Staff','Admin','.','Staff',"Mahatma")
+async def delete_from_sheet(ctx,member: discord.User):
+    try:
+        row = delete_team_from_sheet(member.id,constants.GOOGLE_SHEET_ID,ctx=ctx)
+        await ctx.send(f"Team data deleted successfully.\n{row}")
+    except Exception as e:
+        await ctx.send(f"Error occurred while deleting team data from Google Sheets \n{e}")
+
+@delete_from_sheet.error
+async def delete_from_sheet(ctx, error):
+    if isinstance(error, commands.MissingPermissions):
+        missing_perms = ', '.join(error.missing_permissions)
+        await ctx.send(f"You don't have the required permissions to use this command: {missing_perms}")
+    else:
+        await ctx.send(f"An error occurred: {error}")
+
+@start.error
+async def start_error(ctx, error):
+    if isinstance(error, commands.MissingPermissions):
+        missing_perms = ', '.join(error.missing_permissions)
+        await ctx.send(f"You don't have the required permissions to use this command: {missing_perms}")
+    else:
+        await ctx.send(f"An error occurred: {error}")
+
+@bot.tree.command(name="ban_team", description="Ban whole team for x hours and y days")
+@app_commands.checks.has_permissions(view_audit_log=True, manage_roles=True)
+async def ban_team(interaction: discord.Interaction, user: discord.User, hours: int = 0, days: int = 0):
+    if hours == 0 and days == 0:
+        await interaction.response.send_message("You must specify a valid duration.")
+        return
+    
+    # Logic to ban the team goes here.
+    # This is an example, assuming you have a way to get team members
+    team_name = validate_registration(user, check_cooldown = False,check_left_server = False)
+    if team_name == "banned":
+        await interaction.response.send_message("Bhai ye team already banned hai, if duration badhana h to splitz ko pakdo, aese command se krna thoda mushkil hai")
+        return
+    row = [team_name,int(time.time()),int((hours * 3600) + (days * 86400)),datetime.now(tz=constants.timezone).strftime("%Y-%m-%d %H:%M"),f"{days} days {hours} hours",str(user)]
+    constants.ban_sheet.append_row(row)
+    await interaction.response.send_message(f"Banned User: {user.mention}'s Team {team_name} for {days} days and {hours} hours")
+    # Print registration details for verification
+    print(f"Banned {team_name} for {days} days and {hours} hours")
+
+@ban_team.error
+async def ban_team(ctx, error):
+    if isinstance(error, commands.MissingPermissions):
+        missing_perms = ', '.join(error.missing_permissions)
+        await ctx.send(f"You don't have the required permissions to use this command: {missing_perms}")
+    elif isinstance(error,ValueError):
+        await ctx.send(f"You must specify a valid duration.")
     else:
         await ctx.send(f"An error occurred: {error}")
 
@@ -701,7 +759,7 @@ async def enrollTeam(user):
                 raise ValueError("Team name cannot be empty.")
             
             # Check if the team name is banned or on cooldown
-            if team_name.lower() == "cooldown" or team_name.lower() == "banned":
+            if team_name.lower() == "cooldown" or team_name.lower() == "banned" or team_name.lower() == "left_server":
                 await thread.send(f"{user.mention} This team name is not allowed. Please choose a different team name.")
 
             # Check if the team name already exists
@@ -788,7 +846,10 @@ async def updateTeam(user):
         response = await ask_yes_no_question_in_thread(user, thread, confirmation_message)
         if response == 'yes':
             constants.running_processes[user.id] = False
-            delete_team_from_sheet(user.id,constants.GOOGLE_SHEET_ID)
+            try:
+                delete_team_from_sheet(user.id,constants.GOOGLE_SHEET_ID)
+            except Exception as e:
+                await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"Error occurred while deleting team data from Google Sheets: {e}")
             await thread.send("Your previous team data was deleted so even if you are timed out from here, you will need to start enrollment fresh.\n\nLet's Start new enrollment! Check new mention, clearin' this channel is 5 minutes.")
             constants.running_processes.pop(user.id, None)
             await enrollTeam(user)
@@ -835,7 +896,10 @@ async def deleteTeam(user):
         response = await ask_yes_no_question_in_thread(user, thread, confirmation_message)
         if response == 'yes':
             constants.running_processes[user.id] = False
-            delete_team_from_sheet(user.id,constants.GOOGLE_SHEET_ID)
+            try:
+                delete_team_from_sheet(user.id,constants.GOOGLE_SHEET_ID)
+            except Exception as e:
+                await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"Error occurred while deleting team data from Google Sheets: {e}")
             await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} Your team was deleted successfully.")
             await thread.delete()
             return
@@ -1032,19 +1096,15 @@ def write_to_sheet(initiator_id, team_name, player_igns, player_discord_ids):
     # Print registration details for verification
     print(f"Registered: {initiator_idstr}, Team: {team_name}, Discord Usernames: {', '.join(player_discord_ids)}, IGNs: {', '.join(player_igns)}")
 
-def delete_team_from_sheet(user_id, spreadsheet_id):
+def delete_team_from_sheet(user_id, spreadsheet_id,ctx = None):
     try:
         # Fetch all values from the worksheet
         sheet = constants.service.spreadsheets()
         result = sheet.values().get(spreadsheetId=spreadsheet_id, range="Sheet1").execute()
         values = result.get('values', [])
-
-        # Find the row index containing the user's team
-        row_index = None
-        for i, row in enumerate(values):
-            if str(user_id) in row:
-                row_index = i + 1  # Adding 1 to match 1-based index in Sheets API
-                break
+        
+        # Find the row index and the row containing the user_id
+        row_index, row = next(((i + 1, row) for i, row in enumerate(values) if str(user_id) in row), (None, None))  
 
         if row_index is not None:
             # Build the request payload
@@ -1069,7 +1129,9 @@ def delete_team_from_sheet(user_id, spreadsheet_id):
                 body=request_body
             ).execute()
 
-            print("Team data deleted successfully.")
+            print(f"Team data deleted successfully.\n{row}")
+            if ctx:
+                return row
         else:
             print("Team data not found for deletion.")
 
@@ -1113,26 +1175,49 @@ def isAlreadyEnrolled(user_id,used2returnrow=False):
 
 # Function to fetch data from the worksheet and update the cache
 def refresh_cache():
+    initialized = False
     while True:
         try:
             # Fetch all values from the worksheet
             rows = constants.sheet.get_all_values()
             # Update the cached data
-            constants.cached_data = rows
+            with constants.cache_data_thread_lock:
+                constants.cached_data = rows
+            
+            # Check if cached_data is initialized and print message only once
+            if constants.cached_data is not None and not initialized:
+                print(f"\ncache_data initialized.\n")
+                initialized = True  # Set flag to True after printing
             
         except Exception as e:
             print("Error occurred while refreshing cache:", e)
-        # Sleep for 60 seconds before refreshing again
+        # Sleep for 5 seconds before refreshing again
         time.sleep(5)
 
-# Start a separate thread to periodically refresh the cache
-refresh_thread = threading.Thread(target=refresh_cache)
-refresh_thread.daemon = True
-refresh_thread.start()
+# Function to fetch data from the worksheet and update the cache
+def refresh_cache2():
+    initialized = False
+    while True:
+        try:
+            # Fetch all values from the worksheet
+            rows = constants.ban_sheet.get_all_values()
+            with constants.ban_list_thread_lock:
+                constants.banned_team_list = [row[0] for row in rows[1:]]
 
-def validate_registration(member):
+            # Check if banned_teams_list is initialized and print message only once
+            if constants.banned_team_list is not None and not initialized:
+                print(f"\nbanned_teams_list initialized.\n")
+                initialized = True  # Set flag to True after printing
+
+        except Exception as e:
+            print("Error occurred while refreshing banned_teams cache:", e)
+        # Sleep for 60 seconds before refreshing again
+        time.sleep(60)
+
+def validate_registration(user,check_cooldown = True,check_left_server = True):
     try:
-        user_id = member.id
+        user_id = user.id
+        guild = bot.get_guild(int(constants.GUILD_ID))
 
         # Use the cached data to validate registration
         if constants.cached_data:
@@ -1142,15 +1227,17 @@ def validate_registration(member):
                     # Check if any player in the team has a banned or cooldown role
                     for discord_id in row[2::2]: # Discord IDs are in even indices
                         if discord_id and discord_id.isdigit():
+                            member = guild.get_member(int(discord_id))
                             if member:
                                 for role in member.roles:
-                                    if role.id == constants.COOLDOWN_ROLE_ID:
+                                    if role.id == constants.COOLDOWN_ROLE_ID and check_cooldown:
                                         print(f"Someone from User {user_id} wali team is on cooldown.")
                                         return 'cooldown'
-                                    elif role.id == constants.BANNED_ROLE_ID:
-                                        print(f"Someone from User {user_id} wali team has a banned role.")
-                                        return 'banned'
-                                    pass
+                                    # elif role.id == constants.BANNED_ROLE_ID:
+                                    #     print(f"Someone from User {user_id} wali team has a banned role.")
+                                    #     return 'banned'
+                            elif check_left_server and not member: return 'left_server'
+
                     else:
                         # If no player has a banned or cooldown role, return the team name
                         team_name = row[1]
@@ -1165,15 +1252,17 @@ def validate_registration(member):
                     # Check if any player in the team has a banned or cooldown role
                     for discord_id in row[2::2]: # Discord IDs are in even indices
                         if discord_id and discord_id.isdigit():
+                            member = bot.get_user(discord_id)
                             if member:
                                 for role in member.roles:
-                                    if role.id == constants.COOLDOWN_ROLE_ID:
+                                    if role.id == constants.COOLDOWN_ROLE_ID and check_cooldown:
                                         print(f"Someone from User {user_id} wali team is on cooldown.")
                                         return 'cooldown'
-                                    elif role.id == constants.BANNED_ROLE_ID:
-                                        print(f"Someone from User {user_id} wali team has a banned role.")
-                                        return 'banned'
-                                    pass
+                                    # elif role.id == constants.BANNED_ROLE_ID:
+                                    #     print(f"Someone from User {user_id} wali team has a banned role.")
+                                    #     return 'banned'
+                            elif check_left_server and not member: return 'left_server'
+
                     else:
                         # If no player has a banned or cooldown role, return the team name
                         team_name = row[1]
@@ -1345,5 +1434,18 @@ async def send_slots_list(team_names, lobby_number, lobby_channel):
     embed = discord.Embed(title=f"GROUP {lobby_number} SLOTS LIST:", description=slots_list_message,color=0x229db7)
     await lobby_channel.send(embed=embed)
 
-# Run the bot with the specified token
-bot.run(os.environ.get('DISCORD_TOKEN'))
+if __name__ == "__main__":
+
+    # Start a separate thread to periodically refresh the cache
+    refresh_thread = threading.Thread(target=refresh_cache)
+    refresh_thread.daemon = True
+    refresh_thread.start()
+
+    # Start a separate thread to periodically refresh the ban list
+    refresh_thread2 = threading.Thread(target=refresh_cache2)
+    refresh_thread2.daemon = True
+    refresh_thread2.start()
+
+    # Run the bot with the specified token
+    bot.run(os.environ.get('DISCORD_TOKEN'))
+    
