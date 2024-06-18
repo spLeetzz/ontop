@@ -475,34 +475,34 @@ def connect_to_google_sheets(json_keyfile_path, sheet_id,retry_interval=10):
             print(f"Retrying in {retry_interval} seconds...")
             time.sleep(retry_interval)
 
-@bot.hybrid_command(name="setprompt")
-@app_commands.describe(prompt="karle bhai prompt set koi ni dekhra")
-@commands.has_permissions(view_audit_log=True, manage_roles=True)
-async def setprompt(ctx, *, prompt: str = None):
-    try:
-        if prompt is None:
-            await ctx.send("Invalid prompt. Please provide a non-empty prompt.")
-            return
+# @bot.hybrid_command(name="setprompt")
+# @app_commands.describe(prompt="karle bhai prompt set koi ni dekhra")
+# @commands.has_permissions(view_audit_log=True, manage_roles=True)
+# async def setprompt(ctx, *, prompt: str = None):
+#     try:
+#         if prompt is None:
+#             await ctx.send("Invalid prompt. Please provide a non-empty prompt.")
+#             return
 
-        # Check if the prompt is not an empty string
-        if prompt.strip():
-            constants.REGISTRATION_PROMPT = prompt
-            await ctx.send(f"Registration prompt set to: {prompt}")
-        else:
-            await ctx.send("Invalid prompt. Please provide a non-empty prompt.")
+#         # Check if the prompt is not an empty string
+#         if prompt.strip():
+#             constants.REGISTRATION_PROMPT = prompt
+#             await ctx.send(f"Registration prompt set to: {prompt}")
+#         else:
+#             await ctx.send("Invalid prompt. Please provide a non-empty prompt.")
 
-    except MissingPermissions as e:
-        await ctx.send(f"You don't have the required permissions to use this command: {', '.join(e.missing_perms)}")
-    except Exception as e:
-        await ctx.send(f"An error occurred: {e}")
+#     except MissingPermissions as e:
+#         await ctx.send(f"You don't have the required permissions to use this command: {', '.join(e.missing_perms)}")
+#     except Exception as e:
+#         await ctx.send(f"An error occurred: {e}")
 
-@setprompt.error
-async def setprompt(ctx, error):
-    if isinstance(error, commands.MissingPermissions):
-        missing_perms = ', '.join(error.missing_permissions)
-        await ctx.send(f"You don't have the required permissions to use this command: {missing_perms}")
-    else:
-        await ctx.send(f"An error occurred: {error}")
+# @setprompt.error
+# async def setprompt(ctx, error):
+#     if isinstance(error, commands.MissingPermissions):
+#         missing_perms = ', '.join(error.missing_permissions)
+#         await ctx.send(f"You don't have the required permissions to use this command: {missing_perms}")
+#     else:
+#         await ctx.send(f"An error occurred: {error}")
 
 # @bot.hybrid_command(name="start")
 # @commands.has_permissions(view_audit_log=True, manage_roles=True)
@@ -526,7 +526,7 @@ async def setprompt(ctx, error):
 #     else:
 #         await ctx.send(f"An error occurred: {error}")
 
-@bot.hybrid_command(name="start")
+@bot.hybrid_command(name="start",description="To Start REG, the captcha you pass in will be default for everyone.")
 @commands.has_permissions(view_audit_log=True, manage_roles=True)
 async def start(ctx, captcha_phrase : str):
     constants.registered_teams.clear()
