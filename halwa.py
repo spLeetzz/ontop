@@ -612,7 +612,7 @@ async def ban_team(ctx, error):
     else:
         await ctx.send(f"An error occurred: {error}")
 
-@bot.hybrid_command(name="clearlb", description="Clear lobby Channels and role")
+@bot.hybrid_command(name="clearlb", description="**Clear lobby Channels and role")
 @commands.has_permissions(view_audit_log=True, manage_roles=True)
 async def clear_lb(ctx):
     lobby_role_names = [f"Lobby {i}" for i in range(1, int(constants.SLOTS_LIMIT / constants.LOBBY_SIZE) + 1)]
