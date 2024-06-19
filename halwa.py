@@ -48,29 +48,55 @@ class TournamentDropdown(discord.ui.Select):
             await interaction.response.send_message("Another process is already running. Please wait until the previous process is finished (up to 2 minutes of inactivity).", ephemeral=True,delete_after=15)
             return
         
+        # Check if the user is already enrolled
+        result = await isAlreadyEnrolled(user.id,returnTeamName=True)
+        
         if selected_value == "enroll":
-            # Check if the user is already enrolled
-            team_details = isAlreadyEnrolled(user.id)
-            if team_details:
+            
+            if result:
                 existing_team_message = f"{user.mention} Your enrollment can't proceed as either You or One of your teammates is already a part of some other team:\n"
-                existing_team_message += team_details
+                existing_team_message += result[0]
                 existing_team_message += f"\nIf they're not a part of the listed team, reach out to the support team via <#{constants.HELP_CHANNEL_ID}>."
                 await interaction.response.send_message(existing_team_message, ephemeral=True,delete_after=150)
+                await interaction.message.edit(view=TournamentView())
                 return
             
-            await interaction.response.send_message("Enrollment Started, Check your mentions!",ephemeral=True, delete_after=10)
-            await enrollTeam(user)
-            await interaction.message.edit(view=TournamentView())
+            async with asyncio.TaskGroup() as task_group:
+                task_group.create_task(interaction.response.send_message("Enrollment Started, Check your mentions!", ephemeral=True, delete_after=10))
+                task_group.create_task(enrollTeam(user))
+                task_group.create_task(interaction.message.edit(view=TournamentView()))
 
         elif selected_value == "update":
-            await interaction.response.send_message("Update selected, Check your mentions!",ephemeral=True, delete_after=10)
-            await updateTeam(user)
-            await interaction.message.edit(view=TournamentView())
+
+            if not result:
+                await interaction.response.send_message(f"{user.mention} You aren't enrolled in any team as of now. Please select 'Enroll' to create one.", ephemeral=True,delete_after=15)
+                await interaction.message.edit(view=TournamentView())
+                return
+            
+            if result[1] in constants.banned_team_list:
+                await interaction.response.send_message(f"Sorry Mate {user.mention}, You can't update your team while it is banned.\nReach out to the support team in case there's an issue via <#{constants.HELP_CHANNEL_ID}>.",ephemeral=True,delete_after=30)
+                return
+
+            async with asyncio.TaskGroup() as task_group:
+                task_group.create_task(interaction.response.send_message("Update selected, Check your mentions!", ephemeral=True, delete_after=10))
+                task_group.create_task(updateTeam(user,result[0]))
+                task_group.create_task(interaction.message.edit(view=TournamentView()))
 
         elif selected_value == "delete":
-            await interaction.response.send_message("Delete selected, Check your mentions!",ephemeral=True, delete_after=10)
-            await deleteTeam(user)
-            await interaction.message.edit(view=TournamentView())
+
+            if not result:
+                await interaction.response.send_message(f"{user.mention} You aren't enrolled in any team as of now. Please select 'Enroll' to create one.", ephemeral=True,delete_after=15)
+                await interaction.message.edit(view=TournamentView())
+                return
+            
+            if result[1] in constants.banned_team_list:
+                await interaction.response.send_message(f"Sorry Mate {user.mention}, You can't update your team while it is banned.\nReach out to the support team in case there's an issue via <#{constants.HELP_CHANNEL_ID}>.",ephemeral=True,delete_after=30)
+                return
+            
+            async with asyncio.TaskGroup() as task_group:
+                task_group.create_task(interaction.response.send_message("Delete selected, Check your mentions!", ephemeral=True, delete_after=10))
+                task_group.create_task(deleteTeam(user,result[0]))
+                task_group.create_task(interaction.message.edit(view=TournamentView()))
 
 # Define the TournamentView class inheriting from discord.ui.View
 class TournamentView(discord.ui.View):
@@ -151,7 +177,7 @@ class LobbyButton(discord.ui.Button):
         # Check if the lobby has available slots
         user_id = interaction.user.id
         user = interaction.user
-        team_name = validate_registration(user)
+        team_name = await validate_registration(user)
         
         if team_name:
             # if team_name == 'banned':
@@ -167,7 +193,7 @@ class LobbyButton(discord.ui.Button):
             elif team_name in constants.registered_teams.keys():
                     await interaction.response.send_message("Someone from your team has already booked a slot for today.", ephemeral=True,delete_after=120)
             
-            elif user_id not in constants.registered_teams and available_slots(self.lobby_number) > 0:
+            elif user_id not in constants.registered_teams and await available_slots(self.lobby_number) > 0:
                 await interaction.response.send_modal(CaptchaModal(self.lobby_number,team_name))
                 
             else:
@@ -194,15 +220,16 @@ class CaptchaModal(discord.ui.Modal):
         user = interaction.user
         user_id = interaction.user.id
 
-        if validate_captcha(self.sentence_input.value.rstrip(),int(self.sum1_input.value.rstrip()),int(self.sum2_input.value.rstrip())):
+        if await validate_captcha(self.sentence_input.value.rstrip(),int(self.sum1_input.value.rstrip()),int(self.sum2_input.value.rstrip())):
             timestamp_ms = datetime.now(tz=constants.timezone).strftime("%b %d %H:%M:%S.%f")
             await interaction.response.defer(ephemeral=True,thinking=True)  # Defer the interaction response
 
             # Acquire the registration lock for this lobby
             async with constants.lobby_locks[int(int(self.lobby_number) - 1)]:
                 timestamp_ms = datetime.now(tz=constants.timezone).strftime("%b %d %H:%M:%S.%f")
-                if available_slots(self.lobby_number) <= 0:
-                    await interaction.followup.send("Sorry, this lobby is full.", ephemeral=True)
+                available_slots_no = await available_slots(self.lobby_number)
+                if int(available_slots_no) <= 0:
+                    await interaction.followup.send("Sorry, this lobby is full.", ephemeral=True) 
                     await save_timestamp_to_csv(interaction.user, timestamp_ms,self.lobby_number)
                     return
                 
@@ -211,37 +238,41 @@ class CaptchaModal(discord.ui.Modal):
                     return
                 
                 # Save the registered team's data
-                constants.registered_teams[self.team_name] = isAlreadyEnrolled(user_id,used2returnrow=True)
+                constants.registered_teams[self.team_name] = await isAlreadyEnrolled(user_id,used2returnrow=True)
                 constants.lobby_teams[int(self.lobby_number)-1][user_id] = self.team_name
 
-            print("Registration confirmed for user:", user_id)
-            print(f"Available slots in Lobby {self.lobby_number}:", available_slots(self.lobby_number))
-            # Assign COOLDOWN_ROLE_ID to the confirmed user
-            await assign_role(user, constants.COOLDOWN_ROLE_ID)
-            await assign_team_to_lobby(user, self.lobby_number)
-            await save_timestamp_to_csv(user, timestamp_ms, self.lobby_number)
+            async with asyncio.TaskGroup() as taskhandler:
+                print("Registration confirmed for user:", user_id)
+                print(f"Available slots in Lobby {self.lobby_number}:", int(available_slots_no)-1)
+                # Assign COOLDOWN_ROLE_ID to the confirmed user
+                task1 = taskhandler.create_task(assign_role(user, constants.COOLDOWN_ROLE_ID))
+                task2 = taskhandler.create_task(assign_team_to_lobby(user, self.lobby_number))
+                task3 = taskhandler.create_task(save_timestamp_to_csv(user, timestamp_ms, self.lobby_number))
 
-            # Operations that do not need to be locked
-            if available_slots(self.lobby_number) == 0:
-                await bot.get_channel(constants.REGISTRATION_CHANNEL_ID).send(f"Slots filled in Lobby {self.lobby_number} at time:\n{timestamp_ms}")
+                # Operations that do not need to be locked
+                if await available_slots(self.lobby_number) == 0:
+                    await bot.get_channel(constants.REGISTRATION_CHANNEL_ID).send(f"Slots filled in Lobby {self.lobby_number} at time:\n{timestamp_ms}")
 
-            if len(constants.registered_teams) == constants.SLOTS_LIMIT:
-                constants.disabled_status = True
-                message = await bot.get_channel(constants.REGISTRATION_CHANNEL_ID).fetch_message(constants.REG_MESSAGE_ID)
-                await message.edit(view=RegistrationView())
-                await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"You can download the Google Sheets app to view the list of users and their registration timestamps of {datetime.today().strftime('%d %b')} from this CSV file (for transparency). If you cant find you name in these, you were later than all these 😢.",file=discord.File('timestamps.csv'))
-                await save_as_csv(constants.registered_teams, 'registered_teams.csv',save_all_flag = True)
-                await bot.get_channel(constants.MOD_CHANNEL_ID).send(file=discord.File('registered_teams.csv'))
+                if len(constants.registered_teams) == constants.SLOTS_LIMIT:
+                    async with asyncio.TaskGroup() as taskhandler2:
+                        constants.disabled_status = True
+                        message = await bot.get_channel(constants.REGISTRATION_CHANNEL_ID).fetch_message(constants.REG_MESSAGE_ID)
+                        taska = taskhandler2.create_task(message.edit(view=RegistrationView()))
+                        taskb = taskhandler2.create_task(bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"You can download the Google Sheets app to view the list of users and their registration timestamps of {datetime.today().strftime('%d %b')} from this CSV file (for transparency). If you cant find you name in these, you were later than all these 😢.",file=discord.File('timestamps.csv')))
+                        taskc = taskhandler2.create_task(save_as_csv(constants.registered_teams, 'registered_teams.csv',save_all_flag = True))
+                        taskd = taskhandler2.create_task(bot.get_channel(constants.MOD_CHANNEL_ID).send(file=discord.File('registered_teams.csv')))
 
-                for lobby_number, lobby_teams_dict in enumerate(constants.lobby_teams, 1):
-                    csv_file = f"lobby_{lobby_number}_teams.csv"
-                    await save_as_csv(lobby_teams_dict, csv_file)
-                    await bot.get_channel(constants.MOD_CHANNEL_ID).send(file=discord.File(csv_file))
-                    user_ids = list(lobby_teams_dict.keys())
-                    team_names = [lobby_teams_dict[user_id] for user_id in user_ids]
-                    await send_slots_list(team_names, lobby_number, discord.utils.get(bot.get_guild(constants.GUILD_ID).channels, name=f"lobby-{lobby_number}"))
+                        for lobby_number, lobby_teams_dict in enumerate(constants.lobby_teams, 1):
+                            async with asyncio.TaskGroup() as taskhandler3:
+                                csv_file = f"lobby_{lobby_number}_teams.csv"
+                                taskz = taskhandler3.create_task(save_as_csv(lobby_teams_dict, csv_file))
+                                tasky = taskhandler3.create_task(bot.get_channel(constants.MOD_CHANNEL_ID).send(file=discord.File(csv_file)))
+                                user_ids = list(lobby_teams_dict.keys())
+                                team_names = [lobby_teams_dict[user_id] for user_id in user_ids]
+                                taskx = taskhandler3.create_task(send_slots_list(team_names, lobby_number, discord.utils.get(bot.get_guild(constants.GUILD_ID).channels, name=f"lobby-{lobby_number}")))
 
-            await interaction.followup.send(f"Registration confirmed for {self.team_name} in Lobby {self.lobby_number}.", ephemeral=True)
+                task4 = taskhandler.create_task(interaction.followup.send(f"Registration confirmed for {self.team_name} in Lobby {self.lobby_number}.", ephemeral=True))
+
         else:
             await interaction.response.send_message("Invalid captcha 😢 GG! Please try again later.", ephemeral=True, delete_after=30)
     
@@ -257,7 +288,7 @@ class PracticeRegistrationButton(discord.ui.Button):
         super().__init__(label=f'PRACTICE REG', style=discord.ButtonStyle.primary,emoji=constants.practice_emoteid,row=1)
 
     async def callback(self, interaction: discord.Interaction):
-        team_name = validate_registration(interaction.user)
+        team_name = await validate_registration(interaction.user)
         if team_name:
             await interaction.response.send_modal(PracticeRegistrationModal())
         else: await interaction.response.send_message(f"You are not a part of any team right now, please ask your IGL or yourself enlist your team from <#{constants.ENROLLMENT_CHANNEL_ID}>.", ephemeral=True,delete_after=60)
@@ -280,8 +311,7 @@ class PracticeRegistrationModal(discord.ui.Modal):
     async def on_submit(self, interaction: discord.Interaction):
         if (self.sentence_input.value.rstrip() == self.word and int(self.sum1_input.value.rstrip()) == int(self.nums[0] + self.nums[1]) and int(self.sum2_input.value.rstrip()) == int(self.nums[2] + self.nums[3])):
             await interaction.response.send_message("Captcha Passed!", ephemeral=True,delete_after=15)
-        else:
-                    await interaction.response.send_message("Invalid captcha 😢 GG! Please try again later.", ephemeral=True, delete_after=30)
+        else: await interaction.response.send_message("Invalid captcha 😢 GG! Please try again later.", ephemeral=True, delete_after=30)
 
     async def on_error(self, interaction: discord.Interaction, error: Exception):
         if isinstance(error, ValueError):
@@ -336,7 +366,7 @@ class ScrimsOverviewView(discord.ui.View):
         self.add_item(PointsSystemButton())
         self.add_item(ScheduleButton())
 
-def validate_captcha(captcha_phrase : str, sum1_answer : int, sum2_answer : int):
+async def validate_captcha(captcha_phrase : str, sum1_answer : int, sum2_answer : int):
     # Placeholder for actual captcha validation logic
     return (captcha_phrase.lower().rstrip() == constants.captcha_question_variables[0] and sum1_answer == int(constants.captcha_question_variables[1] + constants.captcha_question_variables[2]) and sum2_answer == int(constants.captcha_question_variables[3] + constants.captcha_question_variables[4]))  # Replace with actual validation
     
@@ -354,8 +384,8 @@ async def on_ready():
 
     try:
         # Attempt to connect to Google Sheets
-        constants.sheet, constants.service = connect_to_google_sheets(json_keyfile_path,sheet_id=constants.GOOGLE_SHEET_ID)
-        constants.ban_sheet,_ = connect_to_google_sheets(json_keyfile_path,sheet_id=constants.BAN_SHEET_ID)
+        constants.sheet, constants.service = await connect_to_google_sheets(json_keyfile_path,sheet_id=constants.GOOGLE_SHEET_ID)
+        constants.ban_sheet,_ = await connect_to_google_sheets(json_keyfile_path,sheet_id=constants.BAN_SHEET_ID)
     except Exception as e:
         print("Error while connecting to Google Sheets:", e)
     
@@ -456,7 +486,7 @@ async def on_guild_join(guild):
     await bot.tree.sync(guild=guild)
     print(f"Slash commands synced in new guild: {guild.name}")
     
-def connect_to_google_sheets(json_keyfile_path, sheet_id,retry_interval=10):
+async def connect_to_google_sheets(json_keyfile_path, sheet_id,retry_interval=10):
     while True:
         try:
             credentials = Credentials.from_service_account_file(json_keyfile_path, scopes=['https://www.googleapis.com/auth/spreadsheets'])
@@ -473,7 +503,7 @@ def connect_to_google_sheets(json_keyfile_path, sheet_id,retry_interval=10):
         except Exception as e:
             print("Error while connecting to Google Sheets:", e)
             print(f"Retrying in {retry_interval} seconds...")
-            time.sleep(retry_interval)
+            await asyncio.sleep(retry_interval)
 
 # @bot.hybrid_command(name="setprompt")
 # @app_commands.describe(prompt="karle bhai prompt set koi ni dekhra")
@@ -562,7 +592,7 @@ async def start_error(ctx, error):
 @commands.has_any_role('++D', 'Sr. Staff','Admin','.','Staff',"Mahatma")
 async def delete_from_sheet(ctx,member: discord.User):
     try:
-        row = delete_team_from_sheet(member.id,constants.GOOGLE_SHEET_ID,ctx=ctx)
+        row = await delete_team_from_sheet(member.id,constants.GOOGLE_SHEET_ID,ctx=ctx)
         await ctx.send(f"Team data deleted successfully.\n{row}")
     except Exception as e:
         await ctx.send(f"Error occurred while deleting team data from Google Sheets \n{e}")
@@ -592,7 +622,7 @@ async def ban_team(interaction: discord.Interaction, user: discord.User, hours: 
     
     # Logic to ban the team goes here.
     # This is an example, assuming you have a way to get team members
-    team_name = validate_registration(user, check_cooldown = False,check_left_server = False)
+    team_name = await validate_registration(user, check_cooldown = False,check_left_server = False)
     if team_name == "banned":
         await interaction.response.send_message("Bhai ye team already banned hai, if duration badhana h to splitz ko pakdo, aese command se krna thoda mushkil hai")
         return
@@ -606,18 +636,21 @@ async def ban_team(interaction: discord.Interaction, user: discord.User, hours: 
     print(f"Banned {team_name} for {days} days and {hours} hours")
 
 @ban_team.error
-async def ban_team(ctx, error):
+async def ban_team_error(interaction: discord.Interaction, error):
     if isinstance(error, commands.MissingPermissions):
         missing_perms = ', '.join(error.missing_permissions)
-        await ctx.send(f"You don't have the required permissions to use this command: {missing_perms}")
-    elif isinstance(error,ValueError):
-        await ctx.send(f"You must specify a valid duration.")
+        await interaction.response.send_message(f"You don't have the required permissions to use this command: {missing_perms}")
+    elif isinstance(error, ValueError):
+        await interaction.response.send_message("You must specify a valid duration.")
     else:
-        await ctx.send(f"An error occurred: {error}")
+        await interaction.response.send_message(f"An error occurred: {error}")
 
 @bot.hybrid_command(name="clearlb", description="**Clear lobby Channels and role")
 @commands.has_permissions(view_audit_log=True, manage_roles=True)
 async def clear_lb(ctx):
+
+    await ctx.send("kr rha thoda wait krna ..")
+
     lobby_role_names = [f"Lobby {i}" for i in range(1, int(constants.SLOTS_LIMIT / constants.LOBBY_SIZE) + 1)]
     lobby_channel_names = [f"lobby-{i}" for i in range(1, int(constants.SLOTS_LIMIT / constants.LOBBY_SIZE) + 1)]
 
@@ -644,6 +677,35 @@ async def clear_lb(ctx):
 
 @clear_lb.error
 async def clear_lb(ctx, error):
+    if isinstance(error, commands.MissingPermissions):
+        missing_perms = ', '.join(error.missing_permissions)
+        await ctx.send(f"You don't have the required permissions to use this command: {missing_perms}")
+    else:
+        await ctx.send(f"An error occurred: {error}")
+
+@bot.hybrid_command(name="clearcd", description="**Clear Cool-down role")
+@commands.has_permissions(view_audit_log=True, manage_roles=True)
+async def clearcd(ctx):
+
+    await ctx.send("kr rha thoda wait krna ..")
+
+    try:
+        role = bot.get_guild(constants.GUILD_ID).get_role(constants.COOLDOWN_ROLE_ID)
+        if role:
+            for member in role.members:
+                await member.remove_roles(role)
+
+        await ctx.send("Cooldown role is cleared now.")
+    
+    except discord.Forbidden:
+        await ctx.send("I do not have permission to manage roles or channels.")
+    except discord.HTTPException as e:
+        await ctx.send(f"An HTTP error occurred: {e}")    
+    except Exception as e:
+        await ctx.send(f"An error occurred: {e}")
+
+@clearcd.error
+async def clearcd(ctx, error):
     if isinstance(error, commands.MissingPermissions):
         missing_perms = ', '.join(error.missing_permissions)
         await ctx.send(f"You don't have the required permissions to use this command: {missing_perms}")
@@ -679,7 +741,7 @@ async def clear_lb(ctx, error):
 #         print("Error: Channel not found.")
 
 #     # Check if the user is already enrolled
-#     team_name = validate_registration(user_id)
+#     team_name = await validate_registration(user_id)
 #     if team_name:
 #         if team_name == 'banned':
 #             # Send a message to the user with the reason for the ban
@@ -748,7 +810,8 @@ async def clear_lb(ctx, error):
 async def enrollTeam(user):
 
     # Set the flag to indicate that a process is running
-    constants.running_processes[user.id] = True
+    async with constants.running_processes_lock:
+        constants.running_processes[user.id] = True
     thread = await create_private_thread(user, "enroll")
 
     try:
@@ -766,7 +829,7 @@ async def enrollTeam(user):
                 await thread.send(f"{user.mention} This team name is not allowed. Please choose a different team name.")
 
             # Check if the team name already exists
-            if not is_team_name_unique(team_name):
+            if not await is_team_name_unique(team_name):
                 await thread.send(f"{user.mention} This team name already exists.\nYou can modify the team name slightly for it to pass.\nEx: Team Chambal Ke Daku can be written any way like ChambalKeDaku, Chambal Thukai, Chambal ESP, Team Chambal, Chambal Squad. Let's restart your enrollment, my friend!")
             else:
                 break  # Exit the loop if a unique team name is provided
@@ -790,7 +853,7 @@ async def enrollTeam(user):
         # Write registration details to Google Sheets
         await send_registration_details(user, team_name, player_igns, thread)
         validate_result = await validate_enrollment(user, team_name, player_igns, thread)
-    
+
         # Delete thread if validation fails
         if not validate_result:
             await thread.delete()
@@ -798,23 +861,30 @@ async def enrollTeam(user):
 
     except EnrollmentError as ee:
         # Schedule the deletion of the thread 
-        await thread.send(f"This thread will be deleted in {(int(ee.timeout)/60)} minutes")
-        await asyncio.sleep(int(ee.timeout))  # default = 5 minutes
-        await thread.delete()
-        pass  # Do nothing, the code execution will stop
+        async with asyncio.TaskGroup() as task_group:
+            task_group.create_task(thread.send(f"This thread will be deleted in {(int(ee.timeout)/60)} minutes"))
+            task_group.create_task(asyncio.sleep(int(ee.timeout)))  # default = 5 minutes
+            task_group.create_task(thread.delete())
+
     except asyncio.TimeoutError:
-        await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} Enrollment timed out. \nPlease try again later.")
-        await thread.delete()
+        async with asyncio.TaskGroup() as task_group:
+            task_group.create_task(bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} Enrollment timed out. \nPlease try again later."))
+            task_group.create_task(thread.delete())
+
     except ValueError as ve:
-        await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} An error occurred during enrollment: {ve}")
-        await thread.delete()
+        async with asyncio.TaskGroup() as task_group:
+            task_group.create_task(bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} An error occurred during enrollment: {ve}"))
+            task_group.create_task(thread.delete())
+
     except Exception as e:
-        await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} An unexpected error occurred during enrollment: {e}")
-        await thread.delete()
+        async with asyncio.TaskGroup() as task_group:
+            task_group.create_task(bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} An unexpected error occurred during enrollment: {e}"))
+            task_group.create_task(thread.delete())
 
     finally:
         # Reset the flag once the process is finished for this user
-        constants.running_processes.pop(user.id, None)
+        async with constants.running_processes_lock:
+            constants.running_processes.pop(user.id, None)
 
 async def create_private_thread(user, name_suffix):
     # Create the private thread with the provided suffix
@@ -827,36 +897,35 @@ async def create_private_thread(user, name_suffix):
     # Return the private thread
     return private_thread
 
-async def updateTeam(user):
+async def updateTeam(user, existing_team_message):
 
     # Set the flag to indicate that a process is running
-    constants.running_processes[user.id] = True
+    async with constants.running_processes_lock:
+        constants.running_processes[user.id] = True
     thread = await create_private_thread(user, "update")
 
     try:
-        # Check if the user is already enrolled
-        existing_team_message = isAlreadyEnrolled(user.id)
-        if existing_team_message:
-            await thread.send(existing_team_message)
-        else:
-            await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} You aren't enrolled in any team as of now. Please select 'Enroll' to create one.")
-            await thread.delete()
-            return
+        await thread.send(existing_team_message)
         
         # Send a message to confirm the user's decision to update their team
         confirmation_message = "Are you sure you want to update your team?\nYou will need to add complete details again of each player if you continue."
 
         response = await ask_yes_no_question_in_thread(user, thread, confirmation_message)
         if response == 'yes':
-            constants.running_processes[user.id] = False
             try:
-                delete_team_from_sheet(user.id,constants.GOOGLE_SHEET_ID)
+                await delete_team_from_sheet(user.id,constants.GOOGLE_SHEET_ID)
             except Exception as e:
                 await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"Error occurred while deleting team data from Google Sheets: {e}")
+                await thread.delete()
+                return
+
+            async with constants.running_processes_lock:
+                constants.running_processes.pop(user.id, None)
+
             await thread.send("Your previous team data was deleted so even if you are timed out from here, you will need to start enrollment fresh.\n\nLet's Start new enrollment! Check new mention, clearin' this channel is 5 minutes.")
-            constants.running_processes.pop(user.id, None)
+
             await enrollTeam(user)
-            asyncio.sleep(300)
+            await asyncio.sleep(300)
             await thread.delete()
             
         else:
@@ -876,33 +945,33 @@ async def updateTeam(user):
         
     finally:
         # Reset the flag once the process is finished for this user
-        constants.running_processes.pop(user.id, None)
+        async with constants.running_processes_lock:
+            constants.running_processes.pop(user.id, None)
         
-async def deleteTeam(user):
+async def deleteTeam(user, existing_team_message):
 
     # Set the flag to indicate that a process is running
-    constants.running_processes[user.id] = True
+    async with constants.running_processes_lock:
+        constants.running_processes[user.id] = True
     thread = await create_private_thread(user, "delete")
 
     try:
-        # Check if the user is already enrolled
-        existing_team_message = isAlreadyEnrolled(user.id)
-        if existing_team_message:
-            await thread.send(existing_team_message)
-        else:
-            await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} You aren't enrolled in any team as of now. Please select 'Enroll' to create one.")
-            await thread.delete()
-            return
+        await thread.send(existing_team_message)
         
         confirmation_message = "Are you sure you want to delete your team?\nIt cant be reverted later on and all details from our end will be lost."
 
         response = await ask_yes_no_question_in_thread(user, thread, confirmation_message)
         if response == 'yes':
-            constants.running_processes[user.id] = False
+            async with constants.running_processes_lock:
+                constants.running_processes[user.id] = False
+
             try:
-                delete_team_from_sheet(user.id,constants.GOOGLE_SHEET_ID)
+                await delete_team_from_sheet(user.id,constants.GOOGLE_SHEET_ID)
             except Exception as e:
                 await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"Error occurred while deleting team data from Google Sheets: {e}")
+                await thread.delete()
+                return
+
             await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} Your team was deleted successfully.")
             await thread.delete()
             return
@@ -923,7 +992,8 @@ async def deleteTeam(user):
  
     finally:
         # Reset the flag once the process is finished for this user
-        constants.running_processes.pop(user.id, None)
+        async with constants.running_processes_lock:
+            constants.running_processes.pop(user.id, None)
 
 class EnrollmentError(Exception):
     def __init__(self, timeout=300):
@@ -1034,7 +1104,7 @@ async def validate_enrollment(user, team_name, player_igns, thread):
         
         # Check if any of the mentioned players are already enrolled
         for discord_id in player_discord_ids:
-            text = isAlreadyEnrolled(discord_id)
+            text = await isAlreadyEnrolled(discord_id)
             if text:
                 existing_team_message += f"Your enrollment can't proceed as either You or One of your teammate is already a part of some other team:\n"
                 existing_team_message += text
@@ -1045,7 +1115,7 @@ async def validate_enrollment(user, team_name, player_igns, thread):
 
         # Check if at least 4 users are mentioned
         if len(player_discord_ids) < 4:
-            await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"Hey {user.mention}, you missed mentioning all your teammates.\nPlease restart the enrollment process and mention correctly next time.\nThis message can also be sent if someone from your team is not present in the server.")
+            await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"Hey {user.mention}, you missed mentioning all your teammates.\nPlease restart the enrollment process and mention correctly next time.\nThis message can also be sent if someone from your team is not present in this server.")
             await response.add_reaction("❌")
             raise EnrollmentError(60)
 
@@ -1065,7 +1135,7 @@ async def validate_enrollment(user, team_name, player_igns, thread):
         await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} Enrollment for team **{team_name}** validated.")
 
         # Write enrollment details to Google Sheets
-        write_to_sheet(user.id, team_name, player_igns, player_discord_ids)
+        await write_to_sheet(user.id, team_name, player_igns, player_discord_ids)
         await thread.send("This thread will be deleted in 1 minute")
         await asyncio.sleep(60)
         await thread.delete()
@@ -1076,7 +1146,7 @@ async def validate_enrollment(user, team_name, player_igns, thread):
         return False
     
 # Function to write enrollment details to Google Sheets
-def write_to_sheet(initiator_id, team_name, player_igns, player_discord_ids):
+async def write_to_sheet(initiator_id, team_name, player_igns, player_discord_ids):
     initiator_idstr = str(initiator_id)
 
     # Convert player_discord_ids to strings
@@ -1099,7 +1169,7 @@ def write_to_sheet(initiator_id, team_name, player_igns, player_discord_ids):
     # Print registration details for verification
     print(f"Registered: {initiator_idstr}, Team: {team_name}, Discord Usernames: {', '.join(player_discord_ids)}, IGNs: {', '.join(player_igns)}")
 
-def delete_team_from_sheet(user_id, spreadsheet_id,ctx = None):
+async def delete_team_from_sheet(user_id, spreadsheet_id,ctx = None):
     try:
         # Fetch all values from the worksheet
         sheet = constants.service.spreadsheets()
@@ -1142,11 +1212,11 @@ def delete_team_from_sheet(user_id, spreadsheet_id,ctx = None):
         print("Error occurred while deleting team data from Google Sheets:", e)
 
 # Function to check if a team name already exists in the Google Sheets
-def is_team_name_unique(team_name):
+async def is_team_name_unique(team_name):
     team_names = constants.sheet.col_values(2)  # Assuming team names are in the first column
     return team_name not in team_names
 
-def isAlreadyEnrolled(user_id,used2returnrow=False):
+async def isAlreadyEnrolled(user_id,used2returnrow=False,returnTeamName=False):
     try:
         # Iterate through each row to find the user's team
         for row in constants.cached_data:
@@ -1166,7 +1236,10 @@ def isAlreadyEnrolled(user_id,used2returnrow=False):
                 # Check if there's a fifth player's Discord ID
                 if len(discord_ids) >= 5 and discord_ids[4].strip():
                     message += f"5. **P5**: <@{discord_ids[4]}>\n"
-
+                
+                if returnTeamName:
+                    return message, team_name
+                
                 return message
 
         # If the user's team is not found, return None
@@ -1217,7 +1290,7 @@ def refresh_cache2():
         # Sleep for 60 seconds before refreshing again
         time.sleep(60)
 
-def validate_registration(user,check_cooldown = True,check_left_server = True):
+async def validate_registration(user,check_cooldown = True,check_left_server = True):
     try:
         user_id = user.id
         guild = bot.get_guild(int(constants.GUILD_ID))
@@ -1278,7 +1351,7 @@ def validate_registration(user,check_cooldown = True,check_left_server = True):
         return None
     
 # Function to check the number of available slots
-def available_slots(lobby_number):
+async def available_slots(lobby_number):
     # Subtract the number of registered teams from the total slots limit
     # return constants.SLOTS_LIMIT - len(constants.registered_teams)
     return constants.LOBBY_SIZE - len(constants.lobby_teams[int(lobby_number)-1])
