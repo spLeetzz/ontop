@@ -596,6 +596,9 @@ async def ban_team(interaction: discord.Interaction, user: discord.User, hours: 
     if team_name == "banned":
         await interaction.response.send_message("Bhai ye team already banned hai, if duration badhana h to splitz ko pakdo, aese command se krna thoda mushkil hai")
         return
+    elif not team_name:
+        await interaction.response.send_message("Couldn't find any team with this user.")
+        return
     row = [team_name,int(time.time()),int((hours * 3600) + (days * 86400)),datetime.now(tz=constants.timezone).strftime("%Y-%m-%d %H:%M"),f"{days} days {hours} hours",str(user)]
     constants.ban_sheet.append_row(row)
     await interaction.response.send_message(f"Banned User: {user.mention}'s Team {team_name} for {days} days and {hours} hours")
