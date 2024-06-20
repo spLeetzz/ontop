@@ -1227,17 +1227,21 @@ async def isAlreadyEnrolled(user_id,used2returnrow=False,returnTeamName=False):
                 if used2returnrow: return row[2::2]
                 # Extract team details from the row
                 team_name = row[1]
-                # player_igns = row[3::2]  # Player IGNs are in odd indices
+                player_igns = row[3::2]  # Player IGNs are in odd indices
                 discord_ids = row[2::2]  # Discord IDs are in even indices
 
                 # Construct a message with team details
                 message = f"# **Team Name:** {team_name}\n"
-                for i, discord_id in enumerate(discord_ids[:4], 1):
-                    message += f"{i}. **P{i}**: <@{discord_id}>\n"
 
-                # Check if there's a fifth player's Discord ID
-                if len(discord_ids) >= 5 and discord_ids[4].strip():
-                    message += f"5. **P5**: <@{discord_ids[4]}>\n"
+                for i, (name, discord_id) in enumerate(zip(player_igns, discord_ids), 1):
+                    message += f"{i}. **{name}** -> <@{discord_id}>\n"
+
+                # Check for a fifth player
+                if len(discord_ids) > 4 and discord_ids[4] is not None:
+                    fifth_ign = player_igns[4]
+                    fifth_discord_id = discord_ids[4]
+                    if fifth_ign and fifth_discord_id:
+                        message += f"5. **{fifth_ign}** -> <@{fifth_discord_id}>\n"
                 
                 if returnTeamName:
                     return message, team_name
