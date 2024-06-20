@@ -49,7 +49,7 @@ class TournamentDropdown(discord.ui.Select):
             return
         
         # Check if the user is already enrolled
-        result = await isAlreadyEnrolled(user.id,returnTeamName=True)
+        result = await isAlreadyEnrolled(user.id,returnTeamName=True,ctx_is_in_team=True)
         
         if selected_value == "enroll":
             
@@ -1218,7 +1218,7 @@ async def is_team_name_unique(team_name):
     team_names = constants.sheet.col_values(2)  # Assuming team names are in the first column
     return team_name not in team_names
 
-async def isAlreadyEnrolled(user_id,used2returnrow=False,returnTeamName=False):
+async def isAlreadyEnrolled(user_id,used2returnrow=False,returnTeamName=False,ctx_is_in_team = False):
     try:
         # Iterate through each row to find the user's team
         for row in constants.cached_data:
@@ -1233,16 +1233,24 @@ async def isAlreadyEnrolled(user_id,used2returnrow=False,returnTeamName=False):
                 # Construct a message with team details
                 message = f"# **Team Name:** {team_name}\n"
 
-                for i, (name, discord_id) in enumerate(zip(player_igns, discord_ids), 1):
-                    message += f"{i}. **{name}** -> <@{discord_id}>\n"
+                if ctx_is_in_team:
+                    for i, (name, discord_id) in enumerate(zip(player_igns[:4], discord_ids[:4]), 1):
+                        message += f"{i}. **{name}** -> <@{discord_id}>\n"
 
-                # Check for a fifth player
-                if len(discord_ids) > 4 and discord_ids[4] is not None:
-                    fifth_ign = player_igns[4]
-                    fifth_discord_id = discord_ids[4]
-                    if fifth_ign and fifth_discord_id:
-                        message += f"5. **{fifth_ign}** -> <@{fifth_discord_id}>\n"
-                
+                    # Check for a fifth player
+                    if len(discord_ids) > 4 and discord_ids[4] is not None:
+                        fifth_ign = player_igns[4]
+                        fifth_discord_id = discord_ids[4]
+                        if fifth_ign and fifth_discord_id:
+                            message += f"5. **{fifth_ign}** -> <@{fifth_discord_id}>\n"
+
+                else:
+                    for i, discord_id in enumerate(discord_ids[:4], 1):
+                        message += f"{i}. **P{i}**: <@{discord_id}>\n"
+
+                    if len(discord_ids) >= 5 and discord_ids[4].strip():
+                        message += f"5. **P5**: <@{discord_ids[4]}>\n"
+
                 if returnTeamName:
                     return message, team_name
                 
