@@ -866,7 +866,8 @@ async def enrollTeam(user):
         async with asyncio.TaskGroup() as task_group:
             task_group.create_task(thread.send(f"This thread will be deleted in {(int(ee.timeout)/60)} minutes"))
             task_group.create_task(asyncio.sleep(int(ee.timeout)))  # default = 5 minutes
-            task_group.create_task(thread.delete())
+
+        await thread.delete()
 
     except asyncio.TimeoutError:
         async with asyncio.TaskGroup() as task_group:
