@@ -75,6 +75,7 @@ class TournamentDropdown(discord.ui.Select):
             
             if result[1] in constants.banned_team_list:
                 await interaction.response.send_message(f"Sorry Mate {user.mention}, You can't update your team while it is banned.\nReach out to the support team in case there's an issue via <#{constants.HELP_CHANNEL_ID}>.",ephemeral=True,delete_after=30)
+                await interaction.message.edit(view=TournamentView())
                 return
 
             async with asyncio.TaskGroup() as task_group:
@@ -91,6 +92,7 @@ class TournamentDropdown(discord.ui.Select):
             
             if result[1] in constants.banned_team_list:
                 await interaction.response.send_message(f"Sorry Mate {user.mention}, You can't update your team while it is banned.\nReach out to the support team in case there's an issue via <#{constants.HELP_CHANNEL_ID}>.",ephemeral=True,delete_after=30)
+                await interaction.message.edit(view=TournamentView())
                 return
             
             async with asyncio.TaskGroup() as task_group:
