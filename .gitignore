@@ -2,5 +2,5 @@
 .venv/
 registered_teams.csv
 timestamps.csv
-
+lobby_details.json
 
