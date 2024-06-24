@@ -1,2 +1,6 @@
 # Exclude virtual environment
 .venv/
+registered_teams.csv
+timestamps.csv
+
+

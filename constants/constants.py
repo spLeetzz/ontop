@@ -12,11 +12,12 @@ UPDATES_CHANNEL_ID = 1252296256462524477
 # ANNOUNCEMENTS_CHANNEL_ID = 1247539598712766534
 MOD_CHANNEL_ID = 1201507236934066226
 TEAM_RECORDS_CHANNEL_ID = 1252296601628840036
+TICKET_CHANNEL_ID = 1187407524983480461
 # SCRIMS_LOG_CHANNEL_ID = 1238329036409671711
 # PREF_SELECTION_CHANNEL_ID = 1241547499416588409
 
 # Other constants
-SLOTS_LIMIT = 3
+SLOTS_LIMIT = 4
 LOBBY_SIZE = 1
 NUM_LOBBIES = int(SLOTS_LIMIT/LOBBY_SIZE)
 REQUIRED_ROLE_NAME = "T3 verified"
@@ -31,6 +32,7 @@ SCRIMS_INFO_MESSAGE_ID = 1252312772096823303
 # Google Sheets details
 GOOGLE_SHEET_ID = "1yJozWjOMMc9uIhobk0xtyODWUInV7GWwQXOZlydU0i8"
 BAN_SHEET_ID = "1Loe4O0zdVVtAdrhFxSZpk6iSsOor4s5PjFSbebxcBFA"
+BLACKLIST_SHEET_ID = "1gKvcIl_gM3HQrUqq0B2O7CYTKLf8DgBtFfFMsD4Kp8s"
 
 disabled_status = True #(RegistrationView)
 # Initialize a list to store dictionaries for each lobby
@@ -39,15 +41,19 @@ lobby_locks = [asyncio.Lock() for _ in range(int(SLOTS_LIMIT // LOBBY_SIZE))]
 running_processes_lock = asyncio.Lock()
 cache_data_thread_lock = threading.Lock()
 ban_list_thread_lock = threading.Lock()
+blk_list_thread_lock = threading.Lock()
 registered_teams = {}
 preferences_dict = {}
 REGISTRATION_PROMPT = ""
 cached_data = None
 running_processes = {}
+temp_json_dict = {}
 captcha_question_variables = []
 banned_team_list = []
+blk_users_list = []
 sheet = None
 ban_sheet = None
+blacklist_sheet = None
 service = None
 timezone = pytz.timezone('Asia/Kolkata')
 emotes_list = ["<:number1:1252296980638597221>", "<:number2:1252297093926883411>", "<:number3:1252297208624058541>", "<:number4:1252297299200049234>"]
@@ -65,25 +71,27 @@ stary_emote = "<a:_:1188860052187119707>"
 # ANNOUNCEMENTS_CHANNEL_ID = 1247539598712766534
 # MOD_CHANNEL_ID = 1246058128613834784
 # TEAM_RECORDS_CHANNEL_ID = 1238254933833421002
+# TICKET_CHANNEL_ID = 1238661883222036520
 # SCRIMS_LOG_CHANNEL_ID = 1238329036409671711
 # PREF_SELECTION_CHANNEL_ID = 1241547499416588409
 
 # # Other constants
-# SLOTS_LIMIT = 3
+# SLOTS_LIMIT = 2
 # LOBBY_SIZE = 1
 # NUM_LOBBIES = int(SLOTS_LIMIT/LOBBY_SIZE)
 # REQUIRED_ROLE_NAME = "new role"
 # GUILD_ID = 798542556970614816
 # COOLDOWN_ROLE_ID = 1231821911667900537
 # BANNED_ROLE_ID = 1236442273718341764
-# ENROLLMENT_MESSAGE_ID = 1246472440263999491
+# ENROLLMENT_MESSAGE_ID = 1254380929179189361
 # PREFERENCE_MESSAGE_ID = None
 # REG_MESSAGE_ID = 1246816052604698695
-# SCRIMS_INFO_MESSAGE_ID = 1247554882873851992
+# SCRIMS_INFO_MESSAGE_ID = 1254380948808536226
 
 # # Google Sheets details
 # GOOGLE_SHEET_ID = "1yJozWjOMMc9uIhobk0xtyODWUInV7GWwQXOZlydU0i8"
 # BAN_SHEET_ID = "1Loe4O0zdVVtAdrhFxSZpk6iSsOor4s5PjFSbebxcBFA"
+# BLACKLIST_SHEET_ID = "1gKvcIl_gM3HQrUqq0B2O7CYTKLf8DgBtFfFMsD4Kp8s"
 
 # disabled_status = True #(RegistrationView)
 # # Initialize a list to store dictionaries for each lobby
@@ -92,6 +100,7 @@ stary_emote = "<a:_:1188860052187119707>"
 # running_processes_lock = asyncio.Lock()
 # cache_data_thread_lock = threading.Lock()
 # ban_list_thread_lock = threading.Lock()
+# blk_list_thread_lock = threading.Lock()
 # registered_teams = {}
 # preferences_dict = {}
 # REGISTRATION_PROMPT = ""
@@ -99,10 +108,16 @@ stary_emote = "<a:_:1188860052187119707>"
 # running_processes = {}
 # captcha_question_variables = []
 # banned_team_list = []
+# blk_users_list = []
+# temp_json_dict = {}
 # sheet = None
 # ban_sheet = None
+# blacklist_sheet = None
 # service = None
 # timezone = pytz.timezone('Asia/Kolkata')
 # emotes_list = ["<:number1:1246465778480447611>", "<:number2:1246465786202034326>", "<:number3:1246465780845908079>", "<:number4:1246465783530389614>"]
 # practice_emoteid = "<:Untitleddesign20:1246793790199431231>"
 # stary_emote = "<a:_:1247699959411638282>"
+
+# # for windows my pc
+# json_file_path = r"C:\faltu\ontop\lobby_details.json"
