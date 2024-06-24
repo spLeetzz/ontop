@@ -59,7 +59,7 @@ timezone = pytz.timezone('Asia/Kolkata')
 emotes_list = ["<:number1:1252296980638597221>", "<:number2:1252297093926883411>", "<:number3:1252297208624058541>", "<:number4:1252297299200049234>"]
 practice_emoteid = "<:Holdgun:1252297519543877684>"
 stary_emote = "<a:_:1188860052187119707>"
-
+json_file_path = r"/home/ubuntu/ontop/lobby_details.json"
 
 # # for i ama naive server
 
@@ -118,6 +118,4 @@ stary_emote = "<a:_:1188860052187119707>"
 # emotes_list = ["<:number1:1246465778480447611>", "<:number2:1246465786202034326>", "<:number3:1246465780845908079>", "<:number4:1246465783530389614>"]
 # practice_emoteid = "<:Untitleddesign20:1246793790199431231>"
 # stary_emote = "<a:_:1247699959411638282>"
-
-# # for windows my pc
 # json_file_path = r"C:\faltu\ontop\lobby_details.json"
