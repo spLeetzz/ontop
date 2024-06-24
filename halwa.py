@@ -402,7 +402,7 @@ class PlayerSelectDropdown(discord.ui.Select):
         igns = row[3::2]
         self.role = role
         for i, ign in enumerate(igns, 1):
-            if ign is not None and ign != '':
+            if ign and dc_ids[i-1]:  # Ensure both ign and dc_id are not None or empty
                 options.append(discord.SelectOption(label=f"{i}. {ign}", value=f"{dc_ids[i-1]}"))
         super().__init__(placeholder="Select here", options=options)
 
@@ -805,6 +805,31 @@ async def clearcd(ctx, error):
     if isinstance(error, commands.MissingPermissions):
         missing_perms = ', '.join(error.missing_permissions)
         await ctx.send(f"You don't have the required permissions to use this command: {missing_perms}")
+    else:
+        await ctx.send(f"An error occurred: {error}")
+
+@bot.hybrid_command(name="purge", description="Purge a specified number of messages from the channel.")
+@commands.has_permissions(manage_messages=True,view_audit_log=True, manage_roles=True)
+async def purge(ctx, number_of_messages: int):
+    if number_of_messages <= 0:
+        await ctx.send("Please specify a positive number of messages to purge.")
+        return
+
+    try:
+        deleted = await ctx.channel.purge(limit=number_of_messages)
+        await ctx.send(f"Successfully purged {len(deleted)} messages.", delete_after=5)
+        print(f"Purged {len(deleted)} messages from {ctx.channel.name}.")
+    except discord.HTTPException as e:
+        print(f"An error occurred while purging messages: {e}")
+        await ctx.send(f"An error occurred while purging messages: {e}")
+
+@purge.error
+async def purge_error(ctx, error):
+    if isinstance(error, commands.MissingPermissions):
+        missing_perms = ', '.join(error.missing_permissions)
+        await ctx.send(f"You don't have the required permissions to use this command: {missing_perms}")
+    elif isinstance(error, commands.BadArgument):
+        await ctx.send("Please specify a valid number of messages to purge.")
     else:
         await ctx.send(f"An error occurred: {error}")
 
