@@ -259,14 +259,14 @@ class CaptchaModal(discord.ui.Modal):
             task3 = asyncio.create_task(assign_team_to_lobby(user, self.lobby_number))
             task4 = asyncio.create_task(save_timestamp_to_csv(user, timestamp_ms, self.lobby_number))
 
-            asyncio.gather(task1,task2,task3,task4)
+            await asyncio.gather(task1,task2,task3,task4)
 
             if len(constants.registered_teams) == constants.SLOTS_LIMIT:
                 constants.disabled_status = True
                 message = await bot.get_channel(constants.REGISTRATION_CHANNEL_ID).fetch_message(constants.REG_MESSAGE_ID)
-                taska = asyncio.create_task(message.edit(view=RegistrationView()))
-                taskc = asyncio.create_task(save_as_csv(constants.registered_teams, 'registered_teams.csv',save_all_flag = True))
-                taskd = asyncio.create_task(bot.get_channel(constants.MOD_CHANNEL_ID).send(file=discord.File('registered_teams.csv')))
+                await message.edit(view=RegistrationView())
+                await save_as_csv(constants.registered_teams, 'registered_teams.csv',save_all_flag = True)
+                await bot.get_channel(constants.MOD_CHANNEL_ID).send(file=discord.File('registered_teams.csv'))
 
                 for lobby_number, lobby_teams_dict in enumerate(constants.lobby_teams, 1):
                     csv_file = f"lobby_{lobby_number}_teams.csv"
@@ -276,8 +276,6 @@ class CaptchaModal(discord.ui.Modal):
                     async with asyncio.TaskGroup() as taskhandler:
                         taskhandler.create_task(bot.get_channel(constants.MOD_CHANNEL_ID).send(file=discord.File(csv_file)))
                         taskhandler.create_task(send_slots_list(team_names, lobby_number, discord.utils.get(bot.get_guild(constants.GUILD_ID).channels, name=f"group-{lobby_number}-idp")))
-
-                asyncio.gather(taska,taskc,taskd)
                 await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"You can download the Google Sheets app to view the list of users and their registration timestamps of {datetime.today().strftime('%d %b')} from this CSV file (for transparency). If you cant find you name in these, you were later than all these 😢.",file=discord.File('timestamps.csv'))
                 
                 with open(constants.json_file_path,'w') as json_file:
