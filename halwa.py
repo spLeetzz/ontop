@@ -188,7 +188,6 @@ class LobbyButton(discord.ui.Button):
         team_name = await validate_registration(user)
         
         if team_name:
-            # if team_name == 'banned':
             if team_name in constants.banned_team_list:
                 await interaction.response.send_message(f"{user.mention} Someone from your team is banned at the moment.\nReach out to the support team in case there's an issue via <#{constants.HELP_CHANNEL_ID}>.",ephemeral=True,delete_after=30)
 
@@ -229,16 +228,17 @@ class CaptchaModal(discord.ui.Modal):
         user_id = interaction.user.id
 
         if await validate_captcha(self.sentence_input.value.rstrip(),int(self.sum1_input.value.rstrip()),int(self.sum2_input.value.rstrip())):
-            timestamp_ms = datetime.now(tz=constants.timezone).strftime("%b %d %H:%M:%S.%f")
+
             await interaction.response.defer(ephemeral=True,thinking=True)  # Defer the interaction response
+
+            timestamp_ms = datetime.now(tz=constants.timezone).strftime("%b %d %H:%M:%S.%f")
 
             # Acquire the registration lock for this lobby
             async with constants.lobby_locks[int(int(self.lobby_number) - 1)]:
-                timestamp_ms = datetime.now(tz=constants.timezone).strftime("%b %d %H:%M:%S.%f")
-                available_slots_no = await available_slots(self.lobby_number)
-                if int(available_slots_no) <= 0:
+                slots_available_currently = await available_slots(self.lobby_number)
+                if int(slots_available_currently) <= 0:
                     await interaction.followup.send("Sorry, this lobby is full.", ephemeral=True) 
-                    await save_timestamp_to_csv(interaction.user, timestamp_ms,self.lobby_number)
+                    await save_timestamp_to_csv(interaction.user, timestamp_ms,self.lobby_number,"LATE")
                     return
                 
                 if self.team_name in constants.registered_teams.keys():
@@ -255,11 +255,12 @@ class CaptchaModal(discord.ui.Modal):
                 await bot.get_channel(constants.REGISTRATION_CHANNEL_ID).send(f"Slots filled in Lobby {self.lobby_number} at time:\n{timestamp_ms}")
 
             task1 = asyncio.create_task(interaction.followup.send(f"Registration confirmed for {self.team_name} in Lobby {self.lobby_number}.", ephemeral=True))
-            task2 = asyncio.create_task(assign_role(user, constants.COOLDOWN_ROLE_ID))
+            # task2 = asyncio.create_task(assign_role(user, constants.COOLDOWN_ROLE_ID))
             task3 = asyncio.create_task(assign_team_to_lobby(user, self.lobby_number))
-            task4 = asyncio.create_task(save_timestamp_to_csv(user, timestamp_ms, self.lobby_number))
+            task4 = asyncio.create_task(save_timestamp_to_csv(user, timestamp_ms, self.lobby_number,"BOOKED"))
 
-            await asyncio.gather(task1,task2,task3,task4)
+            # await asyncio.gather(task1,task2,task3,task4)
+            await asyncio.gather(task1,task3,task4)
 
             if len(constants.registered_teams) == constants.SLOTS_LIMIT:
                 constants.disabled_status = True
@@ -282,8 +283,7 @@ class CaptchaModal(discord.ui.Modal):
                     json.dump(constants.temp_json_dict,json_file)
 
             print("Registration confirmed for user:", user_id)
-            print(f"Available slots in Lobby {self.lobby_number}:", int(available_slots_no)-1)
-            # Assign COOLDOWN_ROLE_ID to the confirmed user
+            print(f"Available slots in Lobby {self.lobby_number}:", int(slots_available_currently)-1)
 
         else:
             await interaction.response.send_message("Invalid captcha 😢 GG! Please try again later.", ephemeral=True, delete_after=30)
@@ -623,26 +623,38 @@ async def connect_to_google_sheets(json_keyfile_path, sheet_id,retry_interval=1)
 @bot.hybrid_command(name="start",description="To Start REG, the captcha you pass in will be default for everyone.")
 @commands.has_permissions(view_audit_log=True, manage_roles=True)
 async def start(ctx, captcha_phrase : str):
+
+    await ctx.defer()
     constants.registered_teams.clear()
     constants.lobby_teams = [{} for _ in range(int(int(constants.SLOTS_LIMIT) / int(constants.LOBBY_SIZE)))]
     constants.disabled_status = False
     constants.captcha_question_variables.clear()
 
     try:
-        await bot.get_channel(constants.REGISTRATION_CHANNEL_ID).purge(check=lambda m: m.id != constants.REG_MESSAGE_ID, limit=1000)
+
+        if ctx.interaction:
+            await ctx.channel.purge(check=lambda m: m.id != constants.REG_MESSAGE_ID, limit=1000,before=ctx.interaction.created_at)
+        else:
+            await ctx.channel.purge(check=lambda m: m.id != constants.REG_MESSAGE_ID, limit=1000)
+
+        await bot.get_channel(constants.REGISTRATION_CHANNEL_ID).purge(before=ctx.message.created_at)
         print("Messages purged successfully.")
         # Clear timestamps.csv
         with open('timestamps.csv', 'w', newline=''): pass
         message = await bot.get_channel(constants.REGISTRATION_CHANNEL_ID).fetch_message(constants.REG_MESSAGE_ID)
         await message.edit(view=RegistrationView())
-        constants.captcha_question_variables.append(captcha_phrase.lower().rstrip())
-        constants.captcha_question_variables.append(random.randint(10, 99))
-        constants.captcha_question_variables.append(random.randint(10, 99))
-        constants.captcha_question_variables.append(random.randint(10, 99))
-        constants.captcha_question_variables.append(random.randint(10, 99))
-        await ctx.send(f"refresheeeeeeeeeeeeeeeeeeeed\nCurrent captcha variables: {constants.captcha_question_variables[0]}, {constants.captcha_question_variables[1]} + {constants.captcha_question_variables[2]}, {constants.captcha_question_variables[3]} + {constants.captcha_question_variables[4]}")
+
     except discord.HTTPException as e:
         print(f"An error occurred while purging messages: {e}")
+
+    constants.captcha_question_variables.append(captcha_phrase.lower().rstrip())
+    constants.captcha_question_variables.append(random.randint(10, 99))
+    constants.captcha_question_variables.append(random.randint(10, 99))
+    constants.captcha_question_variables.append(random.randint(10, 99))
+    constants.captcha_question_variables.append(random.randint(10, 99))
+    
+    await ctx.send(f"refresheeeeeeeeeeeeeeeeeeeed\nCurrent captcha variables: {constants.captcha_question_variables[0]}, {constants.captcha_question_variables[1]} + {constants.captcha_question_variables[2]}, {constants.captcha_question_variables[3]} + {constants.captcha_question_variables[4]}")
+
 
 @start.error
 async def start_error(ctx, error):
@@ -687,7 +699,7 @@ async def ban_team(interaction: discord.Interaction, user: discord.User, hours: 
     # Logic to ban the team goes here.
     # This is an example, assuming you have a way to get team members
     team_name = await validate_registration(user, check_cooldown = False,check_left_server = False)
-    if team_name == "banned":
+    if team_name in constants.banned_team_list:
         await interaction.response.send_message("Bhai ye team already banned hai, if duration badhana h to splitz ko pakdo, aese command se krna thoda mushkil hai")
         return
     elif not team_name:
@@ -757,7 +769,7 @@ async def clear_lb(ctx):
         for channel_name in lobby_channel_names:
             channel = discord.utils.get(ctx.guild.channels, name=channel_name)
             if channel:
-                await channel.purge(after=(datetime.now() - timedelta(hours=24)))
+                await channel.purge(after=(datetime.now() - timedelta(hours=24)),before=ctx.message.created_at)
 
         await ctx.send("Lobby channels (last 24 hrs) and roles are cleared now.")
 
@@ -809,16 +821,27 @@ async def clearcd(ctx, error):
         await ctx.send(f"An error occurred: {error}")
 
 @bot.hybrid_command(name="purge", description="Purge a specified number of messages from the channel.")
+@commands.has_any_role(*constants.roles_for_purge_perm)
 @commands.has_permissions(manage_messages=True,view_audit_log=True, manage_roles=True)
 async def purge(ctx, number_of_messages: int):
+
+    await ctx.defer(ephemeral=True)
+
     if number_of_messages <= 0:
         await ctx.send("Please specify a positive number of messages to purge.")
         return
 
     try:
-        deleted = await ctx.channel.purge(limit=number_of_messages)
-        await ctx.send(f"Successfully purged {len(deleted)} messages.", delete_after=5)
-        print(f"Purged {len(deleted)} messages from {ctx.channel.name}.")
+
+        if ctx.interaction:
+            await ctx.channel.purge(limit=number_of_messages,reason=f"{ctx} deleted {number_of_messages} messages.",before=ctx.interaction.created_at)
+        else:
+            await ctx.channel.purge(limit=number_of_messages,reason=f"{ctx} deleted {number_of_messages} messages.")
+
+        purge_message = await ctx.send(f"Just deleted {number_of_messages} messages in this channel.")
+        await asyncio.sleep(5)
+        await purge_message.delete()
+        print(f"Purged {number_of_messages} messages from {ctx.channel.name}.")
     except discord.HTTPException as e:
         print(f"An error occurred while purging messages: {e}")
         await ctx.send(f"An error occurred while purging messages: {e}")
@@ -826,8 +849,9 @@ async def purge(ctx, number_of_messages: int):
 @purge.error
 async def purge_error(ctx, error):
     if isinstance(error, commands.MissingPermissions):
-        missing_perms = ', '.join(error.missing_permissions)
-        await ctx.send(f"You don't have the required permissions to use this command: {missing_perms}")
+        await ctx.send(f"You don't have the required permissions to use this command.")
+    elif isinstance(error, commands.MissingAnyRole): 
+        await ctx.send(f"You don't have any of the required role to use this command.")
     elif isinstance(error, commands.BadArgument):
         await ctx.send("Please specify a valid number of messages to purge.")
     else:
@@ -1480,10 +1504,11 @@ async def validate_registration(user,check_cooldown = True,check_left_server = T
                         if discord_id and discord_id.isdigit():
                             member = guild.get_member(int(discord_id))
                             if member:
-                                for role in member.roles:
-                                    if role.id == constants.COOLDOWN_ROLE_ID and check_cooldown:
-                                        # print(f"Someone from User {user_id} wali team is on cooldown.")
-                                        return 'cooldown'
+                                continue
+                                # for role in member.roles:
+                                #     if role.id == constants.COOLDOWN_ROLE_ID and check_cooldown:
+                                #         # print(f"Someone from User {user_id} wali team is on cooldown.")
+                                #         return 'cooldown'
                                     # elif role.id == constants.BANNED_ROLE_ID:
                                     #     print(f"Someone from User {user_id} wali team has a banned role.")
                                     #     return 'banned'
@@ -1505,10 +1530,11 @@ async def validate_registration(user,check_cooldown = True,check_left_server = T
                         if discord_id and discord_id.isdigit():
                             member = bot.get_user(discord_id)
                             if member:
-                                for role in member.roles:
-                                    if role.id == constants.COOLDOWN_ROLE_ID and check_cooldown:
-                                        print(f"Someone from User {user_id} wali team is on cooldown.")
-                                        return 'cooldown'
+                                continue
+                                # for role in member.roles:
+                                #     if role.id == constants.COOLDOWN_ROLE_ID and check_cooldown:
+                                #         # print(f"Someone from User {user_id} wali team is on cooldown.")
+                                #         return 'cooldown'
                                     # elif role.id == constants.BANNED_ROLE_ID:
                                     #     print(f"Someone from User {user_id} wali team has a banned role.")
                                     #     return 'banned'
@@ -1541,10 +1567,10 @@ async def reject_registration(user_id, reason):
     except Exception as e:
         print(f"An error occurred while confirming registration: {e}")
 
-async def save_timestamp_to_csv(user, timestamp_ms,lobby_number):
+async def save_timestamp_to_csv(user, timestamp_ms,lobby_number,status : str):
     with open('timestamps.csv', 'a', newline='') as csvfile:
         writer = csv.writer(csvfile)
-        writer.writerow([user, timestamp_ms,f"Lobby {lobby_number}"])
+        writer.writerow([user, timestamp_ms,f"Lobby {lobby_number}",status])
 
 async def save_as_csv(teams_dict, csv_file,save_all_flag=False):
     if save_all_flag:

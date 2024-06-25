@@ -24,10 +24,10 @@ REQUIRED_ROLE_NAME = "T3 verified"
 GUILD_ID = 1187405344226426930
 COOLDOWN_ROLE_ID = 1252301248254709770
 BANNED_ROLE_ID = 1252301654557196360
-ENROLLMENT_MESSAGE_ID = 1252312771073409128
+ENROLLMENT_MESSAGE_ID = 1254952823024783504
 PREFERENCE_MESSAGE_ID = None
-REG_MESSAGE_ID = 1252312771375399122
-SCRIMS_INFO_MESSAGE_ID = 1252312772096823303
+REG_MESSAGE_ID = 1254952824844845057
+SCRIMS_INFO_MESSAGE_ID = 1254953222100095047
 
 # Google Sheets details
 GOOGLE_SHEET_ID = "1yJozWjOMMc9uIhobk0xtyODWUInV7GWwQXOZlydU0i8"
@@ -60,6 +60,7 @@ emotes_list = ["<:number1:1252296980638597221>", "<:number2:1252297093926883411>
 practice_emoteid = "<:Holdgun:1252297519543877684>"
 stary_emote = "<a:_:1188860052187119707>"
 json_file_path = r"/home/ubuntu/ontop/lobby_details.json"
+roles_for_purge_perm = ['.','Dev','Admin','Sr. Staff','T3 Managment','++D']
 
 # # for i ama naive server
 
@@ -119,3 +120,4 @@ json_file_path = r"/home/ubuntu/ontop/lobby_details.json"
 # practice_emoteid = "<:Untitleddesign20:1246793790199431231>"
 # stary_emote = "<a:_:1247699959411638282>"
 # json_file_path = r"C:\faltu\ontop\lobby_details.json"
+# roles_for_purge_perm = ['Manager','Mahatma']
