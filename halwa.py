@@ -994,7 +994,7 @@ async def enrollTeam(user,interaction):
 
             # Check if the team name already exists
             if not await is_team_name_unique(team_name):
-                await thread.send(f"{user.mention} This team name already exists.\nYou can modify the team name slightly for it to pass.\nEx: Team Chambal Ke Daku can be written any way like ChambalKeDaku, Chambal Thukai, Chambal ESP, Team Chambal, Chambal Squad. Let's restart your enrollment, my friend!")
+                await thread.send(f"{user.mention} This team name already exists.\nYou can modify the team name slightly for it to pass.\nEx: Team Chambal Ke Daku can be written any way like ChambalKeDaku, Chambal Daket, Chambal ESP, Team Chambal, Chambal Squad. Let's restart your enrollment, my friend!")
             else:
                 break  # Exit the loop if a unique team name is provided
 
