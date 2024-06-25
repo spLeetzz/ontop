@@ -1,4 +1,3 @@
-# Exclude virtual environment
 .venv/
 *.pyc
 registered_teams.csv

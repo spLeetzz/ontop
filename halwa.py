@@ -213,6 +213,8 @@ class CaptchaModal(discord.ui.Modal):
         super().__init__(title="Let's fill in a captcha real quick!")
         self.lobby_number = lobby_number
         self.team_name = team_name
+        self.slots_available = True
+        self.already_registered = False
 
         # Add the captcha input fields
         self.sentence_input = discord.ui.TextInput(label=f"Type this beneath:\n{constants.captcha_question_variables[0]}", placeholder=constants.captcha_question_variables[0],required=True)
@@ -233,22 +235,46 @@ class CaptchaModal(discord.ui.Modal):
 
             timestamp_ms = datetime.now(tz=constants.timezone).strftime("%b %d %H:%M:%S.%f")
 
+            # # Acquire the registration lock for this lobby
+            # async with constants.lobby_locks[int(int(self.lobby_number) - 1)]:
+            #     slots_available_currently = await available_slots(self.lobby_number)
+            #     if int(slots_available_currently) <= 0:
+            #         await interaction.followup.send("Sorry, this lobby is full.", ephemeral=True) 
+            #         await save_timestamp_to_csv(interaction.user, timestamp_ms,self.lobby_number,"LATE")
+            #         return
+                
+            #     if self.team_name in constants.registered_teams.keys():
+            #         await interaction.followup.send("Someone from your team has already booked a slot for today.", ephemeral=True)
+            #         return
+                
+            #     # Save the registered team's data
+            #     constants.registered_teams[self.team_name] = await isAlreadyEnrolled(user_id,used2returnrow=True)
+            #     constants.lobby_teams[int(self.lobby_number)-1][user_id] = self.team_name
+
             # Acquire the registration lock for this lobby
             async with constants.lobby_locks[int(int(self.lobby_number) - 1)]:
+                
                 slots_available_currently = await available_slots(self.lobby_number)
+
                 if int(slots_available_currently) <= 0:
-                    await interaction.followup.send("Sorry, this lobby is full.", ephemeral=True) 
-                    await save_timestamp_to_csv(interaction.user, timestamp_ms,self.lobby_number,"LATE")
-                    return
+                    self.slots_available = False
                 
-                if self.team_name in constants.registered_teams.keys():
-                    await interaction.followup.send("Someone from your team has already booked a slot for today.", ephemeral=True)
-                    return
+                elif self.team_name in constants.registered_teams.keys() and self.slots_available:
+                    self.already_registered = True
                 
-                # Save the registered team's data
-                constants.registered_teams[self.team_name] = await isAlreadyEnrolled(user_id,used2returnrow=True)
-                constants.lobby_teams[int(self.lobby_number)-1][user_id] = self.team_name
-                
+                elif self.slots_available and not self.already_registered:
+                    # Save the registered team's data
+                    constants.registered_teams[self.team_name] = await isAlreadyEnrolled(user_id,used2returnrow=True)
+                    constants.lobby_teams[int(self.lobby_number)-1][user_id] = self.team_name
+
+            if not self.slots_available:
+                await interaction.followup.send("Sorry, this lobby is full.", ephemeral=True) 
+                await save_timestamp_to_csv(interaction.user, timestamp_ms,self.lobby_number,"LATE")
+                return
+            
+            if self.already_registered:
+                await interaction.followup.send("Someone from your team has already booked a slot for today.", ephemeral=True)
+                return
                 
             # Operations that do not need to be locked
             if await available_slots(self.lobby_number) == 0:
@@ -631,13 +657,7 @@ async def start(ctx, captcha_phrase : str):
     constants.captcha_question_variables.clear()
 
     try:
-
-        if ctx.interaction:
-            await ctx.channel.purge(check=lambda m: m.id != constants.REG_MESSAGE_ID, limit=1000,before=ctx.interaction.created_at)
-        else:
-            await ctx.channel.purge(check=lambda m: m.id != constants.REG_MESSAGE_ID, limit=1000)
-
-        await bot.get_channel(constants.REGISTRATION_CHANNEL_ID).purge(before=ctx.message.created_at)
+        await bot.get_channel(constants.REGISTRATION_CHANNEL_ID).purge(check=lambda m: m.id != constants.REG_MESSAGE_ID, limit=100)
         print("Messages purged successfully.")
         # Clear timestamps.csv
         with open('timestamps.csv', 'w', newline=''): pass
@@ -654,7 +674,6 @@ async def start(ctx, captcha_phrase : str):
     constants.captcha_question_variables.append(random.randint(10, 99))
     
     await ctx.send(f"refresheeeeeeeeeeeeeeeeeeeed\nCurrent captcha variables: {constants.captcha_question_variables[0]}, {constants.captcha_question_variables[1]} + {constants.captcha_question_variables[2]}, {constants.captcha_question_variables[3]} + {constants.captcha_question_variables[4]}")
-
 
 @start.error
 async def start_error(ctx, error):
