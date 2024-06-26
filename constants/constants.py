@@ -60,7 +60,7 @@ emotes_list = ["<:number1:1252296980638597221>", "<:number2:1252297093926883411>
 practice_emoteid = "<:Holdgun:1252297519543877684>"
 stary_emote = "<a:_:1188860052187119707>"
 json_file_path = r"/home/ubuntu/ontop/lobby_details.json"
-roles_for_purge_perm = ['.','Dev','Admin','Sr. Staff','T3 Managment','++D']
+roles_for_purge_perm = ['Admin','++D']
 
 # # for i ama naive server
 

@@ -870,7 +870,7 @@ async def purge_error(ctx, error):
     if isinstance(error, commands.MissingPermissions):
         await ctx.send(f"You don't have the required permissions to use this command.")
     elif isinstance(error, commands.MissingAnyRole): 
-        await ctx.send(f"You don't have any of the required role to use this command.")
+        await ctx.send(f"Sorry this command is pretty limited")
     elif isinstance(error, commands.BadArgument):
         await ctx.send("Please specify a valid number of messages to purge.")
     else:
