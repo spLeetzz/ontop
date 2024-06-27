@@ -802,9 +802,9 @@ async def clear_lb(ctx):
     except Exception as e:
         await ctx.send(f"An error occurred: {e}")
 
-@bot.hybrid_command(name="random_reactors", description="Fetch random users who reacted to a message")
+@bot.hybrid_command(name="randreaction", description="Fetch random users who reacted to a message")
 @commands.has_permissions(view_audit_log=True)
-async def random_reactors(ctx, num: int):
+async def randreaction(ctx, num: int):
     
     try:
 
@@ -859,8 +859,8 @@ async def random_reactors(ctx, num: int):
     except Exception as e:
         await ctx.send(f"An error occurred: {e}")
 
-@random_reactors.error
-async def random_reactors_error(ctx, error):
+@randreaction.error
+async def randreaction(ctx, error):
     if isinstance(error, commands.MissingPermissions):
         missing_perms = ', '.join(error.missing_permissions)
         await ctx.send(f"You don't have the required permissions to use this command: {missing_perms}")
