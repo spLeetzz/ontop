@@ -378,7 +378,7 @@ class RulesButton(discord.ui.Button):
         super().__init__(label=f'Scrims Rules', style=discord.ButtonStyle.primary)
 
     async def callback(self, interaction: discord.Interaction):
-        embed = discord.Embed(title="Scrims Rules", description=f"1. IGNs(In Game Name) of all players must have some similar pattern of characters as prefix/suffix, you'll be kicked from the room if not found such. To tackle this you can even play from a new id meeting the condition of pov recording stated below.\n\n2. All mic toxicity and rants are not allowed while in lobby or in match, you can be banned for this.\n\n3.  EMERGENCY PICKUP is strictly prohibited and shouldn't be used at all, exploiting Bugs/Glitches or Hacking will lead to serious consequences.\n\n4. Complete POV recording is must for all the players of every team! Management may ask for 'Raw POV' anytime. You must also make sure to keep match end results screenshot with you for every match.", color=0x229db7)
+        embed = discord.Embed(title="Scrims Rules", description=f"1. IGNs(In Game Name) of all players must have some similar pattern of characters as prefix/suffix, you'll be kicked from the room if not found such.\n\n2. All mic toxicity and rants are not allowed while in lobby or in match, you can be banned for this.\n\n3.  EMERGENCY PICKUP is prohibited, exploiting Bugs/Glitches or Hacking will lead to serious consequences.\n\n4. Complete POV recording is must for all the players of every team, this includes opening the game from play/app store and showing IMEI at end.", color=0x229db7)
         await interaction.response.send_message(embed=embed,ephemeral=True,delete_after=180)
 
 class PointsSystemButton(discord.ui.Button):
@@ -842,7 +842,6 @@ async def rr(ctx, num: int):
             chosen_reaction = message.reactions[0]
 
         users = [user async for user in chosen_reaction.users()]
-        print(users)
 
         if num > len(users):
             await ctx.send(f"Requested number of users ({num}) exceeds the number of users who reacted ({len(users)}). Fetching all users instead.")
@@ -1791,7 +1790,7 @@ async def send_slots_list(team_names, lobby_number, lobby_channel):
         slots_list_message += f"{formatted_index}. RESERVED\n"
 
     # Close the code block and send the slots list message to the lobby channel
-    slots_list_message += f"```\na. Make sure to checkout your lobbies schedule from the \"Tier-3 Schedule\" button in <#{constants.INFO_CHANNEL_ID}>.\nb. Be available on time and participate in all matches with minimum 3 players in lobbies to avoid a ban.\nc. You'll be kicked from the room in case IGN's dont have a same pattern of characters as prefix/suffix.\nd. If there is an issue with changing IGN's (In Game Name), you can participate from a new id but have to ensure that raw pov is available.\ne. Use the button beneath in case you wanna transfer lobby role to teammate, it will be removed from you btw."
+    slots_list_message += f"```\n1. Make sure to checkout your lobbies schedule from the \"Tier-3 Schedule\" button in <#{constants.INFO_CHANNEL_ID}>.\n2. Be available on time and participate in all matches with minimum 3 players in lobbies to avoid a ban.\n3. You'll be kicked from the room in case IGN's dont have a same pattern of characters as prefix/suffix.\n4. If there is an issue with changing IGN's (In Game Name), you can participate from a new id but have to ensure that raw pov is available.\n5. Use the button beneath in case you wanna transfer lobby role to teammate, it will be removed from you btw."
     embed = discord.Embed(title=f"GROUP {lobby_number} SLOTS LIST:", description=slots_list_message,color=0x229db7)
     message = await lobby_channel.send(embed=embed)
     try:
