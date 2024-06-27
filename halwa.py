@@ -137,7 +137,7 @@ async def send_overview_menu(channel):
 
 class LobbySelectDropdown(discord.ui.Select):
     def __init__(self,disabled = False):
-        options = [discord.SelectOption(label=f"Lobby {i}", value=f"{int(i)}", emoji="🌟") for i in range(1, (int(constants.SLOTS_LIMIT / constants.LOBBY_SIZE)) + 1)]
+        options = [discord.SelectOption(label=f"Group {i}", value=f"{int(i)}", emoji="🌟") for i in range(1, (int(constants.SLOTS_LIMIT / constants.LOBBY_SIZE)) + 1)]
         super().__init__(placeholder="Select you lobby preferences here", min_values=1, max_values=3, options=options,disabled=disabled)
 
     async def callback(self, interaction: discord.Interaction):
@@ -280,7 +280,7 @@ class CaptchaModal(discord.ui.Modal):
             if await available_slots(self.lobby_number) == 0:
                 await bot.get_channel(constants.REGISTRATION_CHANNEL_ID).send(f"Slots filled in Lobby {self.lobby_number} at time:\n{timestamp_ms}")
 
-            task1 = asyncio.create_task(interaction.followup.send(f"Registration confirmed for {self.team_name} in Lobby {self.lobby_number}.", ephemeral=True))
+            task1 = asyncio.create_task(interaction.followup.send(f"Registration confirmed for “{self.team_name}” in Lobby {self.lobby_number}.", ephemeral=True))
             # task2 = asyncio.create_task(assign_role(user, constants.COOLDOWN_ROLE_ID))
             task3 = asyncio.create_task(assign_team_to_lobby(user, self.lobby_number))
             task4 = asyncio.create_task(save_timestamp_to_csv(user, timestamp_ms, self.lobby_number,"BOOKED"))
@@ -756,7 +756,7 @@ async def blacklist_user(interaction: discord.Interaction, user: discord.User, h
     elif not team_name:
         row = [str(user.id),int(time.time()),int((hours * 3600) + (days * 86400)),datetime.now(tz=constants.timezone).strftime("%Y-%m-%d %H:%M"),f"{days} days {hours} hours",reason]
         constants.blacklist_sheet.append_row(row)
-        await interaction.response.send_message(f"Blacklisted User: {user.mention}'s for {days} days and {hours} hours")
+        await interaction.response.send_message(f"Blacklisted User: {user.mention} for {days} days and {hours} hours")
         print(f"Blacklisted User: {user.mention}'s for {days} days and {hours} hours")
 
 @blacklist_user.error
@@ -801,6 +801,65 @@ async def clear_lb(ctx):
         await ctx.send(f"An HTTP error occurred: {e}")    
     except Exception as e:
         await ctx.send(f"An error occurred: {e}")
+
+@commands.command(name="random_reactors", description="Fetch random users who reacted to a message")
+@commands.has_permissions(view_audit_log=True)
+async def random_reactors(ctx, num: int):
+    try:
+        # Check if the command is used in reply to a message
+        if ctx.message.reference and ctx.message.reference.message_id:
+            message_id = ctx.message.reference.message_id
+            message = await ctx.channel.fetch_message(message_id)
+        else:
+            await ctx.send("Please reply to the message you want to check reactions for.")
+            return
+        
+        if not message.reactions:
+            await ctx.send("No reactions found on the specified message.")
+            return
+
+        if len(message.reactions) > 1:
+            await ctx.send("Multiple reactions found. Please specify which emote to use:")
+            await ctx.send("\n".join([f"{i+1}. {reaction.emoji}" for i, reaction in enumerate(message.reactions)]))
+            
+            # Nested function to check for valid user input
+            def check(m):
+                return m.author == ctx.author and m.channel == ctx.channel and m.content.isdigit() and 1 <= int(m.content) <= len(message.reactions)
+
+            try:
+                emote_choice = await bot.wait_for("message", check=check, timeout=60)
+                chosen_reaction = message.reactions[int(emote_choice.content) - 1]
+            except asyncio.TimeoutError:
+                await ctx.send("You took too long to respond.")
+                return
+        else:
+            chosen_reaction = message.reactions[0]
+
+        users = [user async for user in chosen_reaction.users()]
+        print(users)
+
+        if num > len(users):
+            await ctx.send(f"Requested number of users ({num}) exceeds the number of users who reacted ({len(users)}). Fetching all users instead.")
+            num = len(users)
+
+        random_users = random.sample(users, num)
+
+        await ctx.send(f"Randomly selected users: " + ",".join([user.mention for user in random_users]))
+
+    except discord.NotFound:
+        await ctx.send("Message not found. Please ensure the message ID is correct.")
+    except discord.HTTPException as e:
+        await ctx.send(f"An HTTP error occurred: {e}")
+    except Exception as e:
+        await ctx.send(f"An error occurred: {e}")
+
+@random_reactors.error
+async def random_reactors_error(ctx, error):
+    if isinstance(error, commands.MissingPermissions):
+        missing_perms = ', '.join(error.missing_permissions)
+        await ctx.send(f"You don't have the required permissions to use this command: {missing_perms}")
+    else:
+        await ctx.send(f"An error occurred: {error}")
 
 @clear_lb.error
 async def clear_lb(ctx, error):
