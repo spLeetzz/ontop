@@ -802,10 +802,16 @@ async def clear_lb(ctx):
     except Exception as e:
         await ctx.send(f"An error occurred: {e}")
 
-@commands.command(name="random_reactors", description="Fetch random users who reacted to a message")
+@bot.hybrid_command(name="random_reactors", description="Fetch random users who reacted to a message")
 @commands.has_permissions(view_audit_log=True)
 async def random_reactors(ctx, num: int):
+    
     try:
+
+        if ctx.interaction:
+            await ctx.send("Please use this as a normal command not / command.")
+            return
+            
         # Check if the command is used in reply to a message
         if ctx.message.reference and ctx.message.reference.message_id:
             message_id = ctx.message.reference.message_id
