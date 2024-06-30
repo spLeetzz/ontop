@@ -177,7 +177,7 @@ class LobbyPreferencesView(discord.ui.View):
         
 class LobbyButton(discord.ui.Button):
     def __init__(self, lobby_number):
-        super().__init__(label=f'Lobby {lobby_number}', style=discord.ButtonStyle.green,disabled=constants.disabled_status,emoji=f"{constants.emotes_list[lobby_number-1]}")
+        super().__init__(label=f'Lobby {lobby_number}', style=discord.ButtonStyle.green,disabled=constants.disabled_status,emoji=f"{constants.emotes_list[lobby_number-1]}",row = 1 if lobby_number >= 5 else 0)
         # row = int(lobby_number + 1) - 2 if lobby_number % 2 == 1 else lobby_number - 2
         self.lobby_number = lobby_number
 
