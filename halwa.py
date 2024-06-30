@@ -802,6 +802,14 @@ async def clear_lb(ctx):
     except Exception as e:
         await ctx.send(f"An error occurred: {e}")
 
+@clear_lb.error
+async def clear_lb(ctx, error):
+    if isinstance(error, commands.MissingPermissions):
+        missing_perms = ', '.join(error.missing_permissions)
+        await ctx.send(f"You don't have the required permissions to use this command: {missing_perms}")
+    else:
+        await ctx.send(f"An error occurred: {error}")
+
 @bot.hybrid_command(name="rr", description="Fetch random users who reacted to a message")
 @commands.has_permissions(view_audit_log=True)
 async def rr(ctx, num: int):
@@ -860,14 +868,6 @@ async def rr(ctx, num: int):
 
 @rr.error
 async def rr(ctx, error):
-    if isinstance(error, commands.MissingPermissions):
-        missing_perms = ', '.join(error.missing_permissions)
-        await ctx.send(f"You don't have the required permissions to use this command: {missing_perms}")
-    else:
-        await ctx.send(f"An error occurred: {error}")
-
-@clear_lb.error
-async def clear_lb(ctx, error):
     if isinstance(error, commands.MissingPermissions):
         missing_perms = ', '.join(error.missing_permissions)
         await ctx.send(f"You don't have the required permissions to use this command: {missing_perms}")
@@ -1570,7 +1570,7 @@ def refresh_cache3():
         except Exception as e:
             print("Error occurred while refreshing blk_users_list", e)
         # Sleep for 20 seconds before refreshing again
-        time.sleep(20)
+        time.sleep(5)
 
 async def validate_registration(user,check_cooldown = True,check_left_server = True):
     try:

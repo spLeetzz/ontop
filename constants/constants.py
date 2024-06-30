@@ -17,7 +17,7 @@ TICKET_CHANNEL_ID = 1187407524983480461
 # PREF_SELECTION_CHANNEL_ID = 1241547499416588409
 
 # Other constants
-SLOTS_LIMIT = 2
+SLOTS_LIMIT = 6
 LOBBY_SIZE = 1
 NUM_LOBBIES = int(SLOTS_LIMIT/LOBBY_SIZE)
 REQUIRED_ROLE_NAME = "T3 verified"
@@ -56,7 +56,7 @@ ban_sheet = None
 blacklist_sheet = None
 service = None
 timezone = pytz.timezone('Asia/Kolkata')
-emotes_list = ["<:number1:1252296980638597221>", "<:number2:1252297093926883411>", "<:number3:1252297208624058541>", "<:number4:1252297299200049234>"]
+emotes_list = ["<:number1:1252296980638597221>", "<:number2:1252297093926883411>", "<:number3:1252297208624058541>", "<:number4:1252297299200049234>","<:number5:1256671680831553617>","<:number6:1256671747374059683>"]
 practice_emoteid = "<:Holdgun:1252297519543877684>"
 stary_emote = "<a:_:1188860052187119707>"
 json_file_path = r"/home/ubuntu/ontop/lobby_details.json"
