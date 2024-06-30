@@ -1286,7 +1286,7 @@ class EnrollmentError(Exception):
 #         await user.send("Response timed out. Please try again later.")
 #         return None
 
-async def get_user_response_in_thread(user, channel, prompt="", timeout=120, return_message_object=False):
+async def get_user_response_in_thread(user, channel, prompt="", timeout=300, return_message_object=False):
     await channel.send(prompt)
     response = await bot.wait_for('message', check=lambda msg: msg.author == user and msg.channel == channel, timeout = int(timeout))
     if response.content.strip():  # Check if the response is not empty after stripping whitespace
@@ -1333,7 +1333,7 @@ async def ask_yes_no_question_in_thread(user, channel, question):
         # Wait for the user's response with a timeout of 2 minutes (120 seconds)
         response = await asyncio.wait_for(
             bot.wait_for('message', check=lambda msg: msg.author == user and msg.channel == channel),
-            timeout=120
+            timeout=300
         )
 
         # Get the content of the response and convert it to lowercase
@@ -1383,7 +1383,7 @@ async def validate_enrollment(user, team_name, player_igns, thread):
             if discord_id in constants.blk_users_list:
                 await thread.send(f"Your enrollment can't proceed as user : <@{discord_id}> from your team is blacklisted as of now.")
                 await response.add_reaction("❌")
-                raise EnrollmentError()
+                raise EnrollmentError(60)
             
             text = await isAlreadyEnrolled(discord_id)
             if text:
@@ -1398,7 +1398,7 @@ async def validate_enrollment(user, team_name, player_igns, thread):
         if len(players) < 4:
             await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"Hey {user.mention}, you missed mentioning all your teammates.\nPlease restart the enrollment process and mention correctly next time.\nThis message can also be sent if someone from your team is not present in this server.")
             await response.add_reaction("❌")
-            raise EnrollmentError()
+            raise EnrollmentError(60)
         
         # Check if at least 4 mentioned users have the required role
         verified_players = 0
@@ -1413,12 +1413,12 @@ async def validate_enrollment(user, team_name, player_igns, thread):
             else:
                 await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} There was some error and due to it we arent able to fetch <@{discord_id}>, report to support team if he's present in this server and still this comes.")
                 await response.add_reaction("❌")
-                raise EnrollmentError()
+                raise EnrollmentError(60)
             
         if verified_players < 4:
             await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} One or more of your teammates haven't verified on the discord server yet. Reapply once it's done.")
             await response.add_reaction("❌")
-            raise EnrollmentError()
+            raise EnrollmentError(60)
           
         # All validation checks passed
         await response.add_reaction("✅")
