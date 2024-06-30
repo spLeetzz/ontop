@@ -54,7 +54,7 @@ class TournamentDropdown(discord.ui.Select):
             await interaction.message.edit(view=TournamentView())
             return
         
-        if any(role.name == constants.REQUIRED_ROLE_NAME for role in user.roles):
+        if not any(role.name == constants.REQUIRED_ROLE_NAME for role in user.roles):
             await interaction.response.send_message(f"Hey {user.mention} you are not verified yet, please complete that first.", ephemeral=True,delete_after=30)
             await interaction.message.edit(view=TournamentView())
             return
