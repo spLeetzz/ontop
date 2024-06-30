@@ -565,8 +565,11 @@ async def on_ready():
 
     if lobby_details_json:
         for k,v in lobby_details_json.items():
-            message = await bot.get_channel(int(v[1])).fetch_message(int(v[0]))
-            await message.edit(view=TransferIDPView())
+            try:
+                message = await bot.get_channel(int(v[1])).fetch_message(int(v[0]))
+                await message.edit(view=TransferIDPView())
+            except Exception as e:
+                print(f"Got Exception {e} when delaing with lobby json file")
 
     print(f"Set bro.")
 
