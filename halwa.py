@@ -686,6 +686,38 @@ async def start_error(ctx, error):
     else:
         await ctx.send(f"An error occurred: {error}")
 
+@bot.hybrid_command(name="break",description="**Break Registration in between, Sensitive")
+@commands.has_permissions(view_audit_log=True, manage_roles=True)
+async def break_reg(ctx):
+
+    await ctx.defer()
+    constants.disabled_status = True
+    message = await bot.get_channel(constants.REGISTRATION_CHANNEL_ID).fetch_message(constants.REG_MESSAGE_ID)
+    await message.edit(view=RegistrationView())
+    await save_as_csv(constants.registered_teams, 'registered_teams.csv',save_all_flag = True)
+    await bot.get_channel(constants.MOD_CHANNEL_ID).send(file=discord.File('registered_teams.csv'))
+
+    for lobby_number, lobby_teams_dict in enumerate(constants.lobby_teams, 1):
+        csv_file = f"lobby_{lobby_number}_teams.csv"
+        await save_as_csv(lobby_teams_dict, csv_file)
+        user_ids = list(lobby_teams_dict.keys())
+        team_names = [lobby_teams_dict[user_id] for user_id in user_ids]
+        async with asyncio.TaskGroup() as taskhandler:
+            taskhandler.create_task(bot.get_channel(constants.MOD_CHANNEL_ID).send(file=discord.File(csv_file)))
+            taskhandler.create_task(send_slots_list(team_names, lobby_number, discord.utils.get(bot.get_guild(constants.GUILD_ID).channels, name=f"group-{lobby_number}-idp")))
+    await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"You can download the Google Sheets app to view the list of users and their registration timestamps of {datetime.today().strftime('%d %b')} from this CSV file (for transparency). If you cant find you name in these, you were later than all these 😢.",file=discord.File('timestamps.csv'))
+
+    with open(constants.json_file_path,'w') as json_file:
+        json.dump(constants.temp_json_dict,json_file)
+
+@break_reg.error
+async def break_reg_error(ctx, error):
+    if isinstance(error, commands.MissingPermissions):
+        missing_perms = ', '.join(error.missing_permissions)
+        await ctx.send(f"You don't have the required permissions to use this command: {missing_perms}")
+    else:
+        await ctx.send(f"An error occurred: {error}")
+        
 @bot.hybrid_command(name="delete_from_sheet",description="**SENSITIVE, this team's data can be lost forever from our end.")
 @commands.has_any_role('++D', 'Sr. Staff','Admin','.','Staff',"Mahatma")
 async def delete_from_sheet(ctx,member: discord.User):
