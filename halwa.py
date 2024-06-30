@@ -686,39 +686,39 @@ async def start_error(ctx, error):
     else:
         await ctx.send(f"An error occurred: {error}")
 
-@bot.hybrid_command(name="break",description="**Break Registration in between, Sensitive")
-@commands.has_permissions(view_audit_log=True, manage_roles=True)
-async def break_reg(ctx):
+# @bot.hybrid_command(name="break",description="**Break Registration in between, Sensitive")
+# @commands.has_permissions(view_audit_log=True, manage_roles=True)
+# async def break_reg(ctx):
 
-    await ctx.defer()
-    constants.disabled_status = True
-    message = await bot.get_channel(constants.REGISTRATION_CHANNEL_ID).fetch_message(constants.REG_MESSAGE_ID)
-    await message.edit(view=RegistrationView())
-    await save_as_csv(constants.registered_teams, 'registered_teams.csv',save_all_flag = True)
-    await bot.get_channel(constants.MOD_CHANNEL_ID).send(file=discord.File('registered_teams.csv'))
+#     await ctx.defer()
+#     constants.disabled_status = True
+#     message = await bot.get_channel(constants.REGISTRATION_CHANNEL_ID).fetch_message(constants.REG_MESSAGE_ID)
+#     await message.edit(view=RegistrationView())
+#     await save_as_csv(constants.registered_teams, 'registered_teams.csv',save_all_flag = True)
+#     await bot.get_channel(constants.MOD_CHANNEL_ID).send(file=discord.File('registered_teams.csv'))
 
-    for lobby_number, lobby_teams_dict in enumerate(constants.lobby_teams, 1):
-        csv_file = f"lobby_{lobby_number}_teams.csv"
-        await save_as_csv(lobby_teams_dict, csv_file)
-        user_ids = list(lobby_teams_dict.keys())
-        team_names = [lobby_teams_dict[user_id] for user_id in user_ids]
-        async with asyncio.TaskGroup() as taskhandler:
-            taskhandler.create_task(bot.get_channel(constants.MOD_CHANNEL_ID).send(file=discord.File(csv_file)))
-            taskhandler.create_task(send_slots_list(team_names, lobby_number, discord.utils.get(bot.get_guild(constants.GUILD_ID).channels, name=f"group-{lobby_number}-idp")))
-    await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"You can download the Google Sheets app to view the list of users and their registration timestamps of {datetime.today().strftime('%d %b')} from this CSV file (for transparency). If you cant find you name in these, you were later than all these 😢.",file=discord.File('timestamps.csv'))
+#     for lobby_number, lobby_teams_dict in enumerate(constants.lobby_teams, 1):
+#         csv_file = f"lobby_{lobby_number}_teams.csv"
+#         await save_as_csv(lobby_teams_dict, csv_file)
+#         user_ids = list(lobby_teams_dict.keys())
+#         team_names = [lobby_teams_dict[user_id] for user_id in user_ids]
+#         async with asyncio.TaskGroup() as taskhandler:
+#             taskhandler.create_task(bot.get_channel(constants.MOD_CHANNEL_ID).send(file=discord.File(csv_file)))
+#             taskhandler.create_task(send_slots_list(team_names, lobby_number, discord.utils.get(bot.get_guild(constants.GUILD_ID).channels, name=f"group-{lobby_number}-idp")))
+#     await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"You can download the Google Sheets app to view the list of users and their registration timestamps of {datetime.today().strftime('%d %b')} from this CSV file (for transparency). If you cant find you name in these, you were later than all these 😢.",file=discord.File('timestamps.csv'))
 
-    with open(constants.json_file_path,'w') as json_file:
-        json.dump(constants.temp_json_dict,json_file)
+#     with open(constants.json_file_path,'w') as json_file:
+#         json.dump(constants.temp_json_dict,json_file)
 
-    await ctx.send(f"beech me chod diya")
+#     await ctx.send(f"beech me chod diya")
 
-@break_reg.error
-async def break_reg_error(ctx, error):
-    if isinstance(error, commands.MissingPermissions):
-        missing_perms = ', '.join(error.missing_permissions)
-        await ctx.send(f"You don't have the required permissions to use this command: {missing_perms}")
-    else:
-        await ctx.send(f"An error occurred: {error}")
+# @break_reg.error
+# async def break_reg_error(ctx, error):
+#     if isinstance(error, commands.MissingPermissions):
+#         missing_perms = ', '.join(error.missing_permissions)
+#         await ctx.send(f"You don't have the required permissions to use this command: {missing_perms}")
+#     else:
+#         await ctx.send(f"An error occurred: {error}")
 
 @bot.hybrid_command(name="delete_from_sheet",description="**SENSITIVE, this team's data can be lost forever from our end.")
 @commands.has_any_role('++D', 'Sr. Staff','Admin','.','Staff',"Mahatma")
@@ -1378,7 +1378,7 @@ async def validate_enrollment(user, team_name, player_igns, thread):
             if discord_id in constants.blk_users_list:
                 await thread.send(f"Your enrollment can't proceed as user : <@{discord_id}> from your team is blacklisted as of now.")
                 await response.add_reaction("❌")
-                raise EnrollmentError(60)
+                raise EnrollmentError()
             
             text = await isAlreadyEnrolled(discord_id)
             if text:
@@ -1393,7 +1393,7 @@ async def validate_enrollment(user, team_name, player_igns, thread):
         if len(players) < 4:
             await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"Hey {user.mention}, you missed mentioning all your teammates.\nPlease restart the enrollment process and mention correctly next time.\nThis message can also be sent if someone from your team is not present in this server.")
             await response.add_reaction("❌")
-            raise EnrollmentError(60)
+            raise EnrollmentError()
         
         # Check if at least 4 mentioned users have the required role
         verified_players = 0
@@ -1408,12 +1408,12 @@ async def validate_enrollment(user, team_name, player_igns, thread):
             else:
                 await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} There was some error and due to it we arent able to fetch <@{discord_id}>, report to support team if he's present in this server and still this comes.")
                 await response.add_reaction("❌")
-                raise EnrollmentError(60)
+                raise EnrollmentError()
             
         if verified_players < 4:
             await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} One or more of your teammates haven't verified on the discord server yet. Reapply once it's done.")
             await response.add_reaction("❌")
-            raise EnrollmentError(60)
+            raise EnrollmentError()
           
         # All validation checks passed
         await response.add_reaction("✅")
