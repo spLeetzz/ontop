@@ -710,6 +710,8 @@ async def break_reg(ctx):
     with open(constants.json_file_path,'w') as json_file:
         json.dump(constants.temp_json_dict,json_file)
 
+    await ctx.send(f"beech me chod diya")
+
 @break_reg.error
 async def break_reg_error(ctx, error):
     if isinstance(error, commands.MissingPermissions):
@@ -717,7 +719,7 @@ async def break_reg_error(ctx, error):
         await ctx.send(f"You don't have the required permissions to use this command: {missing_perms}")
     else:
         await ctx.send(f"An error occurred: {error}")
-        
+
 @bot.hybrid_command(name="delete_from_sheet",description="**SENSITIVE, this team's data can be lost forever from our end.")
 @commands.has_any_role('++D', 'Sr. Staff','Admin','.','Staff',"Mahatma")
 async def delete_from_sheet(ctx,member: discord.User):
