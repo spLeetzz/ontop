@@ -54,6 +54,11 @@ class TournamentDropdown(discord.ui.Select):
             await interaction.message.edit(view=TournamentView())
             return
         
+        if any(role.name == constants.REQUIRED_ROLE_NAME for role in user.roles):
+            await interaction.response.send_message(f"Hey {user.mention} you are not verified yet, please complete that first.", ephemeral=True,delete_after=30)
+            await interaction.message.edit(view=TournamentView())
+            return
+        
         # Check if the user is already enrolled
         result = await isAlreadyEnrolled(user.id,returnTeamName=True,ctx_is_in_team=True)
         
@@ -132,7 +137,7 @@ async def send_remenu(channel):
 
 async def send_overview_menu(channel):
     view = ScrimsOverviewView()  
-    message = await channel.send(content=f"Hey there, here's a complete overview of BGMI scrims at Trident:\n\nThere are 4 tiers basically,\n\n`Trident Rookie Scrims(Tier 3):`\n\n- Open for all, anyone can participate, registrations open at 12 PM Tuesday-Saturday in <#{constants.REGISTRATION_CHANNEL_ID}>\n- 4 Groups every day, Top 2 from each Group qualify for Amateur Scrims\n- Every Group plays 2 matches, Erangle-Miramar\n\n`Amateur Scrims(T2 filtration):`\n\n- 2 Groups on Sunday, Top 4 from each Group qualify for Tier 2 scrims\n- Every Group plays 3 matches, Erangle-Miramar-Sanhok\n\n`Trident Elite Scrims(Tier 2):`\n\n- 2 Groups, Every team plays 24 matches over 6 days.\n- Tuesday-Sunday daily 4 matches, Erangle-Miramar-Sanhok-Vikendi\n- Top 10 teams based on cumulative leaderboard of both Groups qualify for Pro Scrims.\n- Bottom 10 teams are demoted from Tier 2 to Tier 3.\n\n`Trident Pro Scrims:`\n\n- Tuesday-Sunday daily 4 matches, Erangle-Miramar-Sanhok-Vikendi\n- Top 6 teams based on leaderboard retain their spots in Pro Scrims.\n- Rest of the teams are demoted from Pro Scrims to Tier 2.\n\nAny announcements and updates would be shared thru the <#{constants.UPDATES_CHANNEL_ID}> channels.\nReact with buttons beneath for more information and make sure to follow all rules.",view=view)
+    message = await channel.send(content=f"Hey there, here's a complete overview of BGMI scrims at Trident:\n\nThere are 4 tiers basically,\n\n`Trident Rookie Scrims(Tier 3):`\n\n- Open for all, anyone can participate, registrations open at 12 PM Tuesday-Saturday in <#{constants.REGISTRATION_CHANNEL_ID}>\n- 6 Groups every day, Top 1 from each Group qualify for Amateur Scrims\n- Every Group plays 2 matches, Erangle-Miramar\n\n`Amateur Scrims(T2 filtration):`\n\n- 2 Groups on Sunday, Top 4 from each Group qualify for Tier 2 scrims\n- Every Group plays 3 matches, Erangle-Miramar-Sanhok\n\n`Trident Elite Scrims(Tier 2):`\n\n- 2 Groups, Every team plays 24 matches over 6 days.\n- Tuesday-Sunday daily 4 matches, Erangle-Miramar-Sanhok-Vikendi\n- Top 8 teams based on cumulative leaderboard of both Groups qualify for Pro Scrims.\n- Bottom 10 teams are demoted from Tier 2 to Tier 3.\n\n`Trident Pro Scrims:`\n\n- Tuesday-Sunday daily 4 matches, Erangle-Miramar-Sanhok-Vikendi\n- Top 6 teams based on leaderboard retain their spots in Pro Scrims.\n- Rest of the teams are demoted from Pro Scrims to Tier 2.\n\nAny announcements and updates would be shared thru the <#{constants.UPDATES_CHANNEL_ID}> channels.\nReact with buttons beneath for more information and make sure to follow all rules.",view=view)
     return message
 
 class LobbySelectDropdown(discord.ui.Select):
