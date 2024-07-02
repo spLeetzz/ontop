@@ -68,7 +68,7 @@ class TournamentDropdown(discord.ui.Select):
                 return
             
             elif not any(role.name == constants.REQUIRED_ROLE_NAME for role in user.roles):
-                await interaction.response.send_message(f"Hey {user.mention} you are not verified yet, please complete that first.", ephemeral=True,delete_after=30)
+                await interaction.response.send_message(f"Hey {user.mention} you are not verified yet, please complete that first.\nIf verified ho and still this pops up, claim your verification role from <#{constants.TICKET_CHANNEL_ID}>", ephemeral=True,delete_after=30)
                 await interaction.message.edit(view=TournamentView())
                 return
             
