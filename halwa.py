@@ -54,11 +54,6 @@ class TournamentDropdown(discord.ui.Select):
             await interaction.message.edit(view=TournamentView())
             return
         
-        if not any(role.name == constants.REQUIRED_ROLE_NAME for role in user.roles):
-            await interaction.response.send_message(f"Hey {user.mention} you are not verified yet, please complete that first.", ephemeral=True,delete_after=30)
-            await interaction.message.edit(view=TournamentView())
-            return
-        
         # Check if the user is already enrolled
         result = await isAlreadyEnrolled(user.id,returnTeamName=True,ctx_is_in_team=True)
         
@@ -69,6 +64,11 @@ class TournamentDropdown(discord.ui.Select):
                 existing_team_message += result[0]
                 existing_team_message += f"\nIf they're not a part of the listed team, reach out to the support team via <#{constants.HELP_CHANNEL_ID}>."
                 await interaction.response.send_message(existing_team_message, ephemeral=True,delete_after=150)
+                await interaction.message.edit(view=TournamentView())
+                return
+            
+            elif not any(role.name == constants.REQUIRED_ROLE_NAME for role in user.roles):
+                await interaction.response.send_message(f"Hey {user.mention} you are not verified yet, please complete that first.", ephemeral=True,delete_after=30)
                 await interaction.message.edit(view=TournamentView())
                 return
             
@@ -118,7 +118,8 @@ class TournamentView(discord.ui.View):
         self.add_item(TournamentDropdown())
 
 async def send_selectmenu(channel):
-    embed = discord.Embed(title="Team Enrollment", description="Select desirable option to create or edit your team details->\n\n a. \"**Enroll**\" team to pull the ropes now, introduce your crew nd here we sail!\n\n b. \"**Update**\" your team if you are just fed of someone midway.\n\n c. \"**Delete**\" your team if stuck on some lonesome island.\n\nUse of alt accounts/Fake mentions are strictly prohibited and as you'll Get caught will be titled a Good Enough BAN 🙃.\n\n**Atleast 4 players from your team must be verified.\n\nWait until previous process is timed out (that'll take upto 2 mins of inactivity) in case you wanna redo/alter your selection", color=0x229db7)
+    # embed = discord.Embed(title="Team Enrollment", description="Select desirable option to create or edit your team details->\n\n a. \"**Enroll**\" team to pull the ropes now, introduce your crew nd here we sail!\n\n b. \"**Update**\" your team if you are just fed of someone midway.\n\n c. \"**Delete**\" your team if stuck on some lonesome island.\n\nUse of alt accounts/Fake mentions are strictly prohibited and as you'll Get caught will be titled a Good Enough BAN 🙃.\n\n**Atleast 4 players from your team must be verified.\n\nWait until previous process is timed out (that'll take upto 2 mins of inactivity) in case you wanna redo/alter your selection", color=0x229db7)
+    embed = discord.Embed(title="Team Enrollment", description="Select desirable option to create or edit your team details->\n\n a. **\"Enroll\"** -> CREATE NEW TEAM\n\n b. **\"Update\"** -> UPDATE YOUR TEAM\n\n c. **\"Delete\"** -> DELETE YOUR TEAM\n\nUse of alt accounts/Fake mentions are strictly prohibited and as you'll Get caught will be titled a Good Enough BAN.\n\n*> Atleast 4 players from your team should have **\"Verified\"** role on discord.*\nWait until previous process is timed out (that'll take upto 2 mins of inactivity) in case you wanna redo/alter your selection", color=0x229db7)    
     view = TournamentView()  # Initialize TournamentView with timeout=None
     message = await channel.send(embed=embed, view=view)
     return message
@@ -130,7 +131,8 @@ async def send_pref_menu(channel):
     return message
 
 async def send_remenu(channel):
-    embed = discord.Embed(title="BookMySlot", description=f"*Hey Wanderer, can I lurk on you :>*\n\n**OPENS AT 12 PM TUE-SAT**\n\n1. Make sure that you have completed the enrollment of your team from this channel <#{constants.ENROLLMENT_CHANNEL_ID}>\n2. One team can participate once in a week, cooldowns refresh every Tuesday.\n3. Please book a slot only if you wanna participate in the scrims, there wont be any slot cancellation/reassignment later on.\n4. Fastest ones to register in any lobby will be allocated with the slots.\n5. You need to pass in a simple Captcha test for registration, practice it anytime with 'PRACTICE REG' button.", color=0x229db7)
+    embed = discord.Embed(title="BookMySlot", description=f"*Hey Wanderer, can I lurk on you :>*\n\n**OPENS AT 12 PM TUE-SAT**\n\n1. Make sure that you have completed the enrollment of your team from this channel <#{constants.ENROLLMENT_CHANNEL_ID}>\n2. Please book a slot only if you wanna participate in the scrims, there wont be any slot cancellation/reassignment later on.\n3. Fastest ones to register in any lobby will be allocated with the slots.\n4. You need to pass in a simple Captcha test for registration, practice it anytime with 'PRACTICE REG' button.", color=0x229db7)
+    # 2. One team can participate once in a week, cooldowns refresh every Tuesday.
     view = RegistrationView()  
     message = await channel.send(embed=embed, view=view)
     return message
@@ -366,7 +368,7 @@ class PracticeRegistrationModal(discord.ui.Modal):
 class RegistrationView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
-        for i in range(1, constants.NUM_LOBBIES + 1):
+        for i in range(1, (int(constants.SLOTS_LIMIT/constants.LOBBY_SIZE)) + 1):
             self.add_item(LobbyButton(i))
         self.add_item(PracticeRegistrationButton())
 
@@ -375,7 +377,7 @@ class HowToPlayButton(discord.ui.Button):
         super().__init__(label=f'How To Play', style=discord.ButtonStyle.primary)
 
     async def callback(self, interaction: discord.Interaction):
-        embed = discord.Embed(title="How To Play", description=f"1. Get verified on [Trident Gaming](<https://tridentgaming.in/>) and claim your \"Verified\" role in discord from <#{constants.TICKET_CHANNEL_ID}>. Still confused how to do that?! There's a vid link beneath. Verification is a manual process and may take around 1-2 weeks.\n\n2. Enroll your team from <#{constants.ENROLLMENT_CHANNEL_ID}>, just have to select \"Enroll my team\" option from there, fill simple details, mention your teammates, and you're fine to Go, you can even Update/Delete your team later on.\n\n3. Book your slot for your preferred lobby from <#{constants.REGISTRATION_CHANNEL_ID}> at 12 PM Tuesday-Saturday. The buttons there will remain disabled whole time, and will open up at registration time.\n\n- [Click Me](<https://bit.ly/trident-verify-vid>) for tutorial on verification!\n- [Click Me](<https://bit.ly/trident-reg-vid>) for tutorial on registration!", color=0x229db7)
+        embed = discord.Embed(title="How To Play", description=f"1. Get verified on [Trident Gaming](<https://tridentgaming.in/>) and claim your \"Verified\" role in discord from <#{constants.TICKET_CHANNEL_ID}>. Still confused how to do that?! There's a vid link beneath. Verification is a manual process and may take around 1-2 weeks.\n\n2. Enroll your team from <#{constants.ENROLLMENT_CHANNEL_ID}>, just have to select \"Enroll my team\" option from there, fill simple details, mention your teammates, and you're fine to Go, you can even Update/Delete your team later on.\n\n3. Book your slot for your preferred lobby from <#{constants.REGISTRATION_CHANNEL_ID}> at 12 PM Tuesday-Saturday. The buttons there will remain disabled whole time, and will open up at registration time.\n\n- [Click Me](<https://bit.ly/trident-verify-vid>) for tutorial on verification!\n- [Click Me](<https://bit.ly/trident-regi-vid>) for tutorial on registration!", color=0x229db7)
         await interaction.response.send_message(embed=embed,ephemeral=True,delete_after=120)
     
 class RulesButton(discord.ui.Button):
@@ -418,7 +420,10 @@ class TransferIDPButton(discord.ui.Button):
 
         if len(matching_roles) == 1:
             result = await isAlreadyEnrolled(interaction.user.id,used2returnrowwithmessage=True,ctx_is_in_team=True)
-            await interaction.response.send_message(f"{result[0]}\nSelect player in the dropdown below whom you wanna transfer this IDP role to.",view=PlayerSelectView(row = result[1],role = matching_roles[0]),ephemeral=True,delete_after=120)
+            try:
+                await interaction.response.send_message(f"{result[0]}\nSelect player in the dropdown below whom you wanna transfer this IDP role to.",view=PlayerSelectView(row = result[1],role = matching_roles[0]),ephemeral=True,delete_after=120)
+            except Exception as e:
+                await interaction.response.send_message(f"Got an Error: {e}")
 
         elif len(matching_roles) == 0:
             await interaction.response.send_message(f"You dont Got any role that can be transferred:.",ephemeral=True,delete_after=40)
@@ -672,6 +677,9 @@ async def start(ctx, captcha_phrase : str):
         message = await bot.get_channel(constants.REGISTRATION_CHANNEL_ID).fetch_message(constants.REG_MESSAGE_ID)
         await message.edit(view=RegistrationView())
 
+        with open(constants.json_file_path,'w') as json_file:
+            json.dump({},json_file)
+
     except discord.HTTPException as e:
         print(f"An error occurred while purging messages: {e}")
 
@@ -691,39 +699,73 @@ async def start_error(ctx, error):
     else:
         await ctx.send(f"An error occurred: {error}")
 
-# @bot.hybrid_command(name="break",description="**Break Registration in between, Sensitive")
-# @commands.has_permissions(view_audit_log=True, manage_roles=True)
-# async def break_reg(ctx):
+@bot.hybrid_command(name="break",description="**Break Registration in between, Sensitive")
+@commands.has_permissions(view_audit_log=True, manage_roles=True)
+async def break_reg(ctx):
 
-#     await ctx.defer()
-#     constants.disabled_status = True
-#     message = await bot.get_channel(constants.REGISTRATION_CHANNEL_ID).fetch_message(constants.REG_MESSAGE_ID)
-#     await message.edit(view=RegistrationView())
-#     await save_as_csv(constants.registered_teams, 'registered_teams.csv',save_all_flag = True)
-#     await bot.get_channel(constants.MOD_CHANNEL_ID).send(file=discord.File('registered_teams.csv'))
+    await ctx.defer()
+    constants.disabled_status = True
+    message = await bot.get_channel(constants.REGISTRATION_CHANNEL_ID).fetch_message(constants.REG_MESSAGE_ID)
+    await message.edit(view=RegistrationView())
+    await save_as_csv(constants.registered_teams, 'registered_teams.csv',save_all_flag = True)
+    await bot.get_channel(constants.MOD_CHANNEL_ID).send(file=discord.File('registered_teams.csv'))
 
-#     for lobby_number, lobby_teams_dict in enumerate(constants.lobby_teams, 1):
-#         csv_file = f"lobby_{lobby_number}_teams.csv"
-#         await save_as_csv(lobby_teams_dict, csv_file)
-#         user_ids = list(lobby_teams_dict.keys())
-#         team_names = [lobby_teams_dict[user_id] for user_id in user_ids]
-#         async with asyncio.TaskGroup() as taskhandler:
-#             taskhandler.create_task(bot.get_channel(constants.MOD_CHANNEL_ID).send(file=discord.File(csv_file)))
-#             taskhandler.create_task(send_slots_list(team_names, lobby_number, discord.utils.get(bot.get_guild(constants.GUILD_ID).channels, name=f"group-{lobby_number}-idp")))
-#     await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"You can download the Google Sheets app to view the list of users and their registration timestamps of {datetime.today().strftime('%d %b')} from this CSV file (for transparency). If you cant find you name in these, you were later than all these 😢.",file=discord.File('timestamps.csv'))
+    for lobby_number, lobby_teams_dict in enumerate(constants.lobby_teams, 1):
+        csv_file = f"lobby_{lobby_number}_teams.csv"
+        await save_as_csv(lobby_teams_dict, csv_file)
+        user_ids = list(lobby_teams_dict.keys())
+        team_names = [lobby_teams_dict[user_id] for user_id in user_ids]
+        async with asyncio.TaskGroup() as taskhandler:
+            await bot.get_channel(constants.MOD_CHANNEL_ID).send(file=discord.File(csv_file))
+            try:
+                await send_slots_list(team_names, lobby_number, discord.utils.get(bot.get_guild(constants.GUILD_ID).channels, name=f"group-{lobby_number}-idp"))
+            except Exception as e:
+                print(f"Got Exception when sending lobby csv files: {e}")
+    await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"You can download the Google Sheets app to view the list of users and their registration timestamps of {datetime.today().strftime('%d %b')} from this CSV file (for transparency). If you cant find you name in these, you were later than all these 😢.",file=discord.File('timestamps.csv'))
 
-#     with open(constants.json_file_path,'w') as json_file:
-#         json.dump(constants.temp_json_dict,json_file)
+    with open(constants.json_file_path,'w') as json_file:
+        json.dump(constants.temp_json_dict,json_file)
 
-#     await ctx.send(f"beech me chod diya")
+    await ctx.send(f"breaked REG in between")
 
-# @break_reg.error
-# async def break_reg_error(ctx, error):
-#     if isinstance(error, commands.MissingPermissions):
-#         missing_perms = ', '.join(error.missing_permissions)
-#         await ctx.send(f"You don't have the required permissions to use this command: {missing_perms}")
-#     else:
-#         await ctx.send(f"An error occurred: {error}")
+@break_reg.error
+async def break_reg_error(ctx, error):
+    if isinstance(error, commands.MissingPermissions):
+        missing_perms = ', '.join(error.missing_permissions)
+        await ctx.send(f"You don't have the required permissions to use this command: {missing_perms}")
+    else:
+        await ctx.send(f"An error occurred: {error}")
+
+@bot.hybrid_command(name="editslots", description="Change the slots limit and lobby size.")
+@commands.has_permissions(view_audit_log=True, manage_roles=True)
+async def editslots(ctx, slots_limit: int, lobby_size: int):
+    await ctx.defer()
+
+    constants.SLOTS_LIMIT = slots_limit
+    constants.LOBBY_SIZE = lobby_size
+    constants.lobby_teams = [{} for _ in range(int(slots_limit / lobby_size))]
+
+    try:
+        message = await bot.get_channel(constants.REGISTRATION_CHANNEL_ID).fetch_message(constants.REG_MESSAGE_ID)
+        await message.edit(view=RegistrationView())
+
+    except discord.HTTPException as e:
+        print(f"An error occurred while purging messages: {e}")
+
+    await ctx.send(f"Slots limit and lobby size updated:\nSlots limit: {slots_limit}\nLobby size: {lobby_size}")
+
+@editslots.error
+async def editslots_error(ctx, error):
+    if isinstance(error, commands.MissingPermissions):
+        missing_perms = ', '.join(error.missing_permissions)
+        await ctx.send(f"You don't have the required permissions to use this command: {missing_perms}")
+    else:
+        await ctx.send(f"An error occurred: {error}")
+
+@bot.hybrid_command(name="show_limits", description="Show the current slots limit and lobby size.")
+@commands.has_permissions(manage_roles=True)
+async def show_limits(ctx):
+    await ctx.send(f"Current slots limit: {constants.SLOTS_LIMIT}\nCurrent lobby size: {constants.LOBBY_SIZE}")
 
 @bot.hybrid_command(name="delete_from_sheet",description="**SENSITIVE, this team's data can be lost forever from our end.")
 @commands.has_any_role('++D', 'Sr. Staff','Admin','.','Staff',"Mahatma")
@@ -833,9 +875,6 @@ async def clear_lb(ctx):
                 await channel.purge(after=(datetime.now() - timedelta(hours=24)),before=ctx.message.created_at)
 
         await ctx.send("Lobby channels (last 24 hrs) and roles are cleared now.")
-
-        with open(constants.json_file_path,'w') as json_file:
-            json.dump({},json_file)
     
     except discord.Forbidden:
         await ctx.send("I do not have permission to manage roles or channels.")
@@ -1107,10 +1146,16 @@ async def enrollTeam(user,interaction):
         # Get IGNs from players
         player_igns = []
         for i in range(1, 5):
+            if i == 1:
+                player_ign = await get_user_response_in_thread(user, thread, f"Please enter Player {i}'s IGN:\n(IGN matlab BGMI wala player name)")
+                player_igns.append(player_ign)
+                continue
+            
             player_ign = await get_user_response_in_thread(user, thread, f"Please enter Player {i}'s IGN:")
+            player_igns.append(player_ign)
+
             if not player_ign:
                 raise ValueError(f"Player {i}'s IGN cannot be empty.")
-            player_igns.append(player_ign)
 
         # Ask if there is a fifth player
         fifth_player_response = await ask_yes_no_question_in_thread(user, thread, "Do you have a fifth player?")
@@ -1196,7 +1241,7 @@ async def updateTeam(user, existing_team_message,interaction):
 
             await thread.send("Your previous team data was deleted so even if you are timed out from here, you will need to start enrollment fresh.\n\nLet's Start new enrollment! Check new mention, clearin' this channel is 5 minutes.")
 
-            await enrollTeam(user)
+            await enrollTeam(user,interaction)
             await asyncio.sleep(300)
             await thread.delete()
             
@@ -1286,8 +1331,8 @@ class EnrollmentError(Exception):
 #         await user.send("Response timed out. Please try again later.")
 #         return None
 
-async def get_user_response_in_thread(user, channel, prompt="", timeout=300, return_message_object=False):
-    await channel.send(prompt)
+async def get_user_response_in_thread(user, channel, prompt="", timeout=300, return_message_object=False,embed=None):
+    await channel.send(prompt,embed = embed)
     response = await bot.wait_for('message', check=lambda msg: msg.author == user and msg.channel == channel, timeout = int(timeout))
     if response.content.strip():  # Check if the response is not empty after stripping whitespace
         if return_message_object:
@@ -1366,7 +1411,11 @@ async def validate_enrollment(user, team_name, player_igns, thread):
         existing_team_message = ""
 
         # Wait for user response with timeout
-        response = await get_user_response_in_thread(user, thread, f"Now fill up the details mentioning players against their IGNs like this [example](<https://bit.ly/exampleHowToMention>) and send it here.\n_Go ahead, mention your teammates now∆_", 600,True)  # Timeout set to 10 minutes (600 seconds)
+
+        embed = discord.Embed()
+        embed.set_image(url="https://cdn.discordapp.com/attachments/1203357142548094977/1257239145752039474/download.gif?ex=66845772&is=668305f2&hm=dfa572f9b7382118aa8cca97415a5d425b7a994d4653cd0ae79689e796f8b171&")
+
+        response = await get_user_response_in_thread(user, thread, f"Now fill up the details mentioning players against their IGNs like this example beneath and send it here.\n_Go ahead, mention your teammates now∆_", 600,True,embed=embed)  # Timeout set to 10 minutes (600 seconds)
         
         if response is None:
             await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} Validation timeout reached. Please reapply.")
