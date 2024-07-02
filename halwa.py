@@ -1331,8 +1331,8 @@ class EnrollmentError(Exception):
 #         await user.send("Response timed out. Please try again later.")
 #         return None
 
-async def get_user_response_in_thread(user, channel, prompt="", timeout=300, return_message_object=False,embed=None,file = None):
-    await channel.send(prompt,embed = embed,file = file)
+async def get_user_response_in_thread(user, channel, prompt="", timeout=300, return_message_object=False,embed=None):
+    await channel.send(prompt,embed = embed)
     response = await bot.wait_for('message', check=lambda msg: msg.author == user and msg.channel == channel, timeout = int(timeout))
     if response.content.strip():  # Check if the response is not empty after stripping whitespace
         if return_message_object:
@@ -1412,13 +1412,11 @@ async def validate_enrollment(user, team_name, player_igns, thread):
 
         # Wait for user response with timeout
 
-        # embed = discord.Embed()
-        # embed.set_image(url="https://cdn.discordapp.com/attachments/1203357142548094977/1257239145752039474/download.gif?ex=66845772&is=668305f2&hm=dfa572f9b7382118aa8cca97415a5d425b7a994d4653cd0ae79689e796f8b171&")
+        embed = discord.Embed()
+        embed.set_image(url="https://cdn.discordapp.com/attachments/1203357142548094977/1257239145752039474/download.gif?ex=66845772&is=668305f2&hm=dfa572f9b7382118aa8cca97415a5d425b7a994d4653cd0ae79689e796f8b171&")
 
-        # response = await get_user_response_in_thread(user, thread, f"Now fill up the details mentioning players against their IGNs like this example beneath and send it here.\n_Go ahead, mention your teammates now∆_", 600,True,embed=embed)  # Timeout set to 10 minutes (600 seconds)
+        response = await get_user_response_in_thread(user, thread, f"Now fill up the details mentioning players against their IGNs like this example beneath and send it here.\n_Go ahead, mention your teammates now∆_", 600,True,embed=embed)  # Timeout set to 10 minutes (600 seconds)
         
-        response = await get_user_response_in_thread(user, thread, f"Now fill up the details mentioning players against their IGNs like this example beneath and send it here.\n_Go ahead, mention your teammates now∆_", 600,True,file = discord.File('tags_example.gif'))  # Timeout set to 10 minutes (600 seconds)
-
         if response is None:
             await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} Validation timeout reached. Please reapply.")
             return False
