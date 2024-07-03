@@ -419,8 +419,8 @@ class TransferIDPButton(discord.ui.Button):
         matching_roles = [role for role in interaction.user.roles if role.name in ["Group 1 IDP", "Group 2 IDP", "Group 3 IDP", "Group 4 IDP"]]
 
         if len(matching_roles) == 1:
-            result = await isAlreadyEnrolled(interaction.user.id,used2returnrowwithmessage=True,ctx_is_in_team=True)
             try:
+                result = await isAlreadyEnrolled(interaction.user.id,used2returnrowwithmessage=True,ctx_is_in_team=True)
                 await interaction.response.send_message(f"{result[0]}\nSelect player in the dropdown below whom you wanna transfer this IDP role to.",view=PlayerSelectView(row = result[1],role = matching_roles[0]),ephemeral=True,delete_after=120)
             except Exception as e:
                 await interaction.response.send_message(f"Got an Error: {e}")
@@ -1465,7 +1465,7 @@ async def validate_enrollment(user, team_name, player_igns, thread):
                 raise EnrollmentError(60)
             
         if verified_players < 4:
-            await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} One or more of your teammates haven't verified on the discord server yet. Reapply once it's done.")
+            await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} One or more of your teammates haven't verified on the discord server yet. Reapply once it's done.\n(Aap verified ho aapke teammates nahi hai)")
             await response.add_reaction("❌")
             raise EnrollmentError(60)
           
@@ -1876,7 +1876,7 @@ async def send_slots_list(team_names, lobby_number, lobby_channel):
         slots_list_message += f"{formatted_index}. {team_name}\n"
 
     # Add the remaining slots as "RESERVED"
-    for i in range(len(team_names) + 2, 26):
+    for i in range(len(team_names) + 3, 26):
         formatted_index = f"{i:02}"  # Ensure two-digit format
         slots_list_message += f"{formatted_index}. RESERVED\n"
 
