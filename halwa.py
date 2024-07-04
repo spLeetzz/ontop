@@ -1147,7 +1147,7 @@ async def enrollTeam(user,interaction):
         player_igns = []
         for i in range(1, 5):
             if i == 1:
-                player_ign = await get_user_response_in_thread(user, thread, f"Please enter Player {i}'s IGN:\n(IGN matlab BGMI wala player name)")
+                player_ign = await get_user_response_in_thread(user, thread, f"Please enter Player {i}'s IGN:\n(IGN matlab BGMI wala In Game Name)")
                 player_igns.append(player_ign)
                 continue
             
