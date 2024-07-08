@@ -411,6 +411,61 @@ class ScrimsOverviewView(discord.ui.View):
         self.add_item(PointsSystemButton())
         self.add_item(ScheduleButton())
 
+class ExampleSsButton(discord.ui.Button):
+    def __init__(self):
+        super().__init__(label=f'Example Verification Screenshot', style=discord.ButtonStyle.primary)
+
+    async def callback(self, interaction: discord.Interaction):
+        await interaction.response.send_message("https://cdn.discordapp.com/attachments/1187407524983480461/1220736410777157692/Screenshot_20240322_193829_Discord.jpg?ex=668c9c20&is=668b4aa0&hm=aedb3ec4440aad0c7c6578e3526f31368e6fc85f651d13989873c6f5e7a252a5&",ephemeral=True,delete_after=120)
+
+class CheckVerificationButton(discord.ui.Button):
+    def __init__(self):
+        super().__init__(label=f'Check Verification Status', style=discord.ButtonStyle.primary)
+
+    async def callback(self, interaction: discord.Interaction):
+        if any(role.name == constants.REQUIRED_ROLE_NAME for role in interaction.user.roles):
+            await interaction.response.send_message("You have been verified and claimed your discord role as well.",ephemeral=True,delete_after=15)
+        else:
+            await interaction.response.send_message("You are not verified or havent claimed your role on discord.\n If you're \"Verified\" on website and still this came, follow the step 2 listed above.",ephemeral=True,delete_after=45)
+
+class bitInfoButton(discord.ui.Button):
+    def __init__(self):
+        super().__init__(label=f'How can i Go to T1? Schedule?', row = 1,style=discord.ButtonStyle.primary)
+
+    async def callback(self, interaction: discord.Interaction):
+        await interaction.response.send_message(f"Checkout <#{constants.INFO_CHANNEL_ID}> channel.\nComplete details have been listed there.",ephemeral=True,delete_after=30)
+
+class bitsInfoButton(discord.ui.Button):
+    def __init__(self):
+        super().__init__(label=f"I'm Verified but can not create team", row = 1,style=discord.ButtonStyle.primary)
+
+    async def callback(self, interaction: discord.Interaction):
+        await interaction.response.send_message(f"Follow the step 2 listed above.",ephemeral=True,delete_after=30)
+
+class bitsMoreInfoButton(discord.ui.Button):
+    def __init__(self):
+        super().__init__(label=f"Time Taken for Verification", row = 2,style=discord.ButtonStyle.primary)
+
+    async def callback(self, interaction: discord.Interaction):
+        await interaction.response.send_message(f"Website Verification is a manual process and may take upto 7-14 days, you need to wait until its done.",ephemeral=True,delete_after=30)
+
+class bitFewInfoButton(discord.ui.Button):
+    def __init__(self):
+        super().__init__(label=f"Cross ❌arha even when Verified", row = 2,style=discord.ButtonStyle.primary)
+
+    async def callback(self, interaction: discord.Interaction):
+        await interaction.response.send_message(f"One or more of your teammates haven't verified on the discord server yet.\nJust ask your teammates to complete the process listed above.\n(All 4 players of your team must be verified from your team in order to play)",ephemeral=True,delete_after=45)
+
+class FaqView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+        self.add_item(ExampleSsButton())
+        self.add_item(CheckVerificationButton())
+        self.add_item(bitInfoButton())
+        self.add_item(bitsInfoButton())
+        self.add_item(bitsMoreInfoButton())
+        self.add_item(bitFewInfoButton())
+
 class TransferIDPButton(discord.ui.Button):
     def __init__(self):
         super().__init__(label=f'Transfer IDP role', style=discord.ButtonStyle.grey)
@@ -449,9 +504,9 @@ class PlayerSelectDropdown(discord.ui.Select):
             benificar = bot.get_guild(constants.GUILD_ID).get_member(selected_value)
             async with asyncio.TaskGroup() as taskhandler:
                 taskhandler.create_task(user.remove_roles(self.role))
-                taskhandler.create_task(assign_role(benificar,self.role.id))
                 taskhandler.create_task(bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"Hey {user.mention}, Your lobby role has been transferred to your teammate {benificar}"))
                 taskhandler.create_task(interaction.response.send_message("Done.", ephemeral=True,delete_after=30))
+            await assign_role(benificar,self.role.id)
         except discord.errors.Forbidden:
             await interaction.response.send_message("I do not have permission to manage your roles.", ephemeral=True,delete_after=30)
         except discord.errors.HTTPException:
@@ -1018,6 +1073,40 @@ async def purge_error(ctx, error):
         await ctx.send(f"Sorry this command is pretty limited")
     elif isinstance(error, commands.BadArgument):
         await ctx.send("Please specify a valid number of messages to purge.")
+    else:
+        await ctx.send(f"An error occurred: {error}")
+
+@bot.hybrid_command(name="say", description="Make the bot say a specified message in a specified channel.")
+@commands.has_permissions(manage_roles=True)
+async def say(ctx: commands.Context, channel: discord.TextChannel, *, message: str):
+    try:
+        await channel.send(message)
+    except discord.HTTPException as e:
+        await ctx.send(f"An error occurred while sending the message: {e}")
+
+@say.error
+async def say_error(ctx: commands.Context, error: commands.CommandError):
+    if isinstance(error, commands.MissingPermissions):
+        await ctx.send("You don't have the required permissions to use this command.")
+    elif isinstance(error, commands.ChannelNotFound):
+        await ctx.send("The specified channel was not found.")
+    else:
+        await ctx.send(f"An error occurred: {error}")
+
+@bot.hybrid_command(name="faq", description="send faq view")
+@commands.has_permissions(manage_roles=True)
+async def faq(ctx: commands.Context, channel: discord.TextChannel, *, message: str):
+    try:
+        await channel.send(message, view=FaqView())
+    except discord.HTTPException as e:
+        await ctx.send(f"An error occurred while sending the message: {e}")
+
+@faq.error
+async def faq_error(ctx: commands.Context, error: commands.CommandError):
+    if isinstance(error, commands.MissingPermissions):
+        await ctx.send("You don't have the required permissions to use this command.")
+    elif isinstance(error, commands.ChannelNotFound):
+        await ctx.send("The specified channel was not found.")
     else:
         await ctx.send(f"An error occurred: {error}")
 
