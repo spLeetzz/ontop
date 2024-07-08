@@ -1076,7 +1076,7 @@ async def purge_error(ctx, error):
     else:
         await ctx.send(f"An error occurred: {error}")
 
-@bot.hybrid_command(name="say", description="Make the bot say a specified message in a specified channel.")
+@bot.hybrid_command(name="say", description="""Make the bot say a specified message in a specified channel.""")
 @commands.has_permissions(manage_roles=True)
 async def say(ctx: commands.Context, channel: discord.TextChannel, *, message: str):
     try:
