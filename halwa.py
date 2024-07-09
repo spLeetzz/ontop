@@ -272,7 +272,7 @@ class CaptchaModal(discord.ui.Modal):
                 elif self.slots_available and not self.already_registered:
                     # Save the registered team's data
                     constants.registered_teams[self.team_name] = await isAlreadyEnrolled(user_id,used2returnrow=True)
-                    constants.lobby_teams[int(self.lobby_number)-1][user_id] = self.team_name
+                    constants.lobby_teams[int(self.lobby_number)-1][self.team_name] = user_id
 
             if not self.slots_available:
                 await interaction.followup.send("Sorry, this lobby is full.", ephemeral=True) 
@@ -300,20 +300,27 @@ class CaptchaModal(discord.ui.Modal):
                 message = await bot.get_channel(constants.REGISTRATION_CHANNEL_ID).fetch_message(constants.REG_MESSAGE_ID)
                 await message.edit(view=RegistrationView())
                 await save_as_csv(constants.registered_teams, 'registered_teams.csv',save_all_flag = True)
-                await bot.get_channel(constants.MOD_CHANNEL_ID).send(file=discord.File('registered_teams.csv'))
+                await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(file=discord.File('registered_teams.csv'))
 
                 for lobby_number, lobby_teams_dict in enumerate(constants.lobby_teams, 1):
-                    csv_file = f"lobby_{lobby_number}_teams.csv"
-                    await save_as_csv(lobby_teams_dict, csv_file)
+                    # csv_file = f"lobby_{lobby_number}_teams.csv"
+                    # await save_as_csv(lobby_teams_dict, csv_file)
+
+                    json_file_name = f"lobby_{lobby_number}_teams.json"
+                    # Write the data dictionary to a JSON file
+                    with open(json_file_name, 'w') as f:
+                        json.dump(lobby_teams_dict, f, indent=1)
+
                     user_ids = list(lobby_teams_dict.keys())
                     team_names = [lobby_teams_dict[user_id] for user_id in user_ids]
                     async with asyncio.TaskGroup() as taskhandler:
-                        taskhandler.create_task(bot.get_channel(constants.MOD_CHANNEL_ID).send(file=discord.File(csv_file)))
+                        # taskhandler.create_task(bot.get_channel(constants.UPDATES_CHANNEL_ID).send(file=discord.File(csv_file)))
+                        taskhandler.create_task(bot.get_channel(constants.UPDATES_CHANNEL_ID).send(file=discord.File(json_file_name)))
                         taskhandler.create_task(send_slots_list(team_names, lobby_number, discord.utils.get(bot.get_guild(constants.GUILD_ID).channels, name=f"group-{lobby_number}-idp")))
                 await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"You can download the Google Sheets app to view the list of users and their registration timestamps of {datetime.today().strftime('%d %b')} from this CSV file (for transparency). If you cant find you name in these, you were later than all these 😢.",file=discord.File('timestamps.csv'))
                 
                 with open(constants.json_file_path,'w') as json_file:
-                    json.dump(constants.temp_json_dict,json_file)
+                    json.dump(constants.temp_json_dict,json_file,indent=1)
 
             print("Registration confirmed for user:", user_id)
             print(f"Available slots in Lobby {self.lobby_number}:", int(slots_available_currently)-1)
@@ -513,11 +520,51 @@ class PlayerSelectDropdown(discord.ui.Select):
             await interaction.response.send_message("Failed to remove role due to a Discord API error.", ephemeral=True,delete_after=60)
         except Exception as e:
             await interaction.response.send_message(f"Got some error: {e}", ephemeral=True,delete_after=60)
+
+class TeamInfoButton(discord.ui.Button):
+    def __init__(self):
+        super().__init__(label=f'Teams Info', style=discord.ButtonStyle.grey)
+
+    async def callback(self, interaction: discord.Interaction):
+
+        if interaction.user.guild_permissions.manage_roles:
+
+            await interaction.response.send_message(f"On it",ephemeral=True,delete_after=3)
+
+            try:
+                mod_channel = bot.get_channel(constants.UPDATES_CHANNEL_ID) # Get the channel where the interaction occurred
+                lobby_number_str = await get_user_response_in_thread(
+                    interaction.user,
+                    mod_channel,
+                    f"{interaction.user.mention} Please enter a lobby number between 1 and 6:"
+                )
+                lobby_number = int(lobby_number_str)
+                
+                if 1 <= lobby_number <= 6:
+                    
+                    temp_dict =  None
+
+                    with open(f"lobby_{lobby_number_str}_teams.json", 'r') as f:
+                        temp_dict = json.load(f)
+
+                    message = ""
+
+                    for team_name, user_id in temp_dict.items():
+                        message += f"{team_name} -> <@{user_id}>\n"
+
+                    await mod_channel.send(message)
+
+            except Exception as e:
+                await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"Got an Exception: {e}")
+        else:
+            await interaction.response.send_message(f"You can't use this command my bruhh.",ephemeral=True,delete_after=40)
+            print("bye")
     
 class TransferIDPView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
         self.add_item(TransferIDPButton())
+        self.add_item(TeamInfoButton())
 
 class PlayerSelectView(discord.ui.View):
     def __init__(self,row,role):
@@ -625,8 +672,55 @@ async def on_ready():
         message = await send_overview_menu(bot.get_channel(constants.INFO_CHANNEL_ID))
         constants.SCRIMS_INFO_MESSAGE_ID = message.id
 
+    if constants.SCRIMS_INFO_MESSAGE_ID and bot.get_channel(constants.INFO_CHANNEL_ID):
+        try:
+            # Fetch the message
+            message = await bot.get_channel(constants.INFO_CHANNEL_ID).fetch_message(constants.SCRIMS_INFO_MESSAGE_ID)
+        except discord.NotFound:
+            # If the message is not found, handle the case gracefully
+            message = None
+
+        if message:
+            # Edit the existing message with the dropdown menu
+            await message.edit(view=ScrimsOverviewView())
+        else:
+            # Send a new message with the dropdown menu
+            message = await send_overview_menu(bot.get_channel(constants.INFO_CHANNEL_ID))
+        
+        # Update the interaction message ID
+        constants.SCRIMS_INFO_MESSAGE_ID = message.id
+
+    else:
+        # If the channel or message ID is not valid, send the select menu
+        message = await send_overview_menu(bot.get_channel(constants.INFO_CHANNEL_ID))
+        constants.SCRIMS_INFO_MESSAGE_ID = message.id
+
+    if constants.FAQ_MESSAGE_ID and bot.get_channel(constants.HOW_TO_PLAY_CHANNEL_ID):
+        try:
+            # Fetch the message
+            message = await bot.get_channel(constants.HOW_TO_PLAY_CHANNEL_ID).fetch_message(constants.FAQ_MESSAGE_ID)
+        except discord.NotFound:
+            # If the message is not found, handle the case gracefully
+            message = None
+
+        if message:
+            # Edit the existing message with the dropdown menu
+            await message.edit(view=FaqView())
+
+        # Update the interaction message ID
+        constants.FAQ_MESSAGE_ID = message.id
+
     with open('lobby_details.json', 'r') as f:
         lobby_details_json = json.load(f)
+
+#     await bot.get_channel(constants.HOW_TO_PLAY_CHANNEL_ID).send(f"""2. Once you're verified, hover over to <#{constants.TICKET_CHANNEL_ID}> channel and select "T3 Verification" from the dropdown there, you'll be added to a private channel, send your aadhar card number and a screenshot showing that you are "Verified" on Trident website to claim your discord role. (All 4 players of your team have to claim role on discord by same procedure)
+
+# *Jab aap website par "Verified" ho jao fir <#{constants.TICKET_CHANNEL_ID}> wale channel me jaana and "Click Here" pe click karke "T3 Verification" wala option select krna, fir aapko ek channel me add kr diya jayega jaha aapko apna aadhar number and ek screenshot bhejna jisme ye clearly dikhe ki aap Trident website pe "Verified" ho. Ye kriya aapke saare dosto ko krni hai and ye krne se aapko discord role mil jayega.*\n\n3. Enroll your team from <#{constants.ENROLLMENT_CHANNEL_ID}> , just have to select "Enroll my team" option from there, fill simple details, mention your teammates, and you're fine to Go.
+#    You can even Update/Delete your team later on.
+
+# 4. Book your slot for your preferred lobby from <#{constants.REGISTRATION_CHANNEL_ID}> at 12 PM Tuesday-Saturday. The buttons there will remain disabled whole time, and will open up at registration time.
+
+# *3rd and 4th step samjhne ke liye ek baar aap niche wali video dekhlo, bas ek baar team banani h aapko baar baar mention nai krna h apne dosto ko and ek simple captcha fill krne se aapka registration hoga.*""")
 
     if lobby_details_json:
         for k,v in lobby_details_json.items():
@@ -763,15 +857,22 @@ async def break_reg(ctx):
     message = await bot.get_channel(constants.REGISTRATION_CHANNEL_ID).fetch_message(constants.REG_MESSAGE_ID)
     await message.edit(view=RegistrationView())
     await save_as_csv(constants.registered_teams, 'registered_teams.csv',save_all_flag = True)
-    await bot.get_channel(constants.MOD_CHANNEL_ID).send(file=discord.File('registered_teams.csv'))
+    await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(file=discord.File('registered_teams.csv'))
 
     for lobby_number, lobby_teams_dict in enumerate(constants.lobby_teams, 1):
-        csv_file = f"lobby_{lobby_number}_teams.csv"
-        await save_as_csv(lobby_teams_dict, csv_file)
+        # csv_file = f"lobby_{lobby_number}_teams.csv"
+        # await save_as_csv(lobby_teams_dict, csv_file)
+
+        json_file_name = f"lobby_{lobby_number}_teams.json"
+        # Write the data dictionary to a JSON file
+        with open(json_file_name, 'w') as f:
+            json.dump(lobby_teams_dict, f, indent=1)  
+
         user_ids = list(lobby_teams_dict.keys())
         team_names = [lobby_teams_dict[user_id] for user_id in user_ids]
         async with asyncio.TaskGroup() as taskhandler:
-            await bot.get_channel(constants.MOD_CHANNEL_ID).send(file=discord.File(csv_file))
+            # await bot.get_channel(constants.MOD_CHANNEL_ID).send(file=discord.File(csv_file))
+            await bot.get_channel(constants.MOD_CHANNEL_ID).send(file=discord.File(json_file_name))
             try:
                 await send_slots_list(team_names, lobby_number, discord.utils.get(bot.get_guild(constants.GUILD_ID).channels, name=f"group-{lobby_number}-idp"))
             except Exception as e:
@@ -779,7 +880,7 @@ async def break_reg(ctx):
     await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"You can download the Google Sheets app to view the list of users and their registration timestamps of {datetime.today().strftime('%d %b')} from this CSV file (for transparency). If you cant find you name in these, you were later than all these 😢.",file=discord.File('timestamps.csv'))
 
     with open(constants.json_file_path,'w') as json_file:
-        json.dump(constants.temp_json_dict,json_file)
+        json.dump(constants.temp_json_dict,json_file,indent=1)
 
     await ctx.send(f"breaked REG in between")
 
@@ -1407,18 +1508,18 @@ class EnrollmentError(Exception):
     def __init__(self, timeout=300):
         self.timeout = timeout
 
-# async def get_user_response(user, prompt=""):
-#     try:
-#         await user.send(prompt)
-#         response = await bot.wait_for('message', check=lambda msg: msg.author == user and msg.channel.type == discord.ChannelType.private, timeout=120)
-#         if response.content.strip():  # Check if the response is not empty after stripping whitespace
-#             return response.content
-#         else:
-#             await user.send("Please provide a non-empty response.")
-#             return await get_user_response(user, prompt)  # Ask for response again recursively
-#     except asyncio.TimeoutError:
-#         await user.send("Response timed out. Please try again later.")
-#         return None
+async def get_user_response(user, prompt=""):
+    try:
+        await user.send(prompt)
+        response = await bot.wait_for('message', check=lambda msg: msg.author == user and msg.channel.type == discord.ChannelType.private, timeout=120)
+        if response.content.strip():  # Check if the response is not empty after stripping whitespace
+            return response.content
+        else:
+            await user.send("Please provide a non-empty response.")
+            return await get_user_response(user, prompt)  # Ask for response again recursively
+    except asyncio.TimeoutError:
+        await user.send("Response timed out. Please try again later.")
+        return None
 
 async def get_user_response_in_thread(user, channel, prompt="", timeout=300, return_message_object=False,embed=None):
     await channel.send(prompt,embed = embed)
