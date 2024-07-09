@@ -407,8 +407,7 @@ class ScheduleButton(discord.ui.Button):
         super().__init__(label=f'Tier-3 Schedule', style=discord.ButtonStyle.primary)
 
     async def callback(self, interaction: discord.Interaction):
-        embed = discord.Embed(title="Tier-3 Schedule", description=f"{constants.stary_emote} Group 1 {constants.stary_emote}\n\n⦾ MATCH-1 -> IDP : 03:00 PM | START : 03:10 PM\n\n⦾ MATCH-2 -> IDP : 03:40 PM | START : 03:50 PM\n\n{constants.stary_emote} Group 2 {constants.stary_emote}\n\n⦾ MATCH-1 -> IDP : 03:15 PM | START : 03:25 PM\n\n⦾ MATCH-2 -> IDP : 03:55 PM | START : 04:05 PM\n\n{constants.stary_emote} Group 3 {constants.stary_emote}\n\n⦾ MATCH-1 -> IDP : 04:10 PM | START : 04:20 PM\n\n⦾ MATCH-2 -> IDP : 04:50 PM | START : 05:00 PM\n\n{constants.stary_emote} Group 4 {constants.stary_emote}\n\n⦾ MATCH-1 -> IDP : 04:25 PM | START : 04:35 PM\n\n⦾ MATCH-2 -> IDP : 05:05 PM | START : 05:15 PM", color=0x229db7)
-        await interaction.response.send_message(embed=embed,ephemeral=True,delete_after=180)
+        await interaction.response.send_message(f"https://cdn.discordapp.com/attachments/1201507236934066226/1260094469362028676/image.png?ex=668e11ec&is=668cc06c&hm=23e951bc3c211437e168b2f3afea0ccbcb613fadc5d430d6f3a1a2b302e1b584&",ephemeral=True,delete_after=180)
 
 class ScrimsOverviewView(discord.ui.View):
     def __init__(self):
