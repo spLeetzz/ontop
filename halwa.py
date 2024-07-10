@@ -723,6 +723,25 @@ async def on_ready():
 
 # *3rd and 4th step samjhne ke liye ek baar aap niche wali video dekhlo, bas ek baar team banani h aapko baar baar mention nai krna h apne dosto ko and ek simple captcha fill krne se aapka registration hoga.*""")
 
+#     team_names1 = ["Team Mahakal Esports", "Team Smiley", "Red and White", "WU ESPORTS", "KING ESPORTS", "Chibi Esports", "SLUG", "Team Bharat Esports", "Team XTOP", "ARCHONS", "ZENX ESPORTS", "Team STRANGER ESPORTS", "Team Godz", "4NM ESPORTS", "Fatal", "SMALL BROTHER", "Team PATIENCE", "Vampire eSports"]
+#     team_names2 = ["Team Silent Storm", "Supremes", "Team Knox eSports", "Team Kashmir", "TEAM CONQUEST ESPORTS", "Universal Kings", "TEAM SHIELD", "FURIOUS X FTD", "Team last chance", "Team Losers", "Team SHOOTER ESPORTS", "Top Dawg Esports", "Team God Gameplay", "Team Orion", "R3X eSports", "Night Warriors", "TEAM NITROFUEL", "4FM"]
+#     team_names3= ["above ST4RS", "REZ", "OnTop Squad", "Team TITAN", "Villain Army", "DL Sea Esports", "NOMERCY ESPORTS", "VENOM ESPORTS", "Lotus esports", "TEAM HIND", "Kings Esports", "Team fourArms", "Madhouse Esports", "Hyderabadi Guardians", "Reaper Gang", "Team Endless", "Team LEONARDS ESPORTS", "Team Warrior Esports"]
+#     team_names4 = ["GLOBAL BEAST", "Gravity Reborn", "AFTERHOURS ESPORTS", "Desi dazzle", "Team Conflict", "Virtual Leaders", "CHICKEN NUGGETS FW", "Warmongers", "BlackBird Esports", "Team 4U", "TeamCLUTCHLIKE", "Galactic esports", "SHINE ESPORTS", "We Unstoppables", "TEAM BRAVE MARATHAS", "BOLT RUSHER ACADEMY", "WINNING JI", "DREAM OF DESTINY"]
+#     team_names5 = ["Team BiTMap eSports", "Team 4 EVOLUTION", "Original Gangsters", "ANNOYED WORRIERS", "Eschaton Catalysts", "Whitebeardsx", "4 Kings Of Death", "TEAM JODx", "SK OFFICAL", "Team Empyrean", "BLINKS", "MDN ESPORTS RB", "LFM Esports", "BROKEN GUNS", "HALF ALIVE ESPORTS", "Team Invincible", "CONQUERORS ESPORTS", "C5 esports"]
+#     team_names6 = ["Star grinders", "Team belibers", "MDN ESPORTS", "TECH ESPORTS", "TEAM SUPERNATURALS", "XSkuLL", "TEAM TLW", "Particle 7", "Team FAB4 esports", "PAHARI ESPORTS", "God's Servents", "Team CLOVER ESPORTS", "4Dragoons", "Team Cold", "4LEAF GRIMOIRE", "Orignal never ends", "TEAM IRONIC", "Meap"]
+
+#     team_lists = {
+#     1: team_names1,
+#     2: team_names2,
+#     3: team_names3,
+#     4: team_names4,
+#     5: team_names5,
+#     6: team_names6
+# }
+    
+#     for i in range(1,7):
+#         await send_slots_list(team_lists[i], i, discord.utils.get(bot.get_guild(constants.GUILD_ID).channels, name=f"group-{i}-idp"))
+
     if lobby_details_json:
         for k,v in lobby_details_json.items():
             try:
@@ -1214,15 +1233,21 @@ async def faq_error(ctx: commands.Context, error: commands.CommandError):
 
 @bot.hybrid_command(name="inrole", description="inrole users and team names")
 @commands.has_permissions(manage_roles=True,view_audit_log=True)
-async def inrole(ctx: commands.Context, role: discord.Role, *, message: str):
+async def inrole(ctx: commands.Context, role: discord.Role):
     try:
-        mentions = '\n'.join(f"{member.mention} : {await validate_registration(member.id, check_cooldown = False,check_left_server = False)}" for member in role.members)
+        # Create a list of formatted mentions asynchronously
+        mentions_list = [
+            f"{member.mention} : {await validate_registration(member, check_cooldown=False, check_left_server=False)}"
+            for member in role.members
+        ]
+        # Join the list into a single string separated by newlines
+        mentions = '\n'.join(mentions_list)
         await ctx.send(mentions)
     except discord.HTTPException as e:
         await ctx.send(f"An error occurred while sending the message: {e}")
 
-@faq.error
-async def faq_error(ctx: commands.Context, error: commands.CommandError):
+@inrole.error
+async def inrole(ctx: commands.Context, error: commands.CommandError):
     if isinstance(error, commands.MissingPermissions):
         await ctx.send("You don't have the required permissions to use this command.")
     elif isinstance(error, commands.ChannelNotFound):
