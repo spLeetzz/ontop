@@ -316,7 +316,10 @@ class CaptchaModal(discord.ui.Modal):
                     async with asyncio.TaskGroup() as taskhandler:
                         # taskhandler.create_task(bot.get_channel(constants.UPDATES_CHANNEL_ID).send(file=discord.File(csv_file)))
                         taskhandler.create_task(bot.get_channel(constants.UPDATES_CHANNEL_ID).send(file=discord.File(json_file_name)))
-                        taskhandler.create_task(send_slots_list(team_names, lobby_number, discord.utils.get(bot.get_guild(constants.GUILD_ID).channels, name=f"group-{lobby_number}-idp")))
+                        try:
+                            await send_slots_list(team_names, lobby_number, discord.utils.get(bot.get_guild(constants.GUILD_ID).channels, name=f"group-{lobby_number}-idp"))
+                        except Exception as e:
+                            print(f"Got Exception when sending lobby csv files: {e}")
                 await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"You can download the Google Sheets app to view the list of users and their registration timestamps of {datetime.today().strftime('%d %b')} from this CSV file (for transparency). If you cant find you name in these, you were later than all these 😢.",file=discord.File('timestamps.csv'))
                 
                 with open(constants.json_file_path,'w') as json_file:
@@ -1197,6 +1200,24 @@ async def say_error(ctx: commands.Context, error: commands.CommandError):
 async def faq(ctx: commands.Context, channel: discord.TextChannel, *, message: str):
     try:
         await channel.send(message, view=FaqView())
+    except discord.HTTPException as e:
+        await ctx.send(f"An error occurred while sending the message: {e}")
+
+@faq.error
+async def faq_error(ctx: commands.Context, error: commands.CommandError):
+    if isinstance(error, commands.MissingPermissions):
+        await ctx.send("You don't have the required permissions to use this command.")
+    elif isinstance(error, commands.ChannelNotFound):
+        await ctx.send("The specified channel was not found.")
+    else:
+        await ctx.send(f"An error occurred: {error}")
+
+@bot.hybrid_command(name="inrole", description="inrole users and team names")
+@commands.has_permissions(manage_roles=True,view_audit_log=True)
+async def inrole(ctx: commands.Context, role: discord.Role, *, message: str):
+    try:
+        mentions = '\n'.join(f"{member.mention} : {await validate_registration(member.id, check_cooldown = False,check_left_server = False)}" for member in role.members)
+        await ctx.send(mentions)
     except discord.HTTPException as e:
         await ctx.send(f"An error occurred while sending the message: {e}")
 
