@@ -311,8 +311,8 @@ class CaptchaModal(discord.ui.Modal):
                     with open(json_file_name, 'w') as f:
                         json.dump(lobby_teams_dict, f, indent=1)
 
-                    user_ids = list(lobby_teams_dict.keys())
-                    team_names = [lobby_teams_dict[user_id] for user_id in user_ids]
+                    team_names = list(lobby_teams_dict.keys())
+                    user_ids = [lobby_teams_dict[team_names] for _ in team_names]
                     async with asyncio.TaskGroup() as taskhandler:
                         # taskhandler.create_task(bot.get_channel(constants.UPDATES_CHANNEL_ID).send(file=discord.File(csv_file)))
                         taskhandler.create_task(bot.get_channel(constants.UPDATES_CHANNEL_ID).send(file=discord.File(json_file_name)))
@@ -432,7 +432,7 @@ class CheckVerificationButton(discord.ui.Button):
         if any(role.name == constants.REQUIRED_ROLE_NAME for role in interaction.user.roles):
             await interaction.response.send_message("You have been verified and claimed your discord role as well.",ephemeral=True,delete_after=15)
         else:
-            await interaction.response.send_message("You are not verified or havent claimed your role on discord.\n If you're \"Verified\" on website and still this came, follow the step 2 listed above.",ephemeral=True,delete_after=45)
+            await interaction.response.send_message("You are not verified or havent claimed your role on discord.\n If you're \"Verified\" on website and still this came, follow the Step 2 listed above.",ephemeral=True,delete_after=45)
 
 class bitInfoButton(discord.ui.Button):
     def __init__(self):
@@ -446,7 +446,7 @@ class bitsInfoButton(discord.ui.Button):
         super().__init__(label=f"I'm Verified but can not create team", row = 1,style=discord.ButtonStyle.primary)
 
     async def callback(self, interaction: discord.Interaction):
-        await interaction.response.send_message(f"Follow the step 2 listed above.",ephemeral=True,delete_after=30)
+        await interaction.response.send_message(f"Follow the Step 2 listed above.",ephemeral=True,delete_after=30)
 
 class bitsMoreInfoButton(discord.ui.Button):
     def __init__(self):
@@ -557,7 +557,6 @@ class TeamInfoButton(discord.ui.Button):
                 await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"Got an Exception: {e}")
         else:
             await interaction.response.send_message(f"You can't use this command my bruhh.",ephemeral=True,delete_after=40)
-            print("bye")
     
 class TransferIDPView(discord.ui.View):
     def __init__(self):
@@ -867,8 +866,8 @@ async def break_reg(ctx):
         with open(json_file_name, 'w') as f:
             json.dump(lobby_teams_dict, f, indent=1)  
 
-        user_ids = list(lobby_teams_dict.keys())
-        team_names = [lobby_teams_dict[user_id] for user_id in user_ids]
+        team_names = list(lobby_teams_dict.keys())
+        user_ids = [lobby_teams_dict[team_names] for _ in team_names]
         async with asyncio.TaskGroup() as taskhandler:
             # await bot.get_channel(constants.MOD_CHANNEL_ID).send(file=discord.File(csv_file))
             await bot.get_channel(constants.MOD_CHANNEL_ID).send(file=discord.File(json_file_name))
@@ -2067,7 +2066,7 @@ async def send_slots_list(team_names, lobby_number, lobby_channel):
     # Add the remaining slots as "RESERVED"
     for i in range(len(team_names) + 3, 26):
         formatted_index = f"{i:02}"  # Ensure two-digit format
-        slots_list_message += f"{formatted_index}. RESERVED\n"
+        slots_list_message += f"{formatted_index}. EMPTY\n"
 
     # Close the code block and send the slots list message to the lobby channel
     slots_list_message += f"```\n1. Make sure to checkout your lobbies schedule from the \"Tier-3 Schedule\" button in <#{constants.INFO_CHANNEL_ID}>.\n2. Be available on time and participate in all matches with minimum 3 players in lobbies to avoid a ban.\n3. You'll be kicked from the room in case IGN's dont have a same pattern of characters as prefix/suffix.\n4. If there is an issue with changing IGN's (In Game Name), you can participate from a new id but have to ensure that raw pov is available.\n5. Use the button beneath in case you wanna transfer lobby role to teammate, it will be removed from you btw."
