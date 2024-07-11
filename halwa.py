@@ -324,7 +324,7 @@ class CaptchaModal(discord.ui.Modal):
                                     print(f"Got Exception when sending lobby csv files: {e}")
                         await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"You can download the Google Sheets app to view the list of users and their registration timestamps of {datetime.datetime.today().strftime('%d %b')} from this CSV file (for transparency). If you cant find you name in these, you were later than all these 😢.",file=discord.File('timestamps.csv'))
                         
-                        with open(constants.json_file_path,'w') as json_file:
+                        with open('lobby_details.json','w') as json_file:
                             json.dump(constants.temp_json_dict,json_file,indent=1)
 
             print("Registration confirmed for user:", user_id)
@@ -851,7 +851,7 @@ async def start(ctx, captcha_phrase : str):
         message = await bot.get_channel(constants.REGISTRATION_CHANNEL_ID).fetch_message(constants.REG_MESSAGE_ID)
         await message.edit(view=RegistrationView())
 
-        with open(constants.json_file_path,'w') as json_file:
+        with open('lobby_details.json','w') as json_file:
             json.dump({},json_file)
 
     except discord.HTTPException as e:
@@ -905,7 +905,7 @@ async def break_reg(ctx):
                 
     await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"You can download the Google Sheets app to view the list of users and their registration timestamps of {datetime.datetime.today().strftime('%d %b')} from this CSV file (for transparency). If you cant find you name in these, you were later than all these 😢.",file=discord.File('timestamps.csv'))
 
-    with open(constants.json_file_path,'w') as json_file:
+    with open('lobby_details.json','w') as json_file:
         json.dump(constants.temp_json_dict,json_file,indent=1)
 
     await ctx.send(f"breaked REG in between")
@@ -1254,7 +1254,7 @@ async def inrole(ctx: commands.Context, error: commands.CommandError):
         await ctx.send(f"An error occurred: {error}")
 
 local_tz = datetime.datetime.now().astimezone().tzinfo
-x = datetime.time(hour=5, minute=54, tzinfo=local_tz)
+x = datetime.time(hour=6, minute=16, tzinfo=local_tz)
 @tasks.loop(time=x)
 async def start_auto():
 
@@ -1273,7 +1273,7 @@ async def start_auto():
         message = await bot.get_channel(constants.REGISTRATION_CHANNEL_ID).fetch_message(constants.REG_MESSAGE_ID)
         await message.edit(view=RegistrationView())
 
-        with open(constants.json_file_path,'w') as json_file:
+        with open('lobby_details.json','w') as json_file:
             json.dump({},json_file)
 
     except discord.HTTPException as e:
@@ -1286,7 +1286,7 @@ async def start_auto():
     constants.captcha_question_variables.append(random.randint(10, 99))
 
 local_tz = datetime.datetime.now().astimezone().tzinfo
-y = datetime.time(hour=5, minute=53, tzinfo=local_tz)
+y = datetime.time(hour=11, minute=0, tzinfo=local_tz)
 @tasks.loop(time=y)
 async def clear_lb_auto():
 
@@ -1835,8 +1835,26 @@ async def delete_team_from_sheet(user_id, spreadsheet_id,ctx = None):
 
 # Function to check if a team name already exists in the Google Sheets
 async def is_team_name_unique(team_name):
-    team_names = constants.sheet.col_values(2)  # Assuming team names are in the first column
-    return team_name not in team_names
+    try:
+        team_names = constants.sheet.col_values(2)  # Assuming team names are in the first column
+        return team_name not in team_names
+    except Exception as e:
+
+        # Get the JSON key file path from an environment variable
+        json_keyfile_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "default_path")
+        
+        # for pc
+        if json_keyfile_path == "default_path":
+            # If the environment variable is not set, use a default path
+            json_keyfile_path = "D:/Google Cloud JSON Key/clear-healer-415920-7abc2cda379e.json"
+
+        constants.sheet, constants.service = await connect_to_google_sheets(json_keyfile_path, sheet_id=constants.GOOGLE_SHEET_ID)
+        constants.ban_sheet, _ = await connect_to_google_sheets(json_keyfile_path, sheet_id=constants.BAN_SHEET_ID)
+        constants.blacklist_sheet, _ = await connect_to_google_sheets(json_keyfile_path, sheet_id=constants.BLACKLIST_SHEET_ID)
+
+        asyncio.sleep(1)
+        team_names = constants.sheet.col_values(2)  # Assuming team names are in the first column
+        return team_name not in team_names
 
 async def isAlreadyEnrolled(user_id,used2returnrow=False,returnTeamName=False,ctx_is_in_team = False,used2returnrowwithmessage = False):
     try:

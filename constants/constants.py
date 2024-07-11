@@ -61,8 +61,6 @@ timezone = pytz.timezone('Asia/Kolkata')
 emotes_list = ["<:number1:1252296980638597221>", "<:number2:1252297093926883411>", "<:number3:1252297208624058541>", "<:number4:1252297299200049234>","<:number5:1256671680831553617>","<:number6:1256671747374059683>"]
 practice_emoteid = "<:Holdgun:1252297519543877684>"
 stary_emote = "<a:_:1188860052187119707>"
-# json_file_path = r"/home/ubuntu/ontop/lobby_details.json"
-json_file_path = r"C:\faltu\ontop\lobby_details.json"
 roles_for_purge_perm = ['Admin','++D']
 
 # # for i ama naive server
