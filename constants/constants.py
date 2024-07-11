@@ -40,6 +40,7 @@ disabled_status = True #(RegistrationView)
 lobby_teams = [{} for _ in range(int(SLOTS_LIMIT // LOBBY_SIZE))]
 lobby_locks = [asyncio.Lock() for _ in range(int(SLOTS_LIMIT // LOBBY_SIZE))]
 running_processes_lock = asyncio.Lock()
+registration_lock = asyncio.Lock()
 cache_data_thread_lock = threading.Lock()
 ban_list_thread_lock = threading.Lock()
 blk_list_thread_lock = threading.Lock()

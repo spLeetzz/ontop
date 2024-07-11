@@ -1,7 +1,7 @@
 import asyncio
 import datetime
 import discord
-from discord.ext import commands
+from discord.ext import commands,tasks
 from discord import app_commands
 from discord.ext.commands import MissingPermissions
 import gspread
@@ -16,7 +16,7 @@ import csv
 import random
 from string import ascii_lowercase
 from constants import constants
-from datetime import datetime, timedelta
+import datetime
 import json
 
 # Configure logging
@@ -240,7 +240,7 @@ class CaptchaModal(discord.ui.Modal):
 
             await interaction.response.defer(ephemeral=True,thinking=True)  # Defer the interaction response
 
-            timestamp_ms = datetime.now(tz=constants.timezone).strftime("%b %d %H:%M:%S.%f")
+            timestamp_ms = datetime.datetime.now(tz=constants.timezone).strftime("%b %d %H:%M:%S.%f")
 
             # # Acquire the registration lock for this lobby
             # async with constants.lobby_locks[int(int(self.lobby_number) - 1)]:
@@ -295,35 +295,37 @@ class CaptchaModal(discord.ui.Modal):
             # await asyncio.gather(task1,task2,task3,task4)
             await asyncio.gather(task1,task3,task4)
 
-            if len(constants.registered_teams) == constants.SLOTS_LIMIT:
-                constants.disabled_status = True
-                message = await bot.get_channel(constants.REGISTRATION_CHANNEL_ID).fetch_message(constants.REG_MESSAGE_ID)
-                await message.edit(view=RegistrationView())
-                await save_as_csv(constants.registered_teams, 'registered_teams.csv',save_all_flag = True)
-                await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(file=discord.File('registered_teams.csv'))
+            async with constants.registration_lock:
+                if len(constants.registered_teams) == constants.SLOTS_LIMIT:
+                    if not constants.disabled_status:
+                        constants.disabled_status = True
+                        message = await bot.get_channel(constants.REGISTRATION_CHANNEL_ID).fetch_message(constants.REG_MESSAGE_ID)
+                        await message.edit(view=RegistrationView())
+                        await save_as_csv(constants.registered_teams, 'registered_teams.csv',save_all_flag = True)
+                        await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(file=discord.File('registered_teams.csv'))
 
-                for lobby_number, lobby_teams_dict in enumerate(constants.lobby_teams, 1):
-                    # csv_file = f"lobby_{lobby_number}_teams.csv"
-                    # await save_as_csv(lobby_teams_dict, csv_file)
+                        for lobby_number, lobby_teams_dict in enumerate(constants.lobby_teams, 1):
+                            # csv_file = f"lobby_{lobby_number}_teams.csv"
+                            # await save_as_csv(lobby_teams_dict, csv_file)
 
-                    json_file_name = f"lobby_{lobby_number}_teams.json"
-                    # Write the data dictionary to a JSON file
-                    with open(json_file_name, 'w') as f:
-                        json.dump(lobby_teams_dict, f, indent=1)
+                            json_file_name = f"lobby_{lobby_number}_teams.json"
+                            # Write the data dictionary to a JSON file
+                            with open(json_file_name, 'w') as f:
+                                json.dump(lobby_teams_dict, f, indent=1)
 
-                    team_names = list(lobby_teams_dict.keys())
-                    user_ids = [lobby_teams_dict[team_names] for _ in team_names]
-                    async with asyncio.TaskGroup() as taskhandler:
-                        # taskhandler.create_task(bot.get_channel(constants.UPDATES_CHANNEL_ID).send(file=discord.File(csv_file)))
-                        taskhandler.create_task(bot.get_channel(constants.UPDATES_CHANNEL_ID).send(file=discord.File(json_file_name)))
-                        try:
-                            await send_slots_list(team_names, lobby_number, discord.utils.get(bot.get_guild(constants.GUILD_ID).channels, name=f"group-{lobby_number}-idp"))
-                        except Exception as e:
-                            print(f"Got Exception when sending lobby csv files: {e}")
-                await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"You can download the Google Sheets app to view the list of users and their registration timestamps of {datetime.today().strftime('%d %b')} from this CSV file (for transparency). If you cant find you name in these, you were later than all these 😢.",file=discord.File('timestamps.csv'))
-                
-                with open(constants.json_file_path,'w') as json_file:
-                    json.dump(constants.temp_json_dict,json_file,indent=1)
+                            team_names = list(lobby_teams_dict.keys())
+                            user_ids = [lobby_teams_dict[team_name] for team_name in team_names]
+                            async with asyncio.TaskGroup() as taskhandler:
+                                # taskhandler.create_task(bot.get_channel(constants.UPDATES_CHANNEL_ID).send(file=discord.File(csv_file)))
+                                taskhandler.create_task(bot.get_channel(constants.UPDATES_CHANNEL_ID).send(file=discord.File(json_file_name)))
+                                try:
+                                    await send_slots_list(team_names, lobby_number, discord.utils.get(bot.get_guild(constants.GUILD_ID).channels, name=f"group-{lobby_number}-idp"))
+                                except Exception as e:
+                                    print(f"Got Exception when sending lobby csv files: {e}")
+                        await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"You can download the Google Sheets app to view the list of users and their registration timestamps of {datetime.datetime.today().strftime('%d %b')} from this CSV file (for transparency). If you cant find you name in these, you were later than all these 😢.",file=discord.File('timestamps.csv'))
+                        
+                        with open(constants.json_file_path,'w') as json_file:
+                            json.dump(constants.temp_json_dict,json_file,indent=1)
 
             print("Registration confirmed for user:", user_id)
             print(f"Available slots in Lobby {self.lobby_number}:", int(slots_available_currently)-1)
@@ -752,6 +754,9 @@ async def on_ready():
 
     print(f"Set bro.")
 
+    start_auto.start()
+    clear_lb_auto.start()
+
 @bot.event
 async def on_guild_join(guild):
     # Sync commands for the new guild
@@ -889,7 +894,7 @@ async def break_reg(ctx):
             json.dump(lobby_teams_dict, f, indent=1)  
 
         team_names = list(lobby_teams_dict.keys())
-        user_ids = [lobby_teams_dict[team_names] for _ in team_names]
+        user_ids = [lobby_teams_dict[team_name] for team_name in team_names]
         async with asyncio.TaskGroup() as taskhandler:
             # await bot.get_channel(constants.MOD_CHANNEL_ID).send(file=discord.File(csv_file))
             await bot.get_channel(constants.MOD_CHANNEL_ID).send(file=discord.File(json_file_name))
@@ -897,7 +902,8 @@ async def break_reg(ctx):
                 await send_slots_list(team_names, lobby_number, discord.utils.get(bot.get_guild(constants.GUILD_ID).channels, name=f"group-{lobby_number}-idp"))
             except Exception as e:
                 print(f"Got Exception when sending lobby csv files: {e}")
-    await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"You can download the Google Sheets app to view the list of users and their registration timestamps of {datetime.today().strftime('%d %b')} from this CSV file (for transparency). If you cant find you name in these, you were later than all these 😢.",file=discord.File('timestamps.csv'))
+                
+    await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"You can download the Google Sheets app to view the list of users and their registration timestamps of {datetime.datetime.today().strftime('%d %b')} from this CSV file (for transparency). If you cant find you name in these, you were later than all these 😢.",file=discord.File('timestamps.csv'))
 
     with open(constants.json_file_path,'w') as json_file:
         json.dump(constants.temp_json_dict,json_file,indent=1)
@@ -960,14 +966,6 @@ async def delete_from_sheet(ctx, error):
     else:
         await ctx.send(f"An error occurred: {error}")
 
-@start.error
-async def start_error(ctx, error):
-    if isinstance(error, commands.MissingPermissions):
-        missing_perms = ', '.join(error.missing_permissions)
-        await ctx.send(f"You don't have the required permissions to use this command: {missing_perms}")
-    else:
-        await ctx.send(f"An error occurred: {error}")
-
 @bot.tree.command(name="ban_team", description="Ban whole team for x hours and y days")
 @app_commands.checks.has_permissions(view_audit_log=True, manage_roles=True)
 async def ban_team(interaction: discord.Interaction, user: discord.User, hours: int = 0, days: int = 0):
@@ -984,7 +982,7 @@ async def ban_team(interaction: discord.Interaction, user: discord.User, hours: 
     elif not team_name:
         await interaction.response.send_message("Couldn't find any team with this user.")
         return
-    row = [team_name,int(time.time()),int((hours * 3600) + (days * 86400)),datetime.now(tz=constants.timezone).strftime("%Y-%m-%d %H:%M"),f"{days} days {hours} hours",str(user)]
+    row = [team_name,int(time.time()),int((hours * 3600) + (days * 86400)),datetime.datetime.now(tz=constants.timezone).strftime("%Y-%m-%d %H:%M"),f"{days} days {hours} hours",str(user)]
     constants.ban_sheet.append_row(row)
     await interaction.response.send_message(f"Banned User: {user.mention}'s Team {team_name[5:] if team_name.lower().startswith('team ') else team_name} for {days} days and {hours} hours")
     # Print registration details for verification
@@ -1014,7 +1012,7 @@ async def blacklist_user(interaction: discord.Interaction, user: discord.User, h
         await interaction.response.send_message("This team is currently present in sheet. \n(Blacklist prevents user from \"enroll\")")
         return
     elif not team_name:
-        row = [str(user.id),int(time.time()),int((hours * 3600) + (days * 86400)),datetime.now(tz=constants.timezone).strftime("%Y-%m-%d %H:%M"),f"{days} days {hours} hours",reason]
+        row = [str(user.id),int(time.time()),int((hours * 3600) + (days * 86400)),datetime.datetime.now(tz=constants.timezone).strftime("%Y-%m-%d %H:%M"),f"{days} days {hours} hours",reason]
         constants.blacklist_sheet.append_row(row)
         await interaction.response.send_message(f"Blacklisted User: {user.mention} for {days} days and {hours} hours")
         print(f"Blacklisted User: {user.mention}'s for {days} days and {hours} hours")
@@ -1048,7 +1046,7 @@ async def clear_lb(ctx):
         for channel_name in lobby_channel_names:
             channel = discord.utils.get(ctx.guild.channels, name=channel_name)
             if channel:
-                await channel.purge(after=(datetime.now() - timedelta(hours=24)),before=ctx.message.created_at)
+                await channel.purge(after=(datetime.datetime.now() - datetime.timedelta(hours=24)),before=ctx.message.created_at)
 
         await ctx.send("Lobby channels (last 24 hrs) and roles are cleared now.")
     
@@ -1254,6 +1252,57 @@ async def inrole(ctx: commands.Context, error: commands.CommandError):
         await ctx.send("The specified channel was not found.")
     else:
         await ctx.send(f"An error occurred: {error}")
+
+local_tz = datetime.datetime.now().astimezone().tzinfo
+x = datetime.time(hour=5, minute=54, tzinfo=local_tz)
+@tasks.loop(time=x)
+async def start_auto():
+
+    print("hi")
+    constants.registered_teams.clear()
+    constants.lobby_teams = [{} for _ in range(int(int(constants.SLOTS_LIMIT) / int(constants.LOBBY_SIZE)))]
+    constants.disabled_status = False
+    constants.captcha_question_variables.clear()
+    captcha_phrase = ''.join(random.choice(ascii_lowercase) for _ in range(random.randint(5, 6)))
+
+    try:
+        await bot.get_channel(constants.REGISTRATION_CHANNEL_ID).purge(check=lambda m: m.id != constants.REG_MESSAGE_ID, limit=100)
+        print("Messages purged successfully.")
+        # Clear timestamps.csv
+        with open('timestamps.csv', 'w', newline=''): pass
+        message = await bot.get_channel(constants.REGISTRATION_CHANNEL_ID).fetch_message(constants.REG_MESSAGE_ID)
+        await message.edit(view=RegistrationView())
+
+        with open(constants.json_file_path,'w') as json_file:
+            json.dump({},json_file)
+
+    except discord.HTTPException as e:
+        print(f"An error occurred while purging messages: {e}")
+
+    constants.captcha_question_variables.append(captcha_phrase.lower().rstrip())
+    constants.captcha_question_variables.append(random.randint(10, 99))
+    constants.captcha_question_variables.append(random.randint(10, 99))
+    constants.captcha_question_variables.append(random.randint(10, 99))
+    constants.captcha_question_variables.append(random.randint(10, 99))
+
+local_tz = datetime.datetime.now().astimezone().tzinfo
+y = datetime.time(hour=5, minute=53, tzinfo=local_tz)
+@tasks.loop(time=y)
+async def clear_lb_auto():
+
+    lobby_role_names = [f"Group {i} IDP" for i in range(1, int(constants.SLOTS_LIMIT / constants.LOBBY_SIZE) + 1)]
+    lobby_channel_names = [f"group-{i}-idp" for i in range(1, int(constants.SLOTS_LIMIT / constants.LOBBY_SIZE) + 1)]
+
+    for role_name in lobby_role_names:
+        role = discord.utils.get(bot.get_guild(constants.GUILD_ID).roles, name=role_name)
+        if role:
+            for member in role.members:
+                await member.remove_roles(role)
+
+    for channel_name in lobby_channel_names:
+        channel = discord.utils.get(bot.get_guild(constants.GUILD_ID).channels, name=channel_name)
+        if channel:
+            await channel.purge(after=(datetime.datetime.now() - datetime.timedelta(hours=24)))
 
 # @bot.event
 # async def on_message(message):
@@ -2162,5 +2211,4 @@ if __name__ == "__main__":
     with asyncio.Runner() as runner:
         runner.run(init_sheet())
     # Run the bot with the specified token
-
     bot.run(os.environ.get('DISCORD_TOKEN'))
