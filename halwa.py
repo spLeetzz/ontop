@@ -1254,7 +1254,7 @@ async def inrole(ctx: commands.Context, error: commands.CommandError):
         await ctx.send(f"An error occurred: {error}")
 
 local_tz = datetime.datetime.now().astimezone().tzinfo
-x = datetime.time(hour=6, minute=16, tzinfo=local_tz)
+x = datetime.time(hour=12, minute=0, tzinfo=local_tz)
 @tasks.loop(time=x)
 async def start_auto():
 
