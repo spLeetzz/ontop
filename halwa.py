@@ -1285,8 +1285,10 @@ async def start_auto():
     constants.captcha_question_variables.append(random.randint(10, 99))
     constants.captcha_question_variables.append(random.randint(10, 99))
 
+    await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"*REG STARTED!*\nCurrent captcha variables: {constants.captcha_question_variables[0]}, {constants.captcha_question_variables[1]} + {constants.captcha_question_variables[2]}, {constants.captcha_question_variables[3]} + {constants.captcha_question_variables[4]}")
+
 local_tz = datetime.datetime.now().astimezone().tzinfo
-y = datetime.time(hour=11, minute=0, tzinfo=local_tz)
+y = datetime.time(hour=11, minute=10, tzinfo=local_tz)
 @tasks.loop(time=y)
 async def clear_lb_auto():
 
@@ -1303,6 +1305,8 @@ async def clear_lb_auto():
         channel = discord.utils.get(bot.get_guild(constants.GUILD_ID).channels, name=channel_name)
         if channel:
             await channel.purge(after=(datetime.datetime.now() - datetime.timedelta(hours=24)))
+
+    await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"*CLEARED LOBBIES!*")
 
 # @bot.event
 # async def on_message(message):
