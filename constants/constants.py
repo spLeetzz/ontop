@@ -63,7 +63,7 @@ emotes_list = ["<:number1:1252296980638597221>", "<:number2:1252297093926883411>
 practice_emoteid = "<:Holdgun:1252297519543877684>"
 stary_emote = "<a:_:1188860052187119707>"
 roles_for_purge_perm = ['Admin','++D']
-idp_role_names = [f"Group {x} IDP" for x in range(1,int(SLOTS_LIMIT // LOBBY_SIZE))]
+idp_role_names = [f"Group {x} IDP" for x in range(1,int(SLOTS_LIMIT // LOBBY_SIZE) + 1)]
 
 # # for i ama naive server
 
