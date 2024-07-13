@@ -482,7 +482,7 @@ class TransferIDPButton(discord.ui.Button):
         super().__init__(label=f'Transfer IDP role', style=discord.ButtonStyle.grey)
 
     async def callback(self, interaction: discord.Interaction):
-        matching_roles = [role for role in interaction.user.roles if role.name in ["Group 1 IDP", "Group 2 IDP", "Group 3 IDP", "Group 4 IDP", "Group 5 IDP", "Group 6 IDP"]]
+        matching_roles = [role for role in interaction.user.roles if role.name in constants.idp_role_names]
 
         if len(matching_roles) == 1:
             try:
@@ -1258,55 +1258,58 @@ x = datetime.time(hour=12, minute=0, tzinfo=local_tz)
 @tasks.loop(time=x)
 async def start_auto():
 
-    print("hi")
-    constants.registered_teams.clear()
-    constants.lobby_teams = [{} for _ in range(int(int(constants.SLOTS_LIMIT) / int(constants.LOBBY_SIZE)))]
-    constants.disabled_status = False
-    constants.captcha_question_variables.clear()
-    captcha_phrase = ''.join(random.choice(ascii_lowercase) for _ in range(random.randint(5, 6)))
+    today = datetime.datetime.now(local_tz).weekday()
+    if today in constants.days_to_run:
+        print("REG STARTED!")
+        constants.registered_teams.clear()
+        constants.lobby_teams = [{} for _ in range(int(int(constants.SLOTS_LIMIT) / int(constants.LOBBY_SIZE)))]
+        constants.disabled_status = False
+        constants.captcha_question_variables.clear()
+        captcha_phrase = ''.join(random.choice(ascii_lowercase) for _ in range(random.randint(5, 6)))
 
-    try:
-        await bot.get_channel(constants.REGISTRATION_CHANNEL_ID).purge(check=lambda m: m.id != constants.REG_MESSAGE_ID, limit=100)
-        print("Messages purged successfully.")
-        # Clear timestamps.csv
-        with open('timestamps.csv', 'w', newline=''): pass
-        message = await bot.get_channel(constants.REGISTRATION_CHANNEL_ID).fetch_message(constants.REG_MESSAGE_ID)
-        await message.edit(view=RegistrationView())
+        try:
+            await bot.get_channel(constants.REGISTRATION_CHANNEL_ID).purge(check=lambda m: m.id != constants.REG_MESSAGE_ID, limit=100)
+            print("Messages purged successfully.")
+            # Clear timestamps.csv
+            with open('timestamps.csv', 'w', newline=''): pass
+            message = await bot.get_channel(constants.REGISTRATION_CHANNEL_ID).fetch_message(constants.REG_MESSAGE_ID)
+            await message.edit(view=RegistrationView())
 
-        with open('lobby_details.json','w') as json_file:
-            json.dump({},json_file)
+            with open('lobby_details.json','w') as json_file:
+                json.dump({},json_file)
 
-    except discord.HTTPException as e:
-        print(f"An error occurred while purging messages: {e}")
+        except discord.HTTPException as e:
+            print(f"An error occurred while purging messages: {e}")
 
-    constants.captcha_question_variables.append(captcha_phrase.lower().rstrip())
-    constants.captcha_question_variables.append(random.randint(10, 99))
-    constants.captcha_question_variables.append(random.randint(10, 99))
-    constants.captcha_question_variables.append(random.randint(10, 99))
-    constants.captcha_question_variables.append(random.randint(10, 99))
+        constants.captcha_question_variables.append(captcha_phrase.lower().rstrip())
+        constants.captcha_question_variables.append(random.randint(10, 99))
+        constants.captcha_question_variables.append(random.randint(10, 99))
+        constants.captcha_question_variables.append(random.randint(10, 99))
+        constants.captcha_question_variables.append(random.randint(10, 99))
 
-    await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"*REG STARTED!*\nCurrent captcha variables: {constants.captcha_question_variables[0]}, {constants.captcha_question_variables[1]} + {constants.captcha_question_variables[2]}, {constants.captcha_question_variables[3]} + {constants.captcha_question_variables[4]}")
+        await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"*REG STARTED!*\nCurrent captcha variables: {constants.captcha_question_variables[0]}, {constants.captcha_question_variables[1]} + {constants.captcha_question_variables[2]}, {constants.captcha_question_variables[3]} + {constants.captcha_question_variables[4]}")
 
-local_tz = datetime.datetime.now().astimezone().tzinfo
-y = datetime.time(hour=11, minute=10, tzinfo=local_tz)
+y = datetime.time(hour=11, minute=0, tzinfo=local_tz)
 @tasks.loop(time=y)
 async def clear_lb_auto():
 
-    lobby_role_names = [f"Group {i} IDP" for i in range(1, int(constants.SLOTS_LIMIT / constants.LOBBY_SIZE) + 1)]
-    lobby_channel_names = [f"group-{i}-idp" for i in range(1, int(constants.SLOTS_LIMIT / constants.LOBBY_SIZE) + 1)]
+    today = datetime.datetime.now(local_tz).weekday()
+    if today in constants.days_to_run:
+        lobby_role_names = [f"Group {i} IDP" for i in range(1, int(constants.SLOTS_LIMIT / constants.LOBBY_SIZE) + 1)]
+        lobby_channel_names = [f"group-{i}-idp" for i in range(1, int(constants.SLOTS_LIMIT / constants.LOBBY_SIZE) + 1)]
 
-    for role_name in lobby_role_names:
-        role = discord.utils.get(bot.get_guild(constants.GUILD_ID).roles, name=role_name)
-        if role:
-            for member in role.members:
-                await member.remove_roles(role)
+        for role_name in lobby_role_names:
+            role = discord.utils.get(bot.get_guild(constants.GUILD_ID).roles, name=role_name)
+            if role:
+                for member in role.members:
+                    await member.remove_roles(role)
 
-    for channel_name in lobby_channel_names:
-        channel = discord.utils.get(bot.get_guild(constants.GUILD_ID).channels, name=channel_name)
-        if channel:
-            await channel.purge(after=(datetime.datetime.now() - datetime.timedelta(hours=24)))
+        for channel_name in lobby_channel_names:
+            channel = discord.utils.get(bot.get_guild(constants.GUILD_ID).channels, name=channel_name)
+            if channel:
+                await channel.purge(after=(datetime.datetime.now() - datetime.timedelta(hours=24)))
 
-    await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"*CLEARED LOBBIES!*")
+        await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"*CLEARED LOBBIES!*")
 
 # @bot.event
 # async def on_message(message):

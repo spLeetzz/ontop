@@ -53,6 +53,7 @@ temp_json_dict = {}
 captcha_question_variables = []
 banned_team_list = []
 blk_users_list = []
+days_to_run = {1, 2, 3, 4, 5}  # 1: Tuesday, 2: Wednesday, 3: Thursday, 4: Friday, 5: Saturday
 sheet = None
 ban_sheet = None
 blacklist_sheet = None
@@ -62,6 +63,7 @@ emotes_list = ["<:number1:1252296980638597221>", "<:number2:1252297093926883411>
 practice_emoteid = "<:Holdgun:1252297519543877684>"
 stary_emote = "<a:_:1188860052187119707>"
 roles_for_purge_perm = ['Admin','++D']
+idp_role_names = [f"Group {x} IDP" for x in range(1,int(SLOTS_LIMIT // LOBBY_SIZE))]
 
 # # for i ama naive server
 
@@ -122,3 +124,5 @@ roles_for_purge_perm = ['Admin','++D']
 # stary_emote = "<a:_:1247699959411638282>"
 # json_file_path = r"C:\faltu\ontop\lobby_details.json"
 # roles_for_purge_perm = ['Manager','Mahatma']
+# days_to_run = {1, 2, 3, 4, 5}  # 1: Tuesday, 2: Wednesday, 3: Thursday, 4: Friday, 5: Saturday
+# idp_role_names = [f"Group {x} IDP" for x in range(1,int(SLOTS_LIMIT // LOBBY_SIZE))]
