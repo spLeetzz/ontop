@@ -482,7 +482,7 @@ class TransferIDPButton(discord.ui.Button):
         super().__init__(label=f'Transfer IDP role', style=discord.ButtonStyle.grey)
 
     async def callback(self, interaction: discord.Interaction):
-        matching_roles = [role for role in interaction.user.roles if role.name in ["Group 1 IDP", "Group 2 IDP", "Group 3 IDP", "Group 4 IDP"]]
+        matching_roles = [role for role in interaction.user.roles if role.name in ["Group 1 IDP", "Group 2 IDP", "Group 3 IDP", "Group 4 IDP", "Group 5 IDP", "Group 6 IDP"]]
 
         if len(matching_roles) == 1:
             try:
