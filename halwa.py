@@ -1284,7 +1284,7 @@ async def amr_one(interaction: discord.Interaction, team_name : str):
             amr1 = interaction.guild.get_role(1219781255638286407)
             await interaction.guild.get_member(user_id).add_roles(amr1)
 
-            await interaction.response.send_message(f"{team_name} -> <@{user_id}>",ephemeral=True,delete_after=240)
+            await interaction.channel.send(f"{team_name} -> <@{user_id}>\n\nQualified for Amateur Scrims.")
         
     except discord.HTTPException as e:
         await interaction.send(f"An error occurred while sending the message: {e}")
@@ -1319,7 +1319,7 @@ async def amr_two(interaction: discord.Interaction, team_name : str):
             amr2 = interaction.guild.get_role(1247510834524192859)
             await interaction.guild.get_member(user_id).add_roles(amr2)
 
-            await interaction.response.send_message(f"{team_name} -> <@{user_id}>",ephemeral=True,delete_after=240)
+            await interaction.channel.send(f"{team_name} -> <@{user_id}>\n\nQualified for Amateur Scrims.")
         
     except discord.HTTPException as e:
         await interaction.send(f"An error occurred while sending the message: {e}")
