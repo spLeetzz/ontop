@@ -1265,7 +1265,7 @@ async def inrole(ctx: commands.Context, error: commands.CommandError):
 
 @bot.tree.command(name="amr_one", description="Grant amateur scrims role (1) thru idp channel.")
 @app_commands.checks.has_permissions(manage_roles=True, view_audit_log=True)
-async def amr_one(interaction: discord.Interaction, teamName : str):
+async def amr_one(interaction: discord.Interaction, team_name : str):
     try:
         # Get the interaction channel name
         channel_name = interaction.channel.name
@@ -1280,11 +1280,11 @@ async def amr_one(interaction: discord.Interaction, teamName : str):
             with open(f"lobby_{channel_number}_teams.json", 'r') as f:
                 teams_json = json.load(f)
 
-            user_id = teams_json[teamName]
+            user_id = teams_json[team_name]
             amr1 = interaction.guild.get_role(1219781255638286407)
             await interaction.guild.get_member(user_id).add_roles(amr1)
 
-            await interaction.response.send_message(f"{teamName} -> <@{user_id}>",ephemeral=True,delete_after=240)
+            await interaction.response.send_message(f"{team_name} -> <@{user_id}>",ephemeral=True,delete_after=240)
         
     except discord.HTTPException as e:
         await interaction.send(f"An error occurred while sending the message: {e}")
@@ -1300,7 +1300,7 @@ async def amr_one(ctx: commands.Context, error: commands.CommandError):
 
 @bot.tree.command(name="amr_two", description="Grant amateur scrims role (2) thru idp channel.")
 @app_commands.checks.has_permissions(manage_roles=True, view_audit_log=True)
-async def amr_two(interaction: discord.Interaction, teamName : str):
+async def amr_two(interaction: discord.Interaction, team_name : str):
     try:
         # Get the interaction channel name
         channel_name = interaction.channel.name
@@ -1315,11 +1315,11 @@ async def amr_two(interaction: discord.Interaction, teamName : str):
             with open(f"lobby_{channel_number}_teams.json", 'r') as f:
                 teams_json = json.load(f)
 
-            user_id = teams_json[teamName]
+            user_id = teams_json[team_name]
             amr2 = interaction.guild.get_role(1247510834524192859)
             await interaction.guild.get_member(user_id).add_roles(amr2)
 
-            await interaction.response.send_message(f"{teamName} -> <@{user_id}>",ephemeral=True,delete_after=240)
+            await interaction.response.send_message(f"{team_name} -> <@{user_id}>",ephemeral=True,delete_after=240)
         
     except discord.HTTPException as e:
         await interaction.send(f"An error occurred while sending the message: {e}")
