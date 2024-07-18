@@ -1263,9 +1263,9 @@ async def inrole(ctx: commands.Context, error: commands.CommandError):
     else:
         await ctx.send(f"An error occurred: {error}")
 
-@bot.tree.command(name="amr1", description="Grant amateur scrims role (1) thru idp channel.")
+@bot.tree.command(name="amr_one", description="Grant amateur scrims role (1) thru idp channel.")
 @app_commands.checks.has_permissions(manage_roles=True, view_audit_log=True)
-async def amr1(interaction: discord.Interaction, teamName : str):
+async def amr_one(interaction: discord.Interaction, teamName : str):
     try:
         # Get the interaction channel name
         channel_name = interaction.channel.name
@@ -1289,8 +1289,8 @@ async def amr1(interaction: discord.Interaction, teamName : str):
     except discord.HTTPException as e:
         await interaction.send(f"An error occurred while sending the message: {e}")
 
-@amr1.error
-async def amr1(ctx: commands.Context, error: commands.CommandError):
+@amr_one.error
+async def amr_one(ctx: commands.Context, error: commands.CommandError):
     if isinstance(error, commands.MissingPermissions):
         await ctx.send("You don't have the required permissions to use this command.")
     elif isinstance(error, commands.ChannelNotFound):
@@ -1298,9 +1298,9 @@ async def amr1(ctx: commands.Context, error: commands.CommandError):
     else:
         await ctx.send(f"An error occurred: {error}")
 
-@bot.tree.command(name="amr2", description="Grant amateur scrims role (2) thru idp channel.")
+@bot.tree.command(name="amr_two", description="Grant amateur scrims role (2) thru idp channel.")
 @app_commands.checks.has_permissions(manage_roles=True, view_audit_log=True)
-async def amr2(interaction: discord.Interaction, teamName : str):
+async def amr_two(interaction: discord.Interaction, teamName : str):
     try:
         # Get the interaction channel name
         channel_name = interaction.channel.name
@@ -1324,8 +1324,8 @@ async def amr2(interaction: discord.Interaction, teamName : str):
     except discord.HTTPException as e:
         await interaction.send(f"An error occurred while sending the message: {e}")
 
-@amr2.error
-async def amr2(ctx: commands.Context, error: commands.CommandError):
+@amr_two.error
+async def amr_two(ctx: commands.Context, error: commands.CommandError):
     if isinstance(error, commands.MissingPermissions):
         await ctx.send("You don't have the required permissions to use this command.")
     elif isinstance(error, commands.ChannelNotFound):
