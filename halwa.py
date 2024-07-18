@@ -1043,6 +1043,16 @@ async def clear_lb(ctx):
                 for member in role.members:
                     await member.remove_roles(role)
 
+        # role = discord.utils.get(ctx.guild.roles, name="Amateur IDP 1")
+        # if role:
+        #     for member in role.members:
+        #         await member.remove_roles(role)
+
+        # role = discord.utils.get(ctx.guild.roles, name="Amateur IDP 2")
+        # if role:
+        #     for member in role.members:
+        #         await member.remove_roles(role)
+
         for channel_name in lobby_channel_names:
             channel = discord.utils.get(ctx.guild.channels, name=channel_name)
             if channel:
@@ -1246,6 +1256,76 @@ async def inrole(ctx: commands.Context, role: discord.Role):
 
 @inrole.error
 async def inrole(ctx: commands.Context, error: commands.CommandError):
+    if isinstance(error, commands.MissingPermissions):
+        await ctx.send("You don't have the required permissions to use this command.")
+    elif isinstance(error, commands.ChannelNotFound):
+        await ctx.send("The specified channel was not found.")
+    else:
+        await ctx.send(f"An error occurred: {error}")
+
+@bot.tree.command(name="amr1", description="Grant amateur scrims role (1) thru idp channel.")
+@app_commands.checks.has_permissions(manage_roles=True, view_audit_log=True)
+async def amr1(interaction: discord.Interaction, teamName : str):
+    try:
+        # Get the interaction channel name
+        channel_name = interaction.channel.name
+
+        # Check if the channel name matches any in the channel_role_names list
+        matching_channel = next((name for name in constants.channel_names if name == channel_name), None)
+
+        if matching_channel:
+            # Extract the channel number from the matching channel name
+            channel_number = matching_channel.split('-')[1]
+
+            with open(f"lobby_{channel_number}_teams.json", 'r') as f:
+                teams_json = json.load(f)
+
+            user_id = teams_json[teamName]
+            amr1 = interaction.guild.get_role(1219781255638286407)
+            await interaction.guild.get_member(user_id).add_roles(amr1)
+
+            await interaction.response.send_message(f"{teamName} -> <@{user_id}>",ephemeral=True,delete_after=240)
+        
+    except discord.HTTPException as e:
+        await interaction.send(f"An error occurred while sending the message: {e}")
+
+@amr1.error
+async def amr1(ctx: commands.Context, error: commands.CommandError):
+    if isinstance(error, commands.MissingPermissions):
+        await ctx.send("You don't have the required permissions to use this command.")
+    elif isinstance(error, commands.ChannelNotFound):
+        await ctx.send("The specified channel was not found.")
+    else:
+        await ctx.send(f"An error occurred: {error}")
+
+@bot.tree.command(name="amr2", description="Grant amateur scrims role (2) thru idp channel.")
+@app_commands.checks.has_permissions(manage_roles=True, view_audit_log=True)
+async def amr2(interaction: discord.Interaction, teamName : str):
+    try:
+        # Get the interaction channel name
+        channel_name = interaction.channel.name
+
+        # Check if the channel name matches any in the channel_role_names list
+        matching_channel = next((name for name in constants.channel_names if name == channel_name), None)
+
+        if matching_channel:
+            # Extract the channel number from the matching channel name
+            channel_number = matching_channel.split('-')[1]
+
+            with open(f"lobby_{channel_number}_teams.json", 'r') as f:
+                teams_json = json.load(f)
+
+            user_id = teams_json[teamName]
+            amr2 = interaction.guild.get_role(1247510834524192859)
+            await interaction.guild.get_member(user_id).add_roles(amr2)
+
+            await interaction.response.send_message(f"{teamName} -> <@{user_id}>",ephemeral=True,delete_after=240)
+        
+    except discord.HTTPException as e:
+        await interaction.send(f"An error occurred while sending the message: {e}")
+
+@amr2.error
+async def amr2(ctx: commands.Context, error: commands.CommandError):
     if isinstance(error, commands.MissingPermissions):
         await ctx.send("You don't have the required permissions to use this command.")
     elif isinstance(error, commands.ChannelNotFound):

@@ -64,6 +64,7 @@ practice_emoteid = "<:Holdgun:1252297519543877684>"
 stary_emote = "<a:_:1188860052187119707>"
 roles_for_purge_perm = ['Admin','++D']
 idp_role_names = [f"Group {x} IDP" for x in range(1,int(SLOTS_LIMIT // LOBBY_SIZE) + 1)]
+channel_names = [f"group-{x}-idp" for x in range(1,int(SLOTS_LIMIT // LOBBY_SIZE) + 1)]
 
 # # for i ama naive server
 
@@ -126,3 +127,4 @@ idp_role_names = [f"Group {x} IDP" for x in range(1,int(SLOTS_LIMIT // LOBBY_SIZ
 # roles_for_purge_perm = ['Manager','Mahatma']
 # days_to_run = {1, 2, 3, 4, 5}  # 1: Tuesday, 2: Wednesday, 3: Thursday, 4: Friday, 5: Saturday
 # idp_role_names = [f"Group {x} IDP" for x in range(1,int(SLOTS_LIMIT // LOBBY_SIZE))]
+# channel_names = [f"group-{x}-idp" for x in range(1,int(SLOTS_LIMIT // LOBBY_SIZE) + 1)]
