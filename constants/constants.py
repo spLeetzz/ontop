@@ -27,13 +27,14 @@ BANNED_ROLE_ID = 1252301654557196360
 ENROLLMENT_MESSAGE_ID = 1257508668316848158
 PREFERENCE_MESSAGE_ID = None
 REG_MESSAGE_ID = 1257496468143607952
-SCRIMS_INFO_MESSAGE_ID = 1258353890231844875
+SCRIMS_INFO_MESSAGE_ID = 1264732866953347224
 FAQ_MESSAGE_ID = 1260069527538896997
 
 # Google Sheets details
 GOOGLE_SHEET_ID = "1yJozWjOMMc9uIhobk0xtyODWUInV7GWwQXOZlydU0i8"
 BAN_SHEET_ID = "1Loe4O0zdVVtAdrhFxSZpk6iSsOor4s5PjFSbebxcBFA"
 BLACKLIST_SHEET_ID = "1gKvcIl_gM3HQrUqq0B2O7CYTKLf8DgBtFfFMsD4Kp8s"
+COOLDOWN_SHEET_ID = "1H-PUeegORmUKQmIn6t7qSk4GIIP5TFFoEofl6GC37yo"
 
 disabled_status = True #(RegistrationView)
 # Initialize a list to store dictionaries for each lobby
@@ -44,6 +45,7 @@ registration_lock = asyncio.Lock()
 cache_data_thread_lock = threading.Lock()
 ban_list_thread_lock = threading.Lock()
 blk_list_thread_lock = threading.Lock()
+cd_list_thread_lock = threading.Lock()
 registered_teams = {}
 preferences_dict = {}
 REGISTRATION_PROMPT = ""
@@ -53,10 +55,12 @@ temp_json_dict = {}
 captcha_question_variables = []
 banned_team_list = []
 blk_users_list = []
+cd_team_list = []
 days_to_run = {1, 2, 3, 4, 5}  # 1: Tuesday, 2: Wednesday, 3: Thursday, 4: Friday, 5: Saturday
 sheet = None
 ban_sheet = None
 blacklist_sheet = None
+cooldown_sheet = None
 service = None
 timezone = pytz.timezone('Asia/Kolkata')
 emotes_list = ["<:number1:1252296980638597221>", "<:number2:1252297093926883411>", "<:number3:1252297208624058541>", "<:number4:1252297299200049234>","<:number5:1256671680831553617>","<:number6:1256671747374059683>"]
@@ -97,6 +101,7 @@ channel_names = [f"group-{x}-idp" for x in range(1,int(SLOTS_LIMIT // LOBBY_SIZE
 # GOOGLE_SHEET_ID = "1yJozWjOMMc9uIhobk0xtyODWUInV7GWwQXOZlydU0i8"
 # BAN_SHEET_ID = "1Loe4O0zdVVtAdrhFxSZpk6iSsOor4s5PjFSbebxcBFA"
 # BLACKLIST_SHEET_ID = "1gKvcIl_gM3HQrUqq0B2O7CYTKLf8DgBtFfFMsD4Kp8s"
+# COOLDOWN_SHEET_ID = "1H-PUeegORmUKQmIn6t7qSk4GIIP5TFFoEofl6GC37yo"
 
 # disabled_status = True #(RegistrationView)
 # # Initialize a list to store dictionaries for each lobby
@@ -106,6 +111,7 @@ channel_names = [f"group-{x}-idp" for x in range(1,int(SLOTS_LIMIT // LOBBY_SIZE
 # cache_data_thread_lock = threading.Lock()
 # ban_list_thread_lock = threading.Lock()
 # blk_list_thread_lock = threading.Lock()
+# cd_list_thread_lock = threading.Lock()
 # registered_teams = {}
 # preferences_dict = {}
 # REGISTRATION_PROMPT = ""
@@ -114,10 +120,12 @@ channel_names = [f"group-{x}-idp" for x in range(1,int(SLOTS_LIMIT // LOBBY_SIZE
 # captcha_question_variables = []
 # banned_team_list = []
 # blk_users_list = []
+# cd_team_list = []
 # temp_json_dict = {}
 # sheet = None
 # ban_sheet = None
 # blacklist_sheet = None
+# cooldown_sheet = None
 # service = None
 # timezone = pytz.timezone('Asia/Kolkata')
 # emotes_list = ["<:number1:1246465778480447611>", "<:number2:1246465786202034326>", "<:number3:1246465780845908079>", "<:number4:1246465783530389614>"]

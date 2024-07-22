@@ -139,7 +139,7 @@ async def send_remenu(channel):
 
 async def send_overview_menu(channel):
     view = ScrimsOverviewView()  
-    message = await channel.send(content=f"Hey there, here's a complete overview of BGMI scrims at Trident:\n\nThere are 4 tiers basically,\n\n`Trident Rookie Scrims(Tier 3):`\n\n- Open for all, anyone can participate, registrations open at 12 PM Tuesday-Saturday in <#{constants.REGISTRATION_CHANNEL_ID}>\n- 6 Groups every day, Top 1 from each Group qualify for Amateur Scrims\n- Every Group plays 2 matches, Erangle-Sanhok\n\n`Amateur Scrims(T2 filtration):`\n\n- 2 Groups on Sunday, Top 4 from each Group qualify for Tier 2 scrims\n- Every Group plays 3 matches, Erangle-Miramar-Sanhok\n\n`Trident Elite Scrims(Tier 2):`\n\n- 2 Groups, Every team plays 24 matches over 6 days.\n- Tuesday-Sunday daily 4 matches, Erangle-Miramar-Sanhok-Vikendi\n- Top 8 teams based on cumulative leaderboard of both Groups qualify for Pro Scrims.\n- Bottom 10 teams are demoted from Tier 2 to Tier 3.\n\n`Trident Pro Scrims:`\n\n- Tuesday-Sunday daily 4 matches, Erangle-Miramar-Sanhok-Vikendi\n- Top 6 teams based on leaderboard retain their spots in Pro Scrims.\n- Rest of the teams are demoted from Pro Scrims to Tier 2.\n\nAny announcements and updates would be shared thru the <#{constants.UPDATES_CHANNEL_ID}> channels.\nReact with buttons beneath for more information and make sure to follow all rules.",view=view)
+    message = await channel.send(content=f"Hey there, here's a complete overview of BGMI scrims at Trident:\n\nThere are 4 tiers basically,\n\n`Trident Rookie Scrims(Tier 3):`\n\n- Open for all, anyone can participate, registrations open at 12 PM Tuesday-Saturday in <#{constants.REGISTRATION_CHANNEL_ID}>\n- 6 Groups every day, Top 1 from each Group qualify for Amateur Scrims\n- Every Group plays 2 matches, Erangle-Miramar\n\n`Amateur Scrims(T2 filtration):`\n\n- 2 Groups on Sunday, Top 4 from each Group qualify for Tier 2 scrims\n- Every Group plays 3 matches, Erangle-Miramar-Sanhok\n\n`Trident Elite Scrims(Tier 2):`\n\n- 3 Groups, Every team plays 24 matches over 6 days.\n- Tuesday-Sunday daily 4 matches, Erangle-Miramar-Sanhok-Vikendi\n- Top 6 teams based on cumulative leaderboard of both Groups qualify for Pro Scrims.\n- Bottom 12 teams are demoted from Tier 2 to Tier 3.\n\n`Trident Pro Scrims:`\n\n- Tuesday-Sunday daily 4 matches, Erangle-Miramar-Sanhok-Vikendi\n- Top 6 teams based on leaderboard retain their spots in Pro Scrims.\n- Rest of the teams are demoted from Pro Scrims to Tier 2.\n\nAny announcements and updates would be shared thru the <#{constants.UPDATES_CHANNEL_ID}> channels.\nReact with buttons beneath for more information and make sure to follow all rules.",view=view)
     return message
 
 class LobbySelectDropdown(discord.ui.Select):
@@ -196,10 +196,13 @@ class LobbyButton(discord.ui.Button):
         
         if team_name:
             if team_name in constants.banned_team_list:
-                await interaction.response.send_message(f"{user.mention} Someone from your team is banned at the moment.\nReach out to the support team in case there's an issue via <#{constants.HELP_CHANNEL_ID}>.",ephemeral=True,delete_after=30)
+                await interaction.response.send_message(f"{user.mention} Someone from your team is banned at the moment.\nReach out to the support team in case there's an issue via <#{constants.HELP_CHANNEL_ID}>.",ephemeral=True,delete_after=60)
 
-            elif team_name == 'cooldown':
-                await interaction.response.send_message(f"{user.mention} Someone from your team is on cooldown, please wait for the cooldown period to end\nReach out to the support team in case there's an issue via <#{constants.HELP_CHANNEL_ID}>.",ephemeral=True,delete_after=30)
+            # elif team_name == 'cooldown':
+            #     await interaction.response.send_message(f"{user.mention} Someone from your team is on cooldown, please wait for the cooldown period to end\nReach out to the support team in case there's an issue via <#{constants.HELP_CHANNEL_ID}>.",ephemeral=True,delete_after=30)
+
+            elif team_name in constants.cd_team_list:
+                await interaction.response.send_message(f"{user.mention} Someone from your team is on cooldown, please wait for the cooldown period to end\nReach out to the support team in case there's an issue via <#{constants.HELP_CHANNEL_ID}>.",ephemeral=True,delete_after=60)
 
             elif team_name == 'left_server':
                 await interaction.response.send_message(f"{user.mention} Someone from your team is not present in this server rn.",ephemeral=True,delete_after=60)
@@ -389,7 +392,7 @@ class HowToPlayButton(discord.ui.Button):
         super().__init__(label=f'How To Play', style=discord.ButtonStyle.primary)
 
     async def callback(self, interaction: discord.Interaction):
-        embed = discord.Embed(title="How To Play", description=f"1. Get verified on [Trident Gaming](<https://tridentgaming.in/>) and claim your \"Verified\" role in discord from <#{constants.TICKET_CHANNEL_ID}>. Still confused how to do that?! There's a vid link beneath. Verification is a manual process and may take around 1-2 weeks.\n\n2. Enroll your team from <#{constants.ENROLLMENT_CHANNEL_ID}>, just have to select \"Enroll my team\" option from there, fill simple details, mention your teammates, and you're fine to Go, you can even Update/Delete your team later on.\n\n3. Book your slot for your preferred lobby from <#{constants.REGISTRATION_CHANNEL_ID}> at 12 PM Tuesday-Saturday. The buttons there will remain disabled whole time, and will open up at registration time.\n\n- [Click Me](<https://bit.ly/trident-verify-vid>) for tutorial on verification!\n- [Click Me](<https://bit.ly/trident-regi-vid>) for tutorial on registration!", color=0x229db7)
+        embed = discord.Embed(title="How To Play", description=f"1. Get verified on [Trident Gaming](<https://tridentgaming.in/>) and claim your \"Verified\" role in discord from <#{constants.TICKET_CHANNEL_ID}>. Still confused how to do that?! There's a vid link beneath. Verification is a manual process and may take around 1-2 weeks.\n\n2. Enroll your team from <#{constants.ENROLLMENT_CHANNEL_ID}>, just have to select \"Enroll my team\" option from there, fill simple details, mention your teammates, and you're fine to Go, you can even Update/Delete your team later on.\n\n3. Book your slot for your preferred lobby from <#{constants.REGISTRATION_CHANNEL_ID}> at 12 PM Tuesday-Saturday. The buttons there will remain disabled whole time, and will open up at registration time.\n\n- [Click Me](<https://bit.ly/trident-verify-vid>) for tutorial on verification!\n- [Click Me](<https://bit.ly/trident-regi-vid>) for tutorial on registration!\n\n*Checkout <#1259394375880802434> channel.*", color=0x229db7)
         await interaction.response.send_message(embed=embed,ephemeral=True,delete_after=120)
     
 class RulesButton(discord.ui.Button):
@@ -397,7 +400,7 @@ class RulesButton(discord.ui.Button):
         super().__init__(label=f'Scrims Rules', style=discord.ButtonStyle.primary)
 
     async def callback(self, interaction: discord.Interaction):
-        embed = discord.Embed(title="Scrims Rules", description=f"1. IGNs(In Game Name) of all players must have some similar pattern of characters as prefix/suffix, you'll be kicked from the room if not found such.\n\n2. All mic toxicity and rants are not allowed while in lobby or in match, you can be banned for this.\n\n3.  EMERGENCY PICKUP is prohibited, exploiting Bugs/Glitches or Hacking will lead to serious consequences.\n\n4. Complete POV recording is must for all the players of every team, this includes opening the game from play/app store and showing IMEI at end.", color=0x229db7)
+        embed = discord.Embed(title="Scrims Rules", description=f"1. IGNs(In Game Name) of all players must have some similar pattern of characters as prefix/suffix, you'll be kicked from the room if not found such.\n\n2. All mic toxicity and rants are not allowed while in lobby or in match, you can be banned for this.\n\n3.  EMERGENCY PICKUP is prohibited, exploiting Bugs/Glitches or Hacking will lead to serious consequences.\n\n4. Complete POV recording is must for all the players of every team, this includes opening the game from play/app store and showing IMEI at end.\n\nMore rules are defined in <#1188850147958988851>.", color=0x229db7)
         await interaction.response.send_message(embed=embed,ephemeral=True,delete_after=180)
 
 class PointsSystemButton(discord.ui.Button):
@@ -897,7 +900,7 @@ async def break_reg(ctx):
         user_ids = [lobby_teams_dict[team_name] for team_name in team_names]
         async with asyncio.TaskGroup() as taskhandler:
             # await bot.get_channel(constants.MOD_CHANNEL_ID).send(file=discord.File(csv_file))
-            await bot.get_channel(constants.MOD_CHANNEL_ID).send(file=discord.File(json_file_name))
+            await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(file=discord.File(json_file_name))
             try:
                 await send_slots_list(team_names, lobby_number, discord.utils.get(bot.get_guild(constants.GUILD_ID).channels, name=f"group-{lobby_number}-idp"))
             except Exception as e:
@@ -1139,34 +1142,34 @@ async def rr(ctx, error):
     else:
         await ctx.send(f"An error occurred: {error}")
 
-@bot.hybrid_command(name="clearcd", description="**Clear Cool-down role")
-@commands.has_permissions(view_audit_log=True, manage_roles=True)
-async def clearcd(ctx):
+# @bot.hybrid_command(name="clearcd", description="**Clear Cool-down role")
+# @commands.has_permissions(view_audit_log=True, manage_roles=True)
+# async def clearcd(ctx):
 
-    await ctx.send("kr rha thoda wait krna ..")
+#     await ctx.send("kr rha thoda wait krna ..")
 
-    try:
-        role = bot.get_guild(constants.GUILD_ID).get_role(constants.COOLDOWN_ROLE_ID)
-        if role:
-            for member in role.members:
-                await member.remove_roles(role)
+#     try:
+#         role = bot.get_guild(constants.GUILD_ID).get_role(constants.COOLDOWN_ROLE_ID)
+#         if role:
+#             for member in role.members:
+#                 await member.remove_roles(role)
 
-        await ctx.send("Cooldown role is cleared now.")
+#         await ctx.send("Cooldown role is cleared now.")
     
-    except discord.Forbidden:
-        await ctx.send("I do not have permission to manage roles or channels.")
-    except discord.HTTPException as e:
-        await ctx.send(f"An HTTP error occurred: {e}")    
-    except Exception as e:
-        await ctx.send(f"An error occurred: {e}")
+#     except discord.Forbidden:
+#         await ctx.send("I do not have permission to manage roles or channels.")
+#     except discord.HTTPException as e:
+#         await ctx.send(f"An HTTP error occurred: {e}")    
+#     except Exception as e:
+#         await ctx.send(f"An error occurred: {e}")
 
-@clearcd.error
-async def clearcd(ctx, error):
-    if isinstance(error, commands.MissingPermissions):
-        missing_perms = ', '.join(error.missing_permissions)
-        await ctx.send(f"You don't have the required permissions to use this command: {missing_perms}")
-    else:
-        await ctx.send(f"An error occurred: {error}")
+# @clearcd.error
+# async def clearcd(ctx, error):
+#     if isinstance(error, commands.MissingPermissions):
+#         missing_perms = ', '.join(error.missing_permissions)
+#         await ctx.send(f"You don't have the required permissions to use this command: {missing_perms}")
+#     else:
+#         await ctx.send(f"An error occurred: {error}")
 
 @bot.hybrid_command(name="purge", description="Purge a specified number of messages from the channel.")
 @commands.has_any_role(*constants.roles_for_purge_perm)
@@ -1285,7 +1288,26 @@ async def amr_one(interaction: discord.Interaction, team_name : str):
             await interaction.guild.get_member(user_id).add_roles(amr1)
 
             await interaction.channel.send(f"{team_name} -> <@{user_id}>\n\nQualified for Amateur Scrims.")
-        
+
+            team_name = await validate_registration(user="None", check_cooldown = False,check_left_server = False,user_idd=user_id)
+            if team_name in constants.cd_team_list:
+                await interaction.response.send_message("Bhai ye team already hai cooldown me, if duration badhana h to splitz ko pakdo, aese command se krna thoda mushkil hai")
+                return
+            elif not team_name:
+                await interaction.response.send_message("Couldn't find any team with this user.")
+                return
+            
+            local_tz = datetime.datetime.now().astimezone().tzinfo
+            today = datetime.datetime.now(local_tz).weekday()
+
+            days_until_sunday = 6 - today
+            # If today is Sunday (weekday() == 6), adjust to return 0
+            if days_until_sunday == 0:
+                days_until_sunday = 0
+
+            row = [team_name,int(time.time()),int((0 * 3600) + (days_until_sunday * 86400)),datetime.datetime.now(tz=constants.timezone).strftime("%Y-%m-%d %H:%M"),f"{days_until_sunday} days {0} hours",str(user_id)]
+            constants.cooldown_sheet.append_row(row)
+
     except discord.HTTPException as e:
         await interaction.send(f"An error occurred while sending the message: {e}")
 
@@ -1320,6 +1342,25 @@ async def amr_two(interaction: discord.Interaction, team_name : str):
             await interaction.guild.get_member(user_id).add_roles(amr2)
 
             await interaction.channel.send(f"{team_name} -> <@{user_id}>\n\nQualified for Amateur Scrims.")
+
+            team_name = await validate_registration(user="None", check_cooldown = False,check_left_server = False,user_idd=user_id)
+            if team_name in constants.cd_team_list:
+                await interaction.response.send_message("Bhai ye team already hai cooldown me, if duration badhana h to splitz ko pakdo, aese command se krna thoda mushkil hai")
+                return
+            elif not team_name:
+                await interaction.response.send_message("Couldn't find any team with this user.")
+                return
+            
+            local_tz = datetime.datetime.now().astimezone().tzinfo
+            today = datetime.datetime.now(local_tz).weekday()
+
+            days_until_sunday = 6 - today
+            # If today is Sunday (weekday() == 6), adjust to return 0
+            if days_until_sunday == 0:
+                days_until_sunday = 0
+
+            row = [team_name,int(time.time()),int((0 * 3600) + (days_until_sunday * 86400)),datetime.datetime.now(tz=constants.timezone).strftime("%Y-%m-%d %H:%M"),f"{days_until_sunday} days {0} hours",str(user_id)]
+            constants.cooldown_sheet.append_row(row)
         
     except discord.HTTPException as e:
         await interaction.send(f"An error occurred while sending the message: {e}")
@@ -2051,9 +2092,31 @@ def refresh_cache3():
         # Sleep for 20 seconds before refreshing again
         time.sleep(5)
 
-async def validate_registration(user,check_cooldown = True,check_left_server = True):
+def refresh_cache4():
+    initialized = False
+    while True:
+        try:
+
+            rows = constants.cooldown_sheet.get_all_values()
+            with constants.cd_list_thread_lock:
+                constants.cd_team_list = [row[0] for row in rows[1:]]
+
+            # Check if blk_users_list is initialized and print message only once
+            if constants.cd_team_list is not None and not initialized:
+                print(f"\ncd_users_list initialized.")
+                initialized = True  # Set flag to True after printing 
+
+        except Exception as e:
+            print("Error occurred while refreshing blk_users_list", e)
+        # Sleep for 20 seconds before refreshing again
+        time.sleep(5)
+
+async def validate_registration(user,check_cooldown = True,check_left_server = True, user_idd = None):
     try:
-        user_id = user.id
+        if user == "None" and user_idd:
+            user_id = user_idd
+        else:
+            user_id = user.id
         guild = bot.get_guild(int(constants.GUILD_ID))
 
         # Use the cached data to validate registration
@@ -2293,6 +2356,7 @@ async def init_sheet():
         constants.sheet, constants.service = await connect_to_google_sheets(json_keyfile_path, sheet_id=constants.GOOGLE_SHEET_ID)
         constants.ban_sheet, _ = await connect_to_google_sheets(json_keyfile_path, sheet_id=constants.BAN_SHEET_ID)
         constants.blacklist_sheet, _ = await connect_to_google_sheets(json_keyfile_path, sheet_id=constants.BLACKLIST_SHEET_ID)
+        constants.cooldown_sheet, _ = await connect_to_google_sheets(json_keyfile_path, sheet_id=constants.COOLDOWN_SHEET_ID)
     except Exception as e:
         print("Error while connecting to Google Sheets:", e)
 
@@ -2310,6 +2374,11 @@ async def init_sheet():
     refresh_thread3 = threading.Thread(target=refresh_cache3)
     refresh_thread3.daemon = True
     refresh_thread3.start()
+
+    # Start a separate thread to periodically refresh the ban list
+    refresh_thread4 = threading.Thread(target=refresh_cache4)
+    refresh_thread4.daemon = True
+    refresh_thread4.start()
 
 if __name__ == "__main__":
 
