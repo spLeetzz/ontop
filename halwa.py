@@ -1734,7 +1734,7 @@ async def updateTeam(user, existing_team_message,interaction):
             async with constants.running_processes_lock:
                 constants.running_processes.pop(user.id, None)
 
-            await thread.send("Your previous team data was deleted so even if you are timed out from here, you will need to start enrollment fresh.\n\nLet's Start new enrollment! Check new mention, clearin' this channel is 5 minutes.")
+            await thread.send("Your previous team data was deleted so even if you are timed out from here, you will need to start enrollment fresh.\n\nLet's Start new enrollment! Check new mention, Separate channel has been created, clearin' this channel is 5 minutes.")
 
             await enrollTeam(user,interaction)
             await asyncio.sleep(300)
@@ -2041,7 +2041,7 @@ async def delete_team_from_sheet(user_id, spreadsheet_id,ctx = None):
                 body=request_body
             ).execute()
 
-            if not user_id == row[0]:
+            if not int(user_id) == int(row[0]):
                 await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"Hey <@{row[0]}> some of your teammate just deleted/updated your team. This is just an alert message(no need to worry) as the team was created by you.")
 
             print(f"Team data deleted successfully.\n{row}")
