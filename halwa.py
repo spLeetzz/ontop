@@ -85,7 +85,12 @@ class TournamentDropdown(discord.ui.Select):
                 return
             
             if result[1] in constants.banned_team_list:
-                await interaction.response.send_message(f"Sorry Mate {user.mention}, You can't update your team while it is banned.\nReach out to the support team in case there's an issue via <#{constants.HELP_CHANNEL_ID}>.",ephemeral=True,delete_after=30)
+                await interaction.response.send_message(f"Sorry Mate {user.mention}, You can't update your team while it is banned.\nReach out to the support team in case there's an issue via <#{constants.HELP_CHANNEL_ID}>.",ephemeral=True,delete_after=40)
+                await interaction.message.edit(view=TournamentView())
+                return
+            
+            if result[1] in constants.cd_team_list:
+                await interaction.response.send_message(f"Sorry Mate {user.mention}, You can't update your team while it is under cooldown.\nReach out to the support team in case there's an issue via <#{constants.HELP_CHANNEL_ID}>.",ephemeral=True,delete_after=40)
                 await interaction.message.edit(view=TournamentView())
                 return
 
@@ -102,7 +107,12 @@ class TournamentDropdown(discord.ui.Select):
                 return
             
             if result[1] in constants.banned_team_list:
-                await interaction.response.send_message(f"Sorry Mate {user.mention}, You can't update your team while it is banned.\nReach out to the support team in case there's an issue via <#{constants.HELP_CHANNEL_ID}>.",ephemeral=True,delete_after=30)
+                await interaction.response.send_message(f"Sorry Mate {user.mention}, You can't delete your team while it is banned.\nReach out to the support team in case there's an issue via <#{constants.HELP_CHANNEL_ID}>.",ephemeral=True,delete_after=30)
+                await interaction.message.edit(view=TournamentView())
+                return
+            
+            if result[1] in constants.cd_team_list:
+                await interaction.response.send_message(f"Sorry Mate {user.mention}, You can't delete your team while it is under cooldown.\nReach out to the support team in case there's an issue via <#{constants.HELP_CHANNEL_ID}>.",ephemeral=True,delete_after=40)
                 await interaction.message.edit(view=TournamentView())
                 return
             
@@ -528,6 +538,22 @@ class PlayerSelectDropdown(discord.ui.Select):
         except Exception as e:
             await interaction.response.send_message(f"Got some error: {e}", ephemeral=True,delete_after=60)
 
+class ModToolsButton(discord.ui.Button):
+    def __init__(self):
+        super().__init__(label=f'Mod Tools', style=discord.ButtonStyle.grey)
+
+    async def callback(self, interaction: discord.Interaction):
+
+        if interaction.user.guild_permissions.manage_roles:
+
+            try:
+                await interaction.response.send_message("👀",view=ModToolsView(),ephemeral=True,delete_after=18)
+            except Exception as e:
+                await interaction.response.send_message(f"Got an Error: {e}",ephemeral=True)
+
+        else:
+            await interaction.response.send_message(f"You can't use this command my bruhh.",ephemeral=True,delete_after=40)
+
 class TeamInfoButton(discord.ui.Button):
     def __init__(self):
         super().__init__(label=f'Teams Info', style=discord.ButtonStyle.grey)
@@ -536,46 +562,95 @@ class TeamInfoButton(discord.ui.Button):
 
         if interaction.user.guild_permissions.manage_roles:
 
-            await interaction.response.send_message(f"On it",ephemeral=True,delete_after=3)
+            await interaction.response.send_message(f"on itt...",ephemeral=True,delete_after=3)
 
+            # Extract the channel number from the matching channel name
+            lobby_number = interaction.channel.name.split('-')[1]
+            lobby_number_int = int(lobby_number)
+            
+            if 1 <= lobby_number_int <= 6:
+                
+                temp_dict =  None
+
+                with open(f"lobby_{lobby_number}_teams.json", 'r') as f:
+                    temp_dict = json.load(f)
+
+                message = ""
+
+                for team_name, user_id in temp_dict.items():
+                    message += f"{team_name} -> <@{user_id}>\n"
+
+                await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(message)
+
+        else:
+            await interaction.response.send_message(f"You can't use this command my bruhh.",ephemeral=True,delete_after=40)
+
+class AddTeamButton(discord.ui.Button):
+    def __init__(self):
+        super().__init__(label=f'Add Team', style=discord.ButtonStyle.grey)
+
+    async def callback(self, interaction: discord.Interaction):
+
+        if interaction.user.guild_permissions.manage_roles:
+
+            await interaction.response.send_message(f"on itt...",ephemeral=True,delete_after=3)
             try:
-                mod_channel = bot.get_channel(constants.UPDATES_CHANNEL_ID) # Get the channel where the interaction occurred
-                lobby_number_str = await get_user_response_in_thread(
+                mod_channel = bot.get_channel(constants.UPDATES_CHANNEL_ID) 
+                team_name = await get_user_response_in_thread(
                     interaction.user,
                     mod_channel,
-                    f"{interaction.user.mention} Please enter a lobby number between 1 and 6:"
+                    f"{interaction.user.mention} let me know the team's name."
                 )
-                lobby_number = int(lobby_number_str)
+
+                member_associated = await get_user_response_in_thread(
+                    interaction.user,
+                    mod_channel,
+                    f"{interaction.user.mention} mention the user you wanna add.",return_first_mention=True
+                )
                 
-                if 1 <= lobby_number <= 6:
-                    
-                    temp_dict =  None
+                # New team to add
+                new_team = {team_name: member_associated}
 
-                    with open(f"lobby_{lobby_number_str}_teams.json", 'r') as f:
-                        temp_dict = json.load(f)
+                # Extract the channel number from the matching channel name
+                channel_number = interaction.channel.name.split('-')[1]
+                json_file_name = f"lobby_{channel_number}_teams.json"
 
-                    message = ""
+                with open(json_file_name, 'r+') as f:
+                    data = json.load(f)   # Read the existing JSON data into a dictionary
+                    data.update(new_team)    # Add the new team to the dictionary
+                    f.seek(0)             # Move the file pointer to the beginning of the file
+                    json.dump(data, f, indent=1)   # Write the updated dictionary back to the file
+                    f.truncate()          # Ensure the file is truncated to the new length
 
-                    for team_name, user_id in temp_dict.items():
-                        message += f"{team_name} -> <@{user_id}>\n"
-
-                    await mod_channel.send(message)
+                team_names = list(data.keys())
+                async with asyncio.TaskGroup() as taskhandler:
+                    try:
+                        await send_slots_list(team_names, channel_number, interaction.channel,edit_slots_list= True)
+                    except Exception as e:
+                        print(f"Got Exception: {e}")
+                await mod_channel.send("Done babu")
 
             except Exception as e:
                 await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"Got an Exception: {e}")
         else:
             await interaction.response.send_message(f"You can't use this command my bruhh.",ephemeral=True,delete_after=40)
     
-class TransferIDPView(discord.ui.View):
+class IdpChannelTasksView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
         self.add_item(TransferIDPButton())
-        self.add_item(TeamInfoButton())
+        self.add_item(ModToolsButton())
 
 class PlayerSelectView(discord.ui.View):
     def __init__(self,row,role):
         super().__init__(timeout=None)
         self.add_item(PlayerSelectDropdown(row,role))
+
+class ModToolsView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+        self.add_item(TeamInfoButton())
+        self.add_item(AddTeamButton())
 
 async def validate_captcha(captcha_phrase : str, sum1_answer : int, sum2_answer : int):
     # Placeholder for actual captcha validation logic
@@ -728,30 +803,11 @@ async def on_ready():
 
 # *3rd and 4th step samjhne ke liye ek baar aap niche wali video dekhlo, bas ek baar team banani h aapko baar baar mention nai krna h apne dosto ko and ek simple captcha fill krne se aapka registration hoga.*""")
 
-#     team_names1 = ["Team Mahakal Esports", "Team Smiley", "Red and White", "WU ESPORTS", "KING ESPORTS", "Chibi Esports", "SLUG", "Team Bharat Esports", "Team XTOP", "ARCHONS", "ZENX ESPORTS", "Team STRANGER ESPORTS", "Team Godz", "4NM ESPORTS", "Fatal", "SMALL BROTHER", "Team PATIENCE", "Vampire eSports"]
-#     team_names2 = ["Team Silent Storm", "Supremes", "Team Knox eSports", "Team Kashmir", "TEAM CONQUEST ESPORTS", "Universal Kings", "TEAM SHIELD", "FURIOUS X FTD", "Team last chance", "Team Losers", "Team SHOOTER ESPORTS", "Top Dawg Esports", "Team God Gameplay", "Team Orion", "R3X eSports", "Night Warriors", "TEAM NITROFUEL", "4FM"]
-#     team_names3= ["above ST4RS", "REZ", "OnTop Squad", "Team TITAN", "Villain Army", "DL Sea Esports", "NOMERCY ESPORTS", "VENOM ESPORTS", "Lotus esports", "TEAM HIND", "Kings Esports", "Team fourArms", "Madhouse Esports", "Hyderabadi Guardians", "Reaper Gang", "Team Endless", "Team LEONARDS ESPORTS", "Team Warrior Esports"]
-#     team_names4 = ["GLOBAL BEAST", "Gravity Reborn", "AFTERHOURS ESPORTS", "Desi dazzle", "Team Conflict", "Virtual Leaders", "CHICKEN NUGGETS FW", "Warmongers", "BlackBird Esports", "Team 4U", "TeamCLUTCHLIKE", "Galactic esports", "SHINE ESPORTS", "We Unstoppables", "TEAM BRAVE MARATHAS", "BOLT RUSHER ACADEMY", "WINNING JI", "DREAM OF DESTINY"]
-#     team_names5 = ["Team BiTMap eSports", "Team 4 EVOLUTION", "Original Gangsters", "ANNOYED WORRIERS", "Eschaton Catalysts", "Whitebeardsx", "4 Kings Of Death", "TEAM JODx", "SK OFFICAL", "Team Empyrean", "BLINKS", "MDN ESPORTS RB", "LFM Esports", "BROKEN GUNS", "HALF ALIVE ESPORTS", "Team Invincible", "CONQUERORS ESPORTS", "C5 esports"]
-#     team_names6 = ["Star grinders", "Team belibers", "MDN ESPORTS", "TECH ESPORTS", "TEAM SUPERNATURALS", "XSkuLL", "TEAM TLW", "Particle 7", "Team FAB4 esports", "PAHARI ESPORTS", "God's Servents", "Team CLOVER ESPORTS", "4Dragoons", "Team Cold", "4LEAF GRIMOIRE", "Orignal never ends", "TEAM IRONIC", "Meap"]
-
-#     team_lists = {
-#     1: team_names1,
-#     2: team_names2,
-#     3: team_names3,
-#     4: team_names4,
-#     5: team_names5,
-#     6: team_names6
-# }
-    
-#     for i in range(1,7):
-#         await send_slots_list(team_lists[i], i, discord.utils.get(bot.get_guild(constants.GUILD_ID).channels, name=f"group-{i}-idp"))
-
     if lobby_details_json:
         for k,v in lobby_details_json.items():
             try:
                 message = await bot.get_channel(int(v[1])).fetch_message(int(v[0]))
-                await message.edit(view=TransferIDPView())
+                await message.edit(view=IdpChannelTasksView())
             except Exception as e:
                 print(f"Got Exception {e} when delaing with lobby json file")
 
@@ -894,7 +950,7 @@ async def break_reg(ctx):
         json_file_name = f"lobby_{lobby_number}_teams.json"
         # Write the data dictionary to a JSON file
         with open(json_file_name, 'w') as f:
-            json.dump(lobby_teams_dict, f, indent=1)  
+            json.dump(lobby_teams_dict, f, indent=1)
 
         team_names = list(lobby_teams_dict.keys())
         user_ids = [lobby_teams_dict[team_name] for team_name in team_names]
@@ -1588,8 +1644,12 @@ async def enrollTeam(user,interaction):
     except EnrollmentError as ee:
         # Schedule the deletion of the thread 
         async with asyncio.TaskGroup() as task_group:
-            task_group.create_task(thread.send(f"This thread will be deleted in {(int(ee.timeout)/60)} minutes"))
-            task_group.create_task(asyncio.sleep(int(ee.timeout)))  # default = 5 minutes
+            if ee.text:
+                task_group.create_task(thread.send(ee.text))
+                task_group.create_task(asyncio.sleep(int(ee.timeout)))  # default = 5 minutes
+            else:
+                task_group.create_task(thread.send(f"This thread will be deleted in {(int(ee.timeout)/60)} minutes"))
+                task_group.create_task(asyncio.sleep(int(ee.timeout)))  # default = 5 minutes
 
         await thread.delete()
 
@@ -1726,8 +1786,9 @@ async def deleteTeam(user, existing_team_message,interaction):
         await interaction.message.edit(view=TournamentView())
 
 class EnrollmentError(Exception):
-    def __init__(self, timeout=300):
+    def __init__(self, timeout=300,text=""):
         self.timeout = timeout
+        self.text = text
 
 async def get_user_response(user, prompt=""):
     try:
@@ -1742,12 +1803,16 @@ async def get_user_response(user, prompt=""):
         await user.send("Response timed out. Please try again later.")
         return None
 
-async def get_user_response_in_thread(user, channel, prompt="", timeout=300, return_message_object=False,embed=None):
+async def get_user_response_in_thread(user, channel, prompt="", timeout=300, return_message_object=False,embed=None,return_first_mention=False):
     await channel.send(prompt,embed = embed)
     response = await bot.wait_for('message', check=lambda msg: msg.author == user and msg.channel == channel, timeout = int(timeout))
     if response.content.strip():  # Check if the response is not empty after stripping whitespace
         if return_message_object:
             return response  # Return the message object if requested
+        if return_first_mention:
+            user_ids = response.mentions[:1]
+            user_id = user_ids[0]
+            return user_id.id
         else:
             return response.content  # Return the content of the message by default
     else:
@@ -1861,24 +1926,24 @@ async def validate_enrollment(user, team_name, player_igns, thread):
             raise EnrollmentError(60)
         
         # Check if at least 4 mentioned users have the required role
-        verified_players = 0
+        unverified_players = []
         for player in players:
 
             # for verify wala lafda :
             if player:
 
-                if any(role.name == constants.REQUIRED_ROLE_NAME for role in player.roles):
-                    verified_players += 1
+                if not any(role.name == constants.REQUIRED_ROLE_NAME for role in player.roles):
+                    unverified_players.append(player.mention)
 
             else:
                 await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} There was some error and due to it we arent able to fetch <@{discord_id}>, report to support team if he's present in this server and still this comes.")
                 await response.add_reaction("❌")
                 raise EnrollmentError(60)
             
-        if verified_players < 4:
+        if len(unverified_players) > 1:
             await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} One or more of your teammates haven't verified on the discord server yet. Reapply once it's done.\n(Aap verified ho aapke teammates nahi hai)")
             await response.add_reaction("❌")
-            raise EnrollmentError(60)
+            raise EnrollmentError(90,text= f"Your teammates {','.join(unverified_players)} haven't yet claimed the “Verified” role on discord. Ask them to wait until there website verification is complete/share the details via <#{constants.TICKET_CHANNEL_ID}>.\nAtleast 4 players from your team need to have verified role to create a team.")
           
         # All validation checks passed
         await response.add_reaction("✅")
@@ -1951,6 +2016,9 @@ async def delete_team_from_sheet(user_id, spreadsheet_id,ctx = None):
                 spreadsheetId=spreadsheet_id,
                 body=request_body
             ).execute()
+
+            if not user_id == row[0]:
+                await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"Hey <@{row[0]}> some of your teammate just deleted/updated your team. This is just an alert message(no need to worry) as the team was created by you.")
 
             print(f"Team data deleted successfully.\n{row}")
             if ctx:
@@ -2313,7 +2381,7 @@ async def assign_team_to_lobby(user, lobby_number):
     if lobby_role and lobby_channel:
         await user.add_roles(lobby_role)
 
-async def send_slots_list(team_names, lobby_number, lobby_channel):
+async def send_slots_list(team_names, lobby_number, lobby_channel,edit_slots_list=  False):
     # Prepare the slots list message
     slots_list_message = "```yaml\n"
     
@@ -2334,9 +2402,22 @@ async def send_slots_list(team_names, lobby_number, lobby_channel):
     # Close the code block and send the slots list message to the lobby channel
     slots_list_message += f"```\n1. Make sure to checkout your lobbies schedule from the \"Tier-3 Schedule\" button in <#{constants.INFO_CHANNEL_ID}>.\n2. Be available on time and participate in all matches with minimum 3 players in lobbies to avoid a ban.\n3. You'll be kicked from the room in case IGN's dont have a same pattern of characters as prefix/suffix.\n4. If there is an issue with changing IGN's (In Game Name), you can participate from a new id but have to ensure that raw pov is available.\n5. Use the button beneath in case you wanna transfer lobby role to teammate, it will be removed from you btw."
     embed = discord.Embed(title=f"GROUP {lobby_number} SLOTS LIST:", description=slots_list_message,color=0x229db7)
+
+    if edit_slots_list:
+        with open('lobby_details.json', 'r') as f:
+            lobby_details_json = json.load(f)
+
+        if lobby_details_json:
+            try:
+                message = await bot.get_channel(lobby_details_json[lobby_number][1]).fetch_message(lobby_details_json[lobby_number][0])
+            except Exception as e:
+                print(f"Got Exception {e} while fetchin' slot list message.")
+            await message.edit(embed=embed,view=IdpChannelTasksView())
+            return
+
     message = await lobby_channel.send(embed=embed)
     try:
-        await message.edit(view=TransferIDPView())
+        await message.edit(view=IdpChannelTasksView())
     except Exception as e:
         print(e)
     constants.temp_json_dict[lobby_number] = [message.id,lobby_channel.id]
