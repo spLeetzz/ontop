@@ -1970,7 +1970,7 @@ async def validate_enrollment(user, team_name, player_igns, thread):
                 await response.add_reaction("❌")
                 raise EnrollmentError(60)
             
-        if (len(player) == 5 and len(unverified_players) > 1) or (len(player) == 4 and len(unverified_players) >= 1):
+        if (len(players) == 5 and len(unverified_players) > 1) or (len(players) == 4 and len(unverified_players) >= 1):
             await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} One or more of your teammates haven't verified on the discord server yet. Reapply once it's done.\n(Aap verified ho aapke teammates nahi hai)")
             await response.add_reaction("❌")
             raise EnrollmentError(90,text= f"Your teammates {','.join(unverified_players)} haven't yet claimed the “Verified” role on discord. Ask them to wait until there website verification is complete/share the details via <#{constants.TICKET_CHANNEL_ID}>.\nAtleast 4 players from your team need to have verified role to create a team.")
