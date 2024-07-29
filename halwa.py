@@ -603,7 +603,7 @@ class AddTeamButton(discord.ui.Button):
 
     async def callback(self, interaction: discord.Interaction):
 
-        if interaction.user.guild_permissions.manage_roles:
+        if any(role.name in constants.roles_for_purge_perm for role in interaction.user.roles):
 
             await interaction.response.send_message(f"on itt...",ephemeral=True,delete_after=3)
             try:
@@ -614,14 +614,14 @@ class AddTeamButton(discord.ui.Button):
                     f"{interaction.user.mention} let me know the team's name."
                 )
 
-                member_associated = await get_user_response_in_thread(
+                id_of_member_associated = await get_user_response_in_thread(
                     interaction.user,
                     mod_channel,
                     f"{interaction.user.mention} mention the user you wanna add.",return_first_mention=True
                 )
                 
                 # New team to add
-                new_team = {team_name: member_associated}
+                new_team = {team_name: id_of_member_associated}
 
                 # Extract the channel number from the matching channel name
                 channel_number = interaction.channel.name.split('-')[1]
@@ -640,6 +640,9 @@ class AddTeamButton(discord.ui.Button):
                         await send_slots_list(team_names, channel_number, interaction.channel,edit_slots_list= True)
                     except Exception as e:
                         print(f"Got Exception: {e}")
+                        
+                role = discord.utils.get(bot.get_guild(constants.GUILD_ID).roles, name= f"Group {channel_number} IDP")
+                await interaction.guild.get_member(id_of_member_associated).add_roles(role)
                 await mod_channel.send("Done babu")
 
             except asyncio.TimeoutError:
@@ -1154,6 +1157,52 @@ async def clear_lb(ctx):
 
 @clear_lb.error
 async def clear_lb(ctx, error):
+    if isinstance(error, commands.MissingPermissions):
+        missing_perms = ', '.join(error.missing_permissions)
+        await ctx.send(f"You don't have the required permissions to use this command: {missing_perms}")
+    else:
+        await ctx.send(f"An error occurred: {error}")
+
+@bot.hybrid_command(name="clear_amateur", description="**Clear Amateur lobby Channels and role**")
+@commands.has_any_role(*constants.roles_for_purge_perm)
+@commands.has_permissions(view_audit_log=True, manage_roles=True)
+async def clear_amateur(ctx):
+    await ctx.send("kr rha thoda wait krna ..")
+
+    role_names = ["Amateur IDP 1", "Amateur IDP 2"]
+    channel_names = [
+        "amateur-updates",
+        "amateur-slotlist",
+        "amateur-idp1",
+        "amateur-idp2",
+        "amateur-queries",
+    ]
+
+    try:
+        # Remove roles from members
+        for role_name in role_names:
+            role = discord.utils.get(ctx.guild.roles, name=role_name)
+            if role:
+                for member in role.members:
+                    await member.remove_roles(role)
+                    print(f"Removed {role_name} role from {member}")
+
+        # Purge messages from channels
+        for channel_name in channel_names:
+            channel = discord.utils.get(ctx.guild.channels, name=channel_name)
+            if channel:
+                await channel.purge(limit=500, reason=f"amateur clearup by {ctx}", before=ctx.interaction.created_at)
+                print(f"Purged messages from {channel_name}")
+
+    except discord.Forbidden:
+        await ctx.send("I do not have permission to manage roles or channels.")
+    except discord.HTTPException as e:
+        await ctx.send(f"An HTTP error occurred: {e}")    
+    except Exception as e:
+        await ctx.send(f"An error occurred: {e}")
+
+@clear_amateur.error
+async def clear_amateur(ctx, error):
     if isinstance(error, commands.MissingPermissions):
         missing_perms = ', '.join(error.missing_permissions)
         await ctx.send(f"You don't have the required permissions to use this command: {missing_perms}")
