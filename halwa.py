@@ -1194,6 +1194,8 @@ async def clear_amateur(ctx):
                 await channel.purge(limit=500, reason=f"amateur clearup by {ctx}", before=ctx.interaction.created_at)
                 print(f"Purged messages from {channel_name}")
 
+        await ctx.send("Amateur Lobby channels (last 24 hrs) and roles are cleared now.")
+
     except discord.Forbidden:
         await ctx.send("I do not have permission to manage roles or channels.")
     except discord.HTTPException as e:
