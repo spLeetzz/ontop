@@ -830,8 +830,8 @@ async def on_ready():
 
     print(f"Set bro.")
 
-    start_auto.start()
-    clear_lb_auto.start()
+    # start_auto.start()
+    # clear_lb_auto.start()
 
 @bot.event
 async def on_guild_join(guild):
@@ -1038,7 +1038,7 @@ async def show_limits(ctx):
     await ctx.send(f"Current slots limit: {constants.SLOTS_LIMIT}\nCurrent lobby size: {constants.LOBBY_SIZE}")
 
 @bot.hybrid_command(name="delete_from_sheet",description="**SENSITIVE, this team's data can be lost forever from our end.")
-@commands.has_any_role('++D', 'Sr. Staff','Admin','.','Staff',"Mahatma")
+@commands.has_any_role('++D','Admin','.',"Mahatma")
 async def delete_from_sheet(ctx,member: discord.User):
     try:
         row = await delete_team_from_sheet(member.id,constants.GOOGLE_SHEET_ID,ctx=ctx)
