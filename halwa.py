@@ -830,8 +830,8 @@ async def on_ready():
 
     print(f"Set bro.")
 
-    # start_auto.start()
-    # clear_lb_auto.start()
+    start_auto.start()
+    clear_lb_auto.start()
 
 @bot.event
 async def on_guild_join(guild):
@@ -1422,7 +1422,7 @@ async def amr_one(interaction: discord.Interaction, team_name : str):
 
             role = discord.utils.get(bot.get_guild(constants.GUILD_ID).roles, name= f"Group {channel_number} IDP")
 
-            await interaction.channel.send(f"{role.mention} Results have been updated in <#{constants.RESULTS_CHANNEL_ID}>\n\n{team_name} -> <@{user_id}>\n\nQualified for Amateur Scrims.")
+            await interaction.channel.send(f"{role.mention}\nResults have been updated in <#{constants.RESULTS_CHANNEL_ID}>\n\n{team_name} -> <@{user_id}>\n\nQualified for Amateur Scrims.")
 
             team_name = await validate_registration(user="None", check_cooldown = False,check_left_server = False,user_idd=user_id)
             if team_name in constants.cd_team_list:
@@ -1478,7 +1478,7 @@ async def amr_two(interaction: discord.Interaction, team_name : str):
 
             role = discord.utils.get(bot.get_guild(constants.GUILD_ID).roles, name= f"Group {channel_number} IDP")
 
-            await interaction.channel.send(f"{role.mention} Results have been updated in <#{constants.RESULTS_CHANNEL_ID}>\n\n{team_name} -> <@{user_id}>\n\nQualified for Amateur Scrims.")
+            await interaction.channel.send(f"{role.mention}\nResults have been updated in <#{constants.RESULTS_CHANNEL_ID}>\n\n{team_name} -> <@{user_id}>\n\nQualified for Amateur Scrims.")
 
             team_name = await validate_registration(user="None", check_cooldown = False,check_left_server = False,user_idd=user_id)
             if team_name in constants.cd_team_list:
