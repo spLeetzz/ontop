@@ -19,15 +19,15 @@ HOW_TO_PLAY_CHANNEL_ID = 1259394375880802434
 RESULTS_CHANNEL_ID = 1188850520803262565
 
 # Other constants
-SLOTS_LIMIT = 108
-LOBBY_SIZE = 18
+SLOTS_LIMIT = 120
+LOBBY_SIZE = 20
 REQUIRED_ROLE_NAME = "T3 verified"
 GUILD_ID = 1187405344226426930
 COOLDOWN_ROLE_ID = 1252301248254709770
 BANNED_ROLE_ID = 1252301654557196360
 ENROLLMENT_MESSAGE_ID = 1257508668316848158
 PREFERENCE_MESSAGE_ID = None
-REG_MESSAGE_ID = 1257496468143607952
+REG_MESSAGE_ID = 1269813332357939252
 SCRIMS_INFO_MESSAGE_ID = 1264732866953347224
 FAQ_MESSAGE_ID = 1260069527538896997
 
@@ -70,6 +70,34 @@ stary_emote = "<a:_:1188860052187119707>"
 roles_for_purge_perm = ['Admin','++D']
 idp_role_names = [f"Group {x} IDP" for x in range(1,int(SLOTS_LIMIT // LOBBY_SIZE) + 1)]
 channel_names = [f"group-{x}-idp" for x in range(1,int(SLOTS_LIMIT // LOBBY_SIZE) + 1)]
+inner_loop_counter = 0
+match_schedule = {
+    1: {
+        1: {"idt": "3:00 PM", "st": "3:05 PM"},
+        2: {"idt": "4:00 PM", "st": "4:05 PM"}
+    },
+    2: {
+        1: {"idt": "3:10 PM", "st": "3:15 PM"},
+        2: {"idt": "4:10 PM", "st": "4:15 PM"}
+    },
+    3: {
+        1: {"idt": "3:20 PM", "st": "3:25 PM"},
+        2: {"idt": "4:20 PM", "st": "4:25 PM"}
+    },
+    4: {
+        1: {"idt": "3:30 PM", "st": "3:35 PM"},
+        2: {"idt": "4:30 PM", "st": "4:35 PM"}
+    },
+    5: {
+        1: {"idt": "3:40 PM", "st": "3:45 PM"},
+        2: {"idt": "4:40 PM", "st": "4:45 PM"}
+    },
+    6: {
+        1: {"idt": "3:50 PM", "st": "3:55 PM"},
+        2: {"idt": "4:50 PM", "st": "4:55 PM"}
+    }
+}
+
 
 # # for i ama naive server
 
@@ -139,3 +167,30 @@ channel_names = [f"group-{x}-idp" for x in range(1,int(SLOTS_LIMIT // LOBBY_SIZE
 # days_to_run = {1, 2, 3, 4, 5}  # 1: Tuesday, 2: Wednesday, 3: Thursday, 4: Friday, 5: Saturday
 # idp_role_names = [f"Group {x} IDP" for x in range(1,int(SLOTS_LIMIT // LOBBY_SIZE))]
 # channel_names = [f"group-{x}-idp" for x in range(1,int(SLOTS_LIMIT // LOBBY_SIZE) + 1)]
+# inner_loop_counter = 0
+# match_schedule = {
+#     1: {
+#         1: {"idt": "3:00 PM", "st": "3:05 PM"},
+#         2: {"idt": "4:00 PM", "st": "4:05 PM"}
+#     },
+#     2: {
+#         1: {"idt": "3:10 PM", "st": "3:15 PM"},
+#         2: {"idt": "4:10 PM", "st": "4:15 PM"}
+#     },
+#     3: {
+#         1: {"idt": "3:20 PM", "st": "3:25 PM"},
+#         2: {"idt": "4:20 PM", "st": "4:25 PM"}
+#     },
+#     4: {
+#         1: {"idt": "3:30 PM", "st": "3:35 PM"},
+#         2: {"idt": "4:30 PM", "st": "4:35 PM"}
+#     },
+#     5: {
+#         1: {"idt": "3:40 PM", "st": "3:45 PM"},
+#         2: {"idt": "4:40 PM", "st": "4:45 PM"}
+#     },
+#     6: {
+#         1: {"idt": "3:50 PM", "st": "3:55 PM"},
+#         2: {"idt": "4:50 PM", "st": "4:55 PM"}
+#     }
+# }

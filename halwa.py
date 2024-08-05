@@ -141,7 +141,7 @@ async def send_pref_menu(channel):
     return message
 
 async def send_remenu(channel):
-    embed = discord.Embed(title="BookMySlot", description=f"*Hey Wanderer, can I lurk on you :>*\n\n**OPENS AT 12 PM TUE-SAT**\n\n1. Make sure that you have completed the enrollment of your team from this channel <#{constants.ENROLLMENT_CHANNEL_ID}>\n2. Please book a slot only if you wanna participate in the scrims, there wont be any slot cancellation/reassignment later on.\n3. Fastest ones to register in any lobby will be allocated with the slots.\n4. You need to pass in a simple Captcha test for registration, practice it anytime with 'PRACTICE REG' button.", color=0x229db7)
+    embed = discord.Embed(title="BookMySlot", description=f"*Hey Wanderer, can I lurk on you :>*\n\n**OPENS AT 12 PM TUE-SAT**\n\n1. Make sure that you have completed the enrollment of your team from this channel <#{constants.ENROLLMENT_CHANNEL_ID}>\n2. Please book a slot only if you wanna participate in the scrims, there wont be any slot cancellation/reassignment later on.\n3. Fastest ones to register in any lobby will be allocated with the slots.\n4. You need to pass in a simple Captcha test for registration, have a look at it anytime with 'TRIAL REG' button.", color=0x229db7)
     # 2. One team can participate once in a week, cooldowns refresh every Tuesday.
     view = RegistrationView()  
     message = await channel.send(embed=embed, view=view)
@@ -367,7 +367,7 @@ Please follow these steps to record your Point of View (POV) while playing BGMI:
 
 class PracticeRegistrationButton(discord.ui.Button):
     def __init__(self):
-        super().__init__(label=f'PRACTICE REG', style=discord.ButtonStyle.primary,emoji=constants.practice_emoteid,row=1)
+        super().__init__(label=f'TRIAL REG', style=discord.ButtonStyle.primary,emoji=constants.practice_emoteid,row=1)
 
     async def callback(self, interaction: discord.Interaction):
         team_name = await validate_registration(interaction.user)
@@ -512,9 +512,12 @@ class TransferIDPButton(discord.ui.Button):
         if len(matching_roles) == 1:
             try:
                 result = await isAlreadyEnrolled(interaction.user.id,used2returnrowwithmessage=True,ctx_is_in_team=True)
-                await interaction.response.send_message(f"{result[0]}\nSelect player in the dropdown below whom you wanna transfer this IDP role to.",view=PlayerSelectView(row = result[1],role = matching_roles[0]),ephemeral=True,delete_after=120)
+                if result:
+                    await interaction.response.send_message(f"{result[0]}\nSelect player in the dropdown below whom you wanna transfer this IDP role to.",view=PlayerSelectView(row = result[1],role = matching_roles[0]),ephemeral=True,delete_after=120)
+                else:
+                    await interaction.response.send_message(f"Unable to retrieve any team associated with you, did you deleted it?",ephemeral=True,delete_after=40)
             except Exception as e:
-                await interaction.response.send_message(f"Got an Error: {e}")
+                print(e)
 
         elif len(matching_roles) == 0:
             await interaction.response.send_message(f"You dont Got any role that can be transferred:.",ephemeral=True,delete_after=40)
@@ -681,8 +684,6 @@ async def on_ready():
 
     await bot.tree.sync()  # For both text and slash commands
 
-    await asyncio.sleep(2)
-
     if constants.ENROLLMENT_MESSAGE_ID and bot.get_channel(constants.ENROLLMENT_CHANNEL_ID):
         try:
             # Fetch the message
@@ -828,10 +829,11 @@ async def on_ready():
             except Exception as e:
                 print(f"Got Exception {e} when delaing with lobby json file")
 
-    print(f"Set bro.")
-
     start_auto.start()
     clear_lb_auto.start()
+    idploop.start()
+    
+    print(f"Set bro.")
 
 @bot.event
 async def on_guild_join(guild):
@@ -1569,6 +1571,164 @@ async def clear_lb_auto():
 
         await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"*CLEARED LOBBIES!*")
 
+idt1 = datetime.time(hour=2, minute=56, tzinfo=local_tz)
+@tasks.loop(time=idt1)
+async def idploop():
+
+    today = datetime.datetime.now(local_tz).weekday()
+    if today in constants.days_to_run:
+        try:
+            # Start the inner loop to run every 10 minutes after the initial execution
+            inner_loop1.start()
+            await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"hey")
+
+        except Exception as e:
+            await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"Exception aayi: {e}")
+            print(f"Exception aayi: {e}")
+
+@tasks.loop(minutes=10)
+async def inner_loop1():
+    
+    try:
+        constants.inner_loop_counter += 1
+
+        lobby_number = int(constants.inner_loop_counter) % 6
+
+        print(lobby_number)
+        role_id = discord.utils.get(bot.get_guild(constants.GUILD_ID).roles, name= f"Group {lobby_number} IDP")
+        idchannel = discord.utils.get(bot.get_guild(constants.GUILD_ID).channels, name=f"group-{lobby_number}-idp")
+
+        await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"Please enter Match {lobby_number} ID.")
+        
+        response = await bot.wait_for(
+    'message',
+    check=lambda msg: (any(role.name in constants.roles_for_purge_perm for role in msg.author.roles) and msg.channel.id == constants.UPDATES_CHANNEL_ID and msg.content.isdigit()) and msg.author.id != bot.user.id,
+    timeout=450
+)
+        
+        if response.content.strip():  # Check if the response is not empty after stripping whitespace
+            # Process the response if needed
+            current_time = datetime.datetime.now(local_tz)
+            match_times = constants.match_schedule[lobby_number][1]
+            start_time_str = match_times['st']
+            id_time_str = match_times['idt']
+            start_time = datetime.datetime.strptime(start_time_str, "%I:%M %p").replace(tzinfo=local_tz)
+            id_time = datetime.datetime.strptime(id_time_str, "%I:%M %p").replace(tzinfo=local_tz)
+            if current_time.time() >= id_time.time():
+                final_start_time = start_time
+            else:
+                final_start_time = (current_time + datetime.timedelta(minutes=5)).time()
+            await idchannel.send(f"""TRIDENT ESPORTS TIER 3 SCRIMS 
+
+MATCH - 01
+MAP- ERANGLE
+
+ID - {response.content}
+PASS - TG{lobby_number}{lobby_number}{lobby_number}
+START - {final_start_time.strftime('%I:%M %p')}
+ 
+TEAMS ARE REQUESTED TO JOIN 2 MINS PRIOR TO THE START TIME
+
+Rules Strictly To Be Followed:-
+
+1. Sit according to the allotted slots!
+2. Pov recording is mandatory for all players. We may request 'Raw Pov' at any time.
+3. Emergency pickups are strictly prohibited.
+4. Missing a single match will result in a team ban.""")
+            
+        await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"IDP SENT BORO, START TIME SHALL BE {final_start_time.strftime('%I:%M %p')} {response.author.mention}")
+
+    except Exception as e:
+        await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"Exception aayi: {e}")
+        print(f"Exception aayi: {e}")
+
+idt2 = datetime.time(hour=3, minute=56, tzinfo=local_tz)
+@tasks.loop(time=idt2)
+async def idploop():
+
+    today = datetime.datetime.now(local_tz).weekday()
+    if today in constants.days_to_run:
+        try:
+            inner_loop1.stop()
+            constants.inner_loop_counter = 0
+            # Start the inner loop to run every 10 minutes after the initial execution
+            inner_loop2.start()
+            await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"hey")
+
+        except Exception as e:
+            await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"Exception aayi: {e}")
+            print(f"Exception aayi: {e}")
+
+@tasks.loop(minutes=10)
+async def inner_loop2():
+    try:
+        constants.inner_loop_counter += 1
+
+        lobby_number = int(constants.inner_loop_counter) % 6
+
+        print(lobby_number)
+        role_id = discord.utils.get(bot.get_guild(constants.GUILD_ID).roles, name= f"Group {lobby_number} IDP")
+        idchannel = discord.utils.get(bot.get_guild(constants.GUILD_ID).channels, name=f"group-{lobby_number}-idp")
+
+        await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"Please enter Match {lobby_number} ID.")
+        
+        response = await bot.wait_for(
+    'message',
+    check=lambda msg: (any(role.name in constants.roles_for_purge_perm for role in msg.author.roles) and msg.channel.id == constants.UPDATES_CHANNEL_ID and msg.content.isdigit()) and msg.author.id != bot.user.id,
+    timeout=450
+)
+        
+        if response.content.strip():  # Check if the response is not empty after stripping whitespace
+            # Process the response if needed
+            current_time = datetime.datetime.now(local_tz)
+            match_times = constants.match_schedule[lobby_number][2]
+            start_time_str = match_times['st']
+            id_time_str = match_times['idt']
+            start_time = datetime.datetime.strptime(start_time_str, "%I:%M %p").replace(tzinfo=local_tz)
+            id_time = datetime.datetime.strptime(id_time_str, "%I:%M %p").replace(tzinfo=local_tz)
+            if current_time.time() >= id_time.time():
+                final_start_time = start_time
+            else:
+                final_start_time = (current_time + datetime.timedelta(minutes=5)).time()
+            await idchannel.send(f"""TRIDENT ESPORTS TIER 3 SCRIMS 
+
+MATCH - 02
+MAP- MIRAMAR
+
+ID - {response.content}
+PASS - TG{lobby_number}{lobby_number}{lobby_number}
+START - {final_start_time.strftime('%I:%M %p')}
+ 
+TEAMS ARE REQUESTED TO JOIN 2 MINS PRIOR TO THE START TIME
+
+Rules Strictly To Be Followed:-
+
+1. Sit according to the allotted slots!
+2. Pov recording is mandatory for all players. We may request 'Raw Pov' at any time.
+3. Emergency pickups are strictly prohibited.
+4. Missing a single match will result in a team ban.""")
+            
+        await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"IDP SENT BORO, START TIME SHALL BE {final_start_time.strftime('%I:%M %p')} {response.author.mention}")
+
+    except Exception as e:
+        await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"Exception aayi: {e}")
+        print(f"Exception aayi: {e}")
+
+idtloopstop = datetime.time(hour=4, minute=56, tzinfo=local_tz)
+@tasks.loop(time=idt2)
+async def idploop():
+
+    today = datetime.datetime.now(local_tz).weekday()
+    if today in constants.days_to_run:
+        try:
+            inner_loop2.stop()
+            constants.inner_loop_counter = 0
+            await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"done for the day")
+
+        except Exception as e:
+            await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"Exception aayi: {e}")
+            print(f"Exception aayi: {e}")
+
 # @bot.event
 # async def on_message(message):
 #     # Check if the message is in the desired channel
@@ -1695,7 +1855,8 @@ async def enrollTeam(user,interaction):
         player_igns = []
         for i in range(1, 5):
             if i == 1:
-                player_ign = await get_user_response_in_thread(user, thread, f"Please enter Player {i}'s IGN:\n(IGN matlab BGMI wala In Game Name)")
+                embed = discord.Embed(description="All players' in-game names (IGN) must include a team acronym as prefix/suffix (SAME NAME TAG). Players without this will not be allowed in the lobby.", color=0x229db7)  
+                player_ign = await get_user_response_in_thread(user, thread, f"Please enter Player {i}'s IGN:",embed=embed)
                 player_igns.append(player_ign)
                 continue
             
