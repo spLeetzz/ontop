@@ -480,7 +480,7 @@ class bitsInfoButton(discord.ui.Button):
 
 class bitsMoreInfoButton(discord.ui.Button):
     def __init__(self):
-        super().__init__(label=f"Time Taken for Verification", row = 2,style=discord.ButtonStyle.primary)
+        super().__init__(label=f"Time Taken for Verification", row = 1,style=discord.ButtonStyle.primary)
 
     async def callback(self, interaction: discord.Interaction):
         await interaction.response.send_message(f"Website Verification is a manual process and may take upto 7-14 days, you need to wait until its done.",ephemeral=True,delete_after=30)
@@ -498,9 +498,9 @@ class FaqView(discord.ui.View):
         self.add_item(ExampleSsButton())
         self.add_item(CheckVerificationButton())
         self.add_item(bitInfoButton())
-        self.add_item(bitsInfoButton())
+        # self.add_item(bitsInfoButton())
         self.add_item(bitsMoreInfoButton())
-        self.add_item(bitFewInfoButton())
+        # self.add_item(bitFewInfoButton())
 
 class TransferIDPButton(discord.ui.Button):
     def __init__(self):
