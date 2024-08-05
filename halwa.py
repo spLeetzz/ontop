@@ -1715,7 +1715,7 @@ Rules Strictly To Be Followed:-
         print(f"Exception aayi: {e}")
 
 idtloopstop = datetime.time(hour=4, minute=56, tzinfo=local_tz)
-@tasks.loop(time=idt2)
+@tasks.loop(time=idtloopstop)
 async def idploop():
 
     today = datetime.datetime.now(local_tz).weekday()
