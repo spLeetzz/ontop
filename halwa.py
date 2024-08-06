@@ -832,6 +832,8 @@ async def on_ready():
     start_auto.start()
     clear_lb_auto.start()
     idploop.start()
+    idploop2.start()
+    idploop3.start()
     
     print(f"Set bro.")
 
@@ -1571,7 +1573,7 @@ async def clear_lb_auto():
 
         await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"*CLEARED LOBBIES!*")
 
-idt1 = datetime.time(hour=2, minute=56, tzinfo=local_tz)
+idt1 = datetime.time(hour=14, minute=56, tzinfo=local_tz)
 @tasks.loop(time=idt1)
 async def idploop():
 
@@ -1593,6 +1595,8 @@ async def inner_loop1():
         constants.inner_loop_counter += 1
 
         lobby_number = int(constants.inner_loop_counter) % 6
+        if lobby_number == 0:
+            lobby_number = 6
 
         print(lobby_number)
         role_id = discord.utils.get(bot.get_guild(constants.GUILD_ID).roles, name= f"Group {lobby_number} IDP")
@@ -1638,13 +1642,16 @@ Rules Strictly To Be Followed:-
             
         await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"IDP SENT BORO, START TIME SHALL BE {final_start_time.strftime('%I:%M %p')} {response.author.mention}")
 
+    except asyncio.TimeoutError:
+        pass
+
     except Exception as e:
         await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"Exception aayi: {e}")
         print(f"Exception aayi: {e}")
 
-idt2 = datetime.time(hour=3, minute=56, tzinfo=local_tz)
+idt2 = datetime.time(hour=15, minute=56, tzinfo=local_tz)
 @tasks.loop(time=idt2)
-async def idploop():
+async def idploop2():
 
     today = datetime.datetime.now(local_tz).weekday()
     if today in constants.days_to_run:
@@ -1665,6 +1672,8 @@ async def inner_loop2():
         constants.inner_loop_counter += 1
 
         lobby_number = int(constants.inner_loop_counter) % 6
+        if lobby_number == 0:
+            lobby_number = 6
 
         print(lobby_number)
         role_id = discord.utils.get(bot.get_guild(constants.GUILD_ID).roles, name= f"Group {lobby_number} IDP")
@@ -1710,13 +1719,16 @@ Rules Strictly To Be Followed:-
             
         await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"IDP SENT BORO, START TIME SHALL BE {final_start_time.strftime('%I:%M %p')} {response.author.mention}")
 
+    except asyncio.TimeoutError:
+        pass
+    
     except Exception as e:
         await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"Exception aayi: {e}")
         print(f"Exception aayi: {e}")
 
-idtloopstop = datetime.time(hour=4, minute=56, tzinfo=local_tz)
+idtloopstop = datetime.time(hour=16, minute=56, tzinfo=local_tz)
 @tasks.loop(time=idtloopstop)
-async def idploop():
+async def idploop3():
 
     today = datetime.datetime.now(local_tz).weekday()
     if today in constants.days_to_run:
