@@ -1573,7 +1573,7 @@ async def clear_lb_auto():
 
         await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"*CLEARED LOBBIES!*")
 
-idt1 = datetime.time(hour=14, minute=56, tzinfo=local_tz)
+idt1 = datetime.time(hour=15, minute=56, tzinfo=local_tz)
 @tasks.loop(time=idt1)
 async def idploop():
 
@@ -1649,7 +1649,7 @@ Rules Strictly To Be Followed:-
         await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"Exception aayi: {e}")
         print(f"Exception aayi: {e}")
 
-idt2 = datetime.time(hour=15, minute=56, tzinfo=local_tz)
+idt2 = datetime.time(hour=16, minute=56, tzinfo=local_tz)
 @tasks.loop(time=idt2)
 async def idploop2():
 
@@ -1726,7 +1726,7 @@ Rules Strictly To Be Followed:-
         await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"Exception aayi: {e}")
         print(f"Exception aayi: {e}")
 
-idtloopstop = datetime.time(hour=16, minute=56, tzinfo=local_tz)
+idtloopstop = datetime.time(hour=17, minute=56, tzinfo=local_tz)
 @tasks.loop(time=idtloopstop)
 async def idploop3():
 
