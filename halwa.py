@@ -1604,9 +1604,16 @@ async def inner_loop1():
 
         await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"Please enter Match {lobby_number} ID.")
         
+        def check(msg):
+            if msg.channel.id == constants.UPDATES_CHANNEL_ID and msg.content.isdigit() and msg.author.id != bot.user.id:
+                member = bot.get_guild(constants.GUILD_ID).get_member(msg.author.id)
+                if member and any(role.name in constants.roles_for_purge_perm for role in member.roles):
+                    return True
+            return False
+        
         response = await bot.wait_for(
     'message',
-    check=lambda msg: (any(role.name in constants.roles_for_purge_perm for role in msg.author.roles) and msg.channel.id == constants.UPDATES_CHANNEL_ID and msg.content.isdigit()) and msg.author.id != bot.user.id,
+    check=check,
     timeout=450
 )
         
@@ -1681,9 +1688,16 @@ async def inner_loop2():
 
         await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"Please enter Match {lobby_number} ID.")
         
+        def check(msg):
+            if msg.channel.id == constants.UPDATES_CHANNEL_ID and msg.content.isdigit() and msg.author.id != bot.user.id:
+                member = bot.get_guild(constants.GUILD_ID).get_member(msg.author.id)
+                if member and any(role.name in constants.roles_for_purge_perm for role in member.roles):
+                    return True
+            return False
+        
         response = await bot.wait_for(
     'message',
-    check=lambda msg: (any(role.name in constants.roles_for_purge_perm for role in msg.author.roles) and msg.channel.id == constants.UPDATES_CHANNEL_ID and msg.content.isdigit()) and msg.author.id != bot.user.id,
+    check=check,
     timeout=450
 )
         
