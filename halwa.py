@@ -1573,7 +1573,7 @@ async def clear_lb_auto():
 
         await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"*CLEARED LOBBIES!*")
 
-idt1 = datetime.time(hour=15, minute=56, tzinfo=local_tz)
+idt1 = datetime.time(hour=14, minute=56, tzinfo=local_tz)
 @tasks.loop(time=idt1)
 async def idploop():
 
@@ -1599,7 +1599,7 @@ async def inner_loop1():
             lobby_number = 6
 
         print(lobby_number)
-        role_id = discord.utils.get(bot.get_guild(constants.GUILD_ID).roles, name= f"Group {lobby_number} IDP")
+        role = discord.utils.get(bot.get_guild(constants.GUILD_ID).roles, name= f"Group {lobby_number} IDP")
         idchannel = discord.utils.get(bot.get_guild(constants.GUILD_ID).channels, name=f"group-{lobby_number}-idp")
 
         await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"Please enter Match {lobby_number} ID.")
@@ -1614,7 +1614,7 @@ async def inner_loop1():
         response = await bot.wait_for(
     'message',
     check=check,
-    timeout=450
+    timeout=390
 )
         
         if response.content.strip():  # Check if the response is not empty after stripping whitespace
@@ -1630,6 +1630,7 @@ async def inner_loop1():
             else:
                 final_start_time = (current_time + datetime.timedelta(minutes=5)).time()
             await idchannel.send(f"""TRIDENT ESPORTS TIER 3 SCRIMS 
+{role.mention}
 
 MATCH - 01
 MAP- ERANGLE
@@ -1656,7 +1657,7 @@ Rules Strictly To Be Followed:-
         await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"Exception aayi: {e}")
         print(f"Exception aayi: {e}")
 
-idt2 = datetime.time(hour=16, minute=56, tzinfo=local_tz)
+idt2 = datetime.time(hour=15, minute=56, tzinfo=local_tz)
 @tasks.loop(time=idt2)
 async def idploop2():
 
@@ -1683,7 +1684,7 @@ async def inner_loop2():
             lobby_number = 6
 
         print(lobby_number)
-        role_id = discord.utils.get(bot.get_guild(constants.GUILD_ID).roles, name= f"Group {lobby_number} IDP")
+        role = discord.utils.get(bot.get_guild(constants.GUILD_ID).roles, name= f"Group {lobby_number} IDP")
         idchannel = discord.utils.get(bot.get_guild(constants.GUILD_ID).channels, name=f"group-{lobby_number}-idp")
 
         await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"Please enter Match {lobby_number} ID.")
@@ -1698,7 +1699,7 @@ async def inner_loop2():
         response = await bot.wait_for(
     'message',
     check=check,
-    timeout=450
+    timeout=390
 )
         
         if response.content.strip():  # Check if the response is not empty after stripping whitespace
@@ -1714,7 +1715,8 @@ async def inner_loop2():
             else:
                 final_start_time = (current_time + datetime.timedelta(minutes=5)).time()
             await idchannel.send(f"""TRIDENT ESPORTS TIER 3 SCRIMS 
-
+{role.mention}
+                                 
 MATCH - 02
 MAP- MIRAMAR
 
@@ -1740,7 +1742,7 @@ Rules Strictly To Be Followed:-
         await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"Exception aayi: {e}")
         print(f"Exception aayi: {e}")
 
-idtloopstop = datetime.time(hour=17, minute=56, tzinfo=local_tz)
+idtloopstop = datetime.time(hour=16, minute=56, tzinfo=local_tz)
 @tasks.loop(time=idtloopstop)
 async def idploop3():
 
