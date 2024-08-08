@@ -1626,9 +1626,9 @@ async def inner_loop1():
             start_time = datetime.datetime.strptime(start_time_str, "%I:%M %p").replace(tzinfo=local_tz)
             id_time = datetime.datetime.strptime(id_time_str, "%I:%M %p").replace(tzinfo=local_tz)
             if current_time.time() >= id_time.time():
-                final_start_time = start_time
-            else:
                 final_start_time = (current_time + datetime.timedelta(minutes=5)).time()
+            else:
+                final_start_time = start_time
             await idchannel.send(f"""TRIDENT ESPORTS TIER 3 SCRIMS 
 {role.mention}
 
@@ -1657,7 +1657,7 @@ Rules Strictly To Be Followed:-
         await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"Exception aayi: {e}")
         print(f"Exception aayi: {e}")
 
-idt2 = datetime.time(hour=15, minute=56, tzinfo=local_tz)
+idt2 = datetime.time(hour=15, minute=54, tzinfo=local_tz)
 @tasks.loop(time=idt2)
 async def idploop2():
 
@@ -1665,6 +1665,7 @@ async def idploop2():
     if today in constants.days_to_run:
         try:
             inner_loop1.stop()
+            await asyncio.sleep(120)
             constants.inner_loop_counter = 0
             # Start the inner loop to run every 10 minutes after the initial execution
             inner_loop2.start()
@@ -1711,9 +1712,9 @@ async def inner_loop2():
             start_time = datetime.datetime.strptime(start_time_str, "%I:%M %p").replace(tzinfo=local_tz)
             id_time = datetime.datetime.strptime(id_time_str, "%I:%M %p").replace(tzinfo=local_tz)
             if current_time.time() >= id_time.time():
-                final_start_time = start_time
-            else:
                 final_start_time = (current_time + datetime.timedelta(minutes=5)).time()
+            else:
+                final_start_time = start_time
             await idchannel.send(f"""TRIDENT ESPORTS TIER 3 SCRIMS 
 {role.mention}
                                  
@@ -1742,7 +1743,7 @@ Rules Strictly To Be Followed:-
         await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"Exception aayi: {e}")
         print(f"Exception aayi: {e}")
 
-idtloopstop = datetime.time(hour=16, minute=56, tzinfo=local_tz)
+idtloopstop = datetime.time(hour=16, minute=54, tzinfo=local_tz)
 @tasks.loop(time=idtloopstop)
 async def idploop3():
 
