@@ -1664,7 +1664,7 @@ async def idploop2():
     today = datetime.datetime.now(local_tz).weekday()
     if today in constants.days_to_run:
         try:
-            inner_loop1.stop()
+            inner_loop1.cancel()
             await asyncio.sleep(120)
             constants.inner_loop_counter = 0
             # Start the inner loop to run every 10 minutes after the initial execution
@@ -1750,7 +1750,7 @@ async def idploop3():
     today = datetime.datetime.now(local_tz).weekday()
     if today in constants.days_to_run:
         try:
-            inner_loop2.stop()
+            inner_loop2.cancel()
             constants.inner_loop_counter = 0
             await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"done for the day")
 
