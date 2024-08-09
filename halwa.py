@@ -794,23 +794,27 @@ async def on_ready():
         message = await send_overview_menu(bot.get_channel(constants.INFO_CHANNEL_ID))
         constants.SCRIMS_INFO_MESSAGE_ID = message.id
 
-    if constants.FAQ_MESSAGE_ID and bot.get_channel(constants.HOW_TO_PLAY_CHANNEL_ID):
-        try:
-            # Fetch the message
-            message = await bot.get_channel(constants.HOW_TO_PLAY_CHANNEL_ID).fetch_message(constants.FAQ_MESSAGE_ID)
-        except discord.NotFound:
-            # If the message is not found, handle the case gracefully
-            message = None
+    # if constants.FAQ_MESSAGE_ID and bot.get_channel(constants.HOW_TO_PLAY_CHANNEL_ID):
+    #     try:
+    #         # Fetch the message
+    #         message = await bot.get_channel(constants.HOW_TO_PLAY_CHANNEL_ID).fetch_message(constants.FAQ_MESSAGE_ID)
+    #     except discord.NotFound:
+    #         # If the message is not found, handle the case gracefully
+    #         message = None
 
-        if message:
-            # Edit the existing message with the dropdown menu
-            await message.edit(view=FaqView())
+    #     if message:
+    #         # Edit the existing message with the dropdown menu
+    #         await message.edit(view=FaqView())
 
-        # Update the interaction message ID
-        constants.FAQ_MESSAGE_ID = message.id
+    #     # Update the interaction message ID
+    #     constants.FAQ_MESSAGE_ID = message.id
 
     with open('lobby_details.json', 'r') as f:
         lobby_details_json = json.load(f)
+
+#     await bot.get_channel(constants.HOW_TO_PLAY_CHANNEL_ID).send(f"""1. Get verified on [Trident Gaming](<https://tridentgaming.in/account>) after entering the required details. Verification is a manual process and may take around 1-2 weeks. (All 4 players of your team must be verified from your team in order to play)
+
+# *Aapko [Trident Gaming](<https://tridentgaming.in/account>) website pe jaakar aadhar and baaki details upload update krni hai apni profile me and apne saare teammates se bhi ye karwana hai, fir aapka profile "Under Verification" show hoga, ye "Verified" hone me 1-2 weeks lagege and apko wait krna rahega.*""")
 
 #     await bot.get_channel(constants.HOW_TO_PLAY_CHANNEL_ID).send(f"""2. Once you're verified, hover over to <#{constants.TICKET_CHANNEL_ID}> channel and select "T3 Verification" from the dropdown there, you'll be added to a private channel, send your aadhar card number and a screenshot showing that you are "Verified" on Trident website to claim your discord role. (All 4 players of your team have to claim role on discord by same procedure)
 
