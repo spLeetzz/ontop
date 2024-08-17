@@ -600,6 +600,37 @@ class TeamInfoButton(discord.ui.Button):
         else:
             await interaction.response.send_message(f"You can't use this command my bruhh.",ephemeral=True,delete_after=40)
 
+class CopyTeamNamesButton(discord.ui.Button):
+    def __init__(self):
+        super().__init__(label=f'Copy TeamNames', style=discord.ButtonStyle.grey)
+
+    async def callback(self, interaction: discord.Interaction):
+
+        if interaction.user.guild_permissions.manage_roles:
+
+            await interaction.response.send_message(f"on itt...",ephemeral=True,delete_after=1)
+
+            # Extract the channel number from the matching channel name
+            lobby_number = interaction.channel.name.split('-')[1]
+            lobby_number_int = int(lobby_number)
+            
+            if 1 <= lobby_number_int <= 6:
+                
+                temp_dict =  None
+
+                with open(f"lobby_{lobby_number}_teams.json", 'r') as f:
+                    temp_dict = json.load(f)
+
+                message = ""
+
+                for team_name, user_id in temp_dict.items():
+                    message += f"{team_name}\n"
+
+                await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(message)
+
+        else:
+            await interaction.response.send_message(f"You can't use this command my bruhh.",ephemeral=True,delete_after=40)
+
 class AddTeamButton(discord.ui.Button):
     def __init__(self):
         super().__init__(label=f'Add Team', style=discord.ButtonStyle.grey)
@@ -671,6 +702,7 @@ class ModToolsView(discord.ui.View):
         super().__init__(timeout=None)
         self.add_item(TeamInfoButton())
         self.add_item(AddTeamButton())
+        self.add_item(CopyTeamNamesButton())
 
 async def validate_captcha(captcha_phrase : str, sum1_answer : int, sum2_answer : int):
     # Placeholder for actual captcha validation logic
@@ -2675,7 +2707,7 @@ async def send_slots_list(team_names, lobby_number, lobby_channel,edit_slots_lis
         slots_list_message += f"{formatted_index}. EMPTY\n"
 
     # Close the code block and send the slots list message to the lobby channel
-    slots_list_message += f"```\n1. Make sure to checkout your lobbies schedule from the \"Tier-3 Schedule\" button in <#{constants.INFO_CHANNEL_ID}>.\n2. Be available on time and participate in all matches with minimum 3 players in lobbies to avoid a ban.\n3. You'll be kicked from the room in case IGN's dont have a same pattern of characters as prefix/suffix.\n4. If there is an issue with changing IGN's (In Game Name), you can participate from a new id but have to ensure that raw pov is available.\n5. Use the button beneath in case you wanna transfer lobby role to teammate, it will be removed from you btw."
+    slots_list_message += f"```\n1. Make sure to checkout your lobbies schedule from the \"Tier-3 Schedule\" button in <#{constants.INFO_CHANNEL_ID}>.\n2. Be available on time and participate in all matches with minimum 3 players in lobbies to avoid a ban.\n3. All players' in-game names (IGN) must include a team acronym (same name tag) as a prefix/suffix. Players without this will not be allowed and kicked from the lobby.\n4. If there is an issue with changing IGN's (In Game Name), you can participate from a new id but have to ensure that raw pov is available.\n5. Use the button beneath in case you wanna transfer lobby role to teammate, it will be removed from you btw."
     embed = discord.Embed(title=f"GROUP {lobby_number} SLOTS LIST:", description=slots_list_message,color=0x229db7)
 
     if edit_slots_list:
