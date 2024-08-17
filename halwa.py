@@ -334,17 +334,17 @@ class CaptchaModal(discord.ui.Modal):
                                 try:
                                     idp_channel = discord.utils.get(bot.get_guild(constants.GUILD_ID).channels, name=f"group-{lobby_number}-idp")
                                     await send_slots_list(team_names, lobby_number,idp_channel)
-                                    pov_message = """Hello Teams,
+#                                     pov_message = """Hello Teams,
 
-Please follow these steps to record your Point of View (POV) while playing BGMI:
-1. Before opening the BGMI app show the list of background running apps on your device
-2. Go to the PlayStore (for Android users) or Appstore (for iOS users) and open the BGMI app.
-3. Join the Lobby using the provided details.
-4. Before starting the match, ensure that both your in-game audio and your own voice (microphone) are being recorded.
-5. Play the match.
-6. After each match, make sure to show the list of background running apps and IMEI on your device.
-7. You need to repeat the above steps for every match you play."""
-                                    await idp_channel.send(pov_message)
+# Please follow these steps to record your Point of View (POV) while playing BGMI:
+# 1. Before opening the BGMI app show the list of background running apps on your device
+# 2. Go to the PlayStore (for Android users) or Appstore (for iOS users) and open the BGMI app.
+# 3. Join the Lobby using the provided details.
+# 4. Before starting the match, ensure that both your in-game audio and your own voice (microphone) are being recorded.
+# 5. Play the match.
+# 6. After each match, make sure to show the list of background running apps and IMEI on your device.
+# 7. You need to repeat the above steps for every match you play."""
+#                                     await idp_channel.send(pov_message)
                                 except Exception as e:
                                     print(f"Got Exception when sending lobby csv files: {e}")
                         await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"You can download the Google Sheets app to view the list of users and their registration timestamps of {datetime.datetime.today().strftime('%d %b')} from this CSV file (for transparency). If you cant find you name in these, you were later than all these 😢.",file=discord.File('timestamps.csv'))
@@ -1018,17 +1018,17 @@ async def break_reg(ctx):
             try:
                 idp_channel = discord.utils.get(bot.get_guild(constants.GUILD_ID).channels, name=f"group-{lobby_number}-idp")
                 await send_slots_list(team_names, lobby_number,idp_channel)
-                pov_message = """Hello Teams,
+#                 pov_message = """Hello Teams,
 
-Please follow these steps to record your Point of View (POV) while playing BGMI:
-1. Before opening the BGMI app show the list of background running apps on your device
-2. Go to the PlayStore (for Android users) or Appstore (for iOS users) and open the BGMI app.
-3. Join the Lobby using the provided details.
-4. Before starting the match, ensure that both your in-game audio and your own voice (microphone) are being recorded.
-5. Play the match.
-6. After each match, make sure to show the list of background running apps and IMEI on your device.
-7. You need to repeat the above steps for every match you play."""
-                await idp_channel.send(pov_message)
+# Please follow these steps to record your Point of View (POV) while playing BGMI:
+# 1. Before opening the BGMI app show the list of background running apps on your device
+# 2. Go to the PlayStore (for Android users) or Appstore (for iOS users) and open the BGMI app.
+# 3. Join the Lobby using the provided details.
+# 4. Before starting the match, ensure that both your in-game audio and your own voice (microphone) are being recorded.
+# 5. Play the match.
+# 6. After each match, make sure to show the list of background running apps and IMEI on your device.
+# 7. You need to repeat the above steps for every match you play."""
+#                 await idp_channel.send(pov_message)
             except Exception as e:
                 print(f"Got Exception when sending lobby csv files: {e}")
                 
@@ -1808,6 +1808,34 @@ async def t3rulesreminder():
                 channel = discord.utils.get(bot.get_guild(constants.GUILD_ID).channels, name=channel_name)
                 if channel:
                     await channel.send("Reminder to read rules written in slots list and rules channel.")
+
+        except Exception as e:
+            await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"Exception aayi: {e}")
+            print(f"Exception aayi: {e}")
+
+rulesremindertime2 = datetime.time(hour=14, minute=50, tzinfo=local_tz)
+@tasks.loop(time=rulesremindertime2)
+async def t3rulesreminder2():
+
+    today = datetime.datetime.now(local_tz).weekday()
+    if today in constants.days_to_run:
+        try:
+            lobby_channel_names = [f"group-{i}-idp" for i in range(1, int(constants.SLOTS_LIMIT / constants.LOBBY_SIZE) + 1)]
+
+            for channel_name in lobby_channel_names:
+                channel = discord.utils.get(bot.get_guild(constants.GUILD_ID).channels, name=channel_name)
+                if channel:
+                    pov_message = """Hello Teams,
+
+Please follow these steps to record your Point of View (POV) while playing BGMI:
+1. Before opening the BGMI app show the list of background running apps on your device
+2. Go to the PlayStore (for Android users) or Appstore (for iOS users) and open the BGMI app.
+3. Join the Lobby using the provided details.
+4. Before starting the match, ensure that both your in-game audio and your own voice (microphone) are being recorded.
+5. Play the match.
+6. After each match, make sure to show the list of background running apps and IMEI on your device.
+7. You need to repeat the above steps for every match you play."""
+                    await channel.send(pov_message)
 
         except Exception as e:
             await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"Exception aayi: {e}")
