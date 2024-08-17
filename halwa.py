@@ -1794,6 +1794,24 @@ async def idploop3():
             await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"Exception aayi: {e}")
             print(f"Exception aayi: {e}")
 
+rulesremindertime = datetime.time(hour=14, minute=00, tzinfo=local_tz)
+@tasks.loop(time=rulesremindertime)
+async def t3rulesreminder():
+
+    today = datetime.datetime.now(local_tz).weekday()
+    if today in constants.days_to_run:
+        try:
+            lobby_channel_names = [f"group-{i}-idp" for i in range(1, int(constants.SLOTS_LIMIT / constants.LOBBY_SIZE) + 1)]
+
+            for channel_name in lobby_channel_names:
+                channel = discord.utils.get(bot.get_guild(constants.GUILD_ID).channels, name=channel_name)
+                if channel:
+                    await channel.send("Reminder to read rules written in slots list and rules channel.")
+
+        except Exception as e:
+            await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"Exception aayi: {e}")
+            print(f"Exception aayi: {e}")
+
 # @bot.event
 # async def on_message(message):
 #     # Check if the message is in the desired channel
