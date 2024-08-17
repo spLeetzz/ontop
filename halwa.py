@@ -871,6 +871,7 @@ async def on_ready():
     idploop2.start()
     idploop3.start()
     t3rulesreminder.start()
+    t3rulesreminder2.start()
     
     print(f"Set bro.")
 
