@@ -583,7 +583,7 @@ class TeamInfoButton(discord.ui.Button):
             lobby_number = interaction.channel.name.split('-')[1]
             lobby_number_int = int(lobby_number)
             
-            if 1 <= lobby_number_int <= 6:
+            if 1 <= lobby_number_int <= 8:
                 
                 temp_dict =  None
 
@@ -614,7 +614,7 @@ class CopyTeamNamesButton(discord.ui.Button):
             lobby_number = interaction.channel.name.split('-')[1]
             lobby_number_int = int(lobby_number)
             
-            if 1 <= lobby_number_int <= 6:
+            if 1 <= lobby_number_int <= 8:
                 
                 temp_dict =  None
 
