@@ -149,7 +149,7 @@ async def send_remenu(channel):
 
 async def send_overview_menu(channel):
     view = ScrimsOverviewView()  
-    message = await channel.send(content=f"Hey there, here's a complete overview of BGMI scrims at Trident:\n\nThere are 4 tiers basically,\n\n`Trident Rookie Scrims(Tier 3):`\n\n- Open for all, anyone can participate, registrations open at 12 PM Tuesday-Saturday in <#{constants.REGISTRATION_CHANNEL_ID}>\n- 6 Groups every day, Top 1 from each Group qualify for Amateur Scrims\n- Every Group plays 2 matches, Erangle-Miramar\n\n`Amateur Scrims(T2 filtration):`\n\n- 2 Groups on Sunday, Top 4 from each Group qualify for Tier 2 scrims\n- Every Group plays 3 matches, Erangle-Miramar-Sanhok\n\n`Trident Elite Scrims(Tier 2):`\n\n- 3 Groups, Every team plays 24 matches over 6 days.\n- Tuesday-Sunday daily 4 matches, Erangle-Miramar-Sanhok-Vikendi\n- Top 6 teams based on cumulative leaderboard of both Groups qualify for Pro Scrims.\n- Bottom 12 teams are demoted from Tier 2 to Tier 3.\n\n`Trident Pro Scrims:`\n\n- Tuesday-Sunday daily 4 matches, Erangle-Miramar-Sanhok-Vikendi\n- Top 6 teams based on leaderboard retain their spots in Pro Scrims.\n- Rest of the teams are demoted from Pro Scrims to Tier 2.\n\nAny announcements and updates would be shared thru the <#{constants.UPDATES_CHANNEL_ID}> channels.\nReact with buttons beneath for more information and make sure to follow all rules.",view=view)
+    message = await channel.send(content=f"Hey there, here's a complete overview of BGMI scrims at Trident:\n\nThere are 4 tiers basically,\n\n`Trident Rookie Scrims(Tier 3):`\n\n- Open for all, anyone can participate, registrations open at 12 PM Tuesday-Saturday in <#{constants.REGISTRATION_CHANNEL_ID}>\n- 8 Groups every day, Top 1 from each Group qualify for Amateur Scrims\n- Every Group plays 2 matches, Erangle-Miramar\n\n`Amateur Scrims(T2 filtration):`\n\n- 2 Groups on Sunday, Top 4 from each Group qualify for Tier 2 scrims\n- Every Group plays 3 matches, Erangle-Miramar-Sanhok\n\n`Trident Elite Scrims(Tier 2):`\n\n- 4 Groups, Every team plays 24 matches over 6 days.\n- Tuesday-Sunday daily 4 matches, Erangle-Miramar-Sanhok-Vikendi\n- Top 6 teams based on cumulative leaderboard of both Groups qualify for Pro Scrims.\n- Bottom 12 teams are demoted from Tier 2 to Tier 3.\n\n`Trident Pro Scrims:`\n\n- Tuesday-Sunday daily 4 matches, Erangle-Miramar-Sanhok-Vikendi\n- Top 6 teams based on leaderboard retain their spots in Pro Scrims.\n- Rest of the teams are demoted from Pro Scrims to Tier 2.\n\nAny announcements and updates would be shared thru the <#1188849982632099940> channels.\nReact with buttons beneath for more information and make sure to follow all rules.",view=view)
     return message
 
 class LobbySelectDropdown(discord.ui.Select):
@@ -367,7 +367,7 @@ class CaptchaModal(discord.ui.Modal):
 
 class PracticeRegistrationButton(discord.ui.Button):
     def __init__(self):
-        super().__init__(label=f'TRIAL REG', style=discord.ButtonStyle.primary,emoji=constants.practice_emoteid,row=1)
+        super().__init__(label=f'TRIAL REG', style=discord.ButtonStyle.primary,emoji=constants.practice_emoteid,row=2)
 
     async def callback(self, interaction: discord.Interaction):
         team_name = await validate_registration(interaction.user)
@@ -437,7 +437,7 @@ class ScheduleButton(discord.ui.Button):
         super().__init__(label=f'Tier-3 Schedule', style=discord.ButtonStyle.primary)
 
     async def callback(self, interaction: discord.Interaction):
-        await interaction.response.send_message(f"https://cdn.discordapp.com/attachments/1201507236934066226/1260094469362028676/image.png?ex=668e11ec&is=668cc06c&hm=23e951bc3c211437e168b2f3afea0ccbcb613fadc5d430d6f3a1a2b302e1b584&",ephemeral=True,delete_after=180)
+        await interaction.response.send_message(f"https://cdn.discordapp.com/attachments/1264587995479146526/1277850094561136681/shs.jpg?ex=66ceaa23&is=66cd58a3&hm=f0b02f2e5ae14ca27ee9b7fc130caf6d05a967183477dc754b1c79336c2fe0fe&",ephemeral=True,delete_after=180)
 
 class ScrimsOverviewView(discord.ui.View):
     def __init__(self):
