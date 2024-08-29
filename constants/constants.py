@@ -73,31 +73,38 @@ channel_names = [f"group-{x}-idp" for x in range(1,int(SLOTS_LIMIT // LOBBY_SIZE
 inner_loop_counter = 0
 match_schedule = {
     1: {
-        1: {"idt": "3:00 PM", "st": "3:05 PM"},
-        2: {"idt": "4:00 PM", "st": "4:05 PM"}
+        1: {"idt": "4:00 PM", "st": "4:05 PM"},
+        2: {"idt": "4:40 PM", "st": "4:47 PM"}
     },
     2: {
-        1: {"idt": "3:10 PM", "st": "3:15 PM"},
-        2: {"idt": "4:10 PM", "st": "4:15 PM"}
+        1: {"idt": "4:10 PM", "st": "4:15 PM"},
+        2: {"idt": "4:50 PM", "st": "4:57 PM"}
     },
     3: {
-        1: {"idt": "3:20 PM", "st": "3:25 PM"},
-        2: {"idt": "4:20 PM", "st": "4:25 PM"}
+        1: {"idt": "4:20 PM", "st": "4:25 PM"},
+        2: {"idt": "5:00 PM", "st": "5:07 PM"}
     },
     4: {
-        1: {"idt": "3:30 PM", "st": "3:35 PM"},
-        2: {"idt": "4:30 PM", "st": "4:35 PM"}
+        1: {"idt": "4:30 PM", "st": "4:35 PM"},
+        2: {"idt": "5:10 PM", "st": "5:17 PM"}
     },
     5: {
-        1: {"idt": "3:40 PM", "st": "3:45 PM"},
-        2: {"idt": "4:40 PM", "st": "4:45 PM"}
+        1: {"idt": "6:00 PM", "st": "6:05 PM"},
+        2: {"idt": "6:40 PM", "st": "6:47 PM"}
     },
     6: {
-        1: {"idt": "3:50 PM", "st": "3:55 PM"},
-        2: {"idt": "4:50 PM", "st": "4:55 PM"}
+        1: {"idt": "6:10 PM", "st": "6:15 PM"},
+        2: {"idt": "6:50 PM", "st": "6:57 PM"}
+    },
+    7: {
+        1: {"idt": "6:20 PM", "st": "6:25 PM"},
+        2: {"idt": "7:00 PM", "st": "7:07 PM"}
+    },
+    8: {
+        1: {"idt": "6:30 PM", "st": "6:35 PM"},
+        2: {"idt": "7:10 PM", "st": "7:17 PM"}
     }
 }
-
 
 # # for i ama naive server
 

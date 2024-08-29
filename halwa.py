@@ -583,7 +583,7 @@ class TeamInfoButton(discord.ui.Button):
             lobby_number = interaction.channel.name.split('-')[1]
             lobby_number_int = int(lobby_number)
             
-            if 1 <= lobby_number_int <= 8:
+            if 1 <= lobby_number_int <= (int(constants.SLOTS_LIMIT) / int(constants.LOBBY_SIZE)):
                 
                 temp_dict =  None
 
@@ -614,7 +614,7 @@ class CopyTeamNamesButton(discord.ui.Button):
             lobby_number = interaction.channel.name.split('-')[1]
             lobby_number_int = int(lobby_number)
             
-            if 1 <= lobby_number_int <= 8:
+            if 1 <= lobby_number_int <= (int(constants.SLOTS_LIMIT) / int(constants.LOBBY_SIZE)):
                 
                 temp_dict =  None
 
@@ -870,6 +870,9 @@ async def on_ready():
     idploop.start()
     idploop2.start()
     idploop3.start()
+    idploop4.start()
+    idploop5.start()
+    idploop6.start()
     t3rulesreminder.start()
     t3rulesreminder2.start()
     
@@ -1611,7 +1614,7 @@ async def clear_lb_auto():
 
         await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"*CLEARED LOBBIES!*")
 
-idt1 = datetime.time(hour=14, minute=56, tzinfo=local_tz)
+idt1 = datetime.time(hour=15, minute=56, tzinfo=local_tz)
 @tasks.loop(time=idt1)
 async def idploop():
 
@@ -1632,9 +1635,9 @@ async def inner_loop1():
     try:
         constants.inner_loop_counter += 1
 
-        lobby_number = int(constants.inner_loop_counter) % 6
+        lobby_number = int(constants.inner_loop_counter) % (int(constants.SLOTS_LIMIT) / int(constants.LOBBY_SIZE))/2
         if lobby_number == 0:
-            lobby_number = 6
+            lobby_number = (int(constants.SLOTS_LIMIT) / int(constants.LOBBY_SIZE))/2
 
         print(lobby_number)
         role = discord.utils.get(bot.get_guild(constants.GUILD_ID).roles, name= f"Group {lobby_number} IDP")
@@ -1695,7 +1698,7 @@ Rules Strictly To Be Followed:-
         await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"Exception aayi: {e}")
         print(f"Exception aayi: {e}")
 
-idt2 = datetime.time(hour=15, minute=54, tzinfo=local_tz)
+idt2 = datetime.time(hour=16, minute=34, tzinfo=local_tz)
 @tasks.loop(time=idt2)
 async def idploop2():
 
@@ -1718,9 +1721,9 @@ async def inner_loop2():
     try:
         constants.inner_loop_counter += 1
 
-        lobby_number = int(constants.inner_loop_counter) % 6
+        lobby_number = int(constants.inner_loop_counter) % (int(constants.SLOTS_LIMIT) / int(constants.LOBBY_SIZE))/2
         if lobby_number == 0:
-            lobby_number = 6
+            lobby_number = (int(constants.SLOTS_LIMIT) / int(constants.LOBBY_SIZE))/2
 
         print(lobby_number)
         role = discord.utils.get(bot.get_guild(constants.GUILD_ID).roles, name= f"Group {lobby_number} IDP")
@@ -1750,7 +1753,7 @@ async def inner_loop2():
             start_time = datetime.datetime.strptime(start_time_str, "%I:%M %p").replace(tzinfo=local_tz)
             id_time = datetime.datetime.strptime(id_time_str, "%I:%M %p").replace(tzinfo=local_tz)
             if current_time.time() >= id_time.time():
-                final_start_time = (current_time + datetime.timedelta(minutes=5)).time()
+                final_start_time = (current_time + datetime.timedelta(minutes=6)).time()
             else:
                 final_start_time = start_time
             await idchannel.send(f"""TRIDENT ESPORTS TIER 3 SCRIMS 
@@ -1781,7 +1784,7 @@ Rules Strictly To Be Followed:-
         await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"Exception aayi: {e}")
         print(f"Exception aayi: {e}")
 
-idtloopstop = datetime.time(hour=16, minute=54, tzinfo=local_tz)
+idtloopstop = datetime.time(hour=17, minute=14, tzinfo=local_tz)
 @tasks.loop(time=idtloopstop)
 async def idploop3():
 
@@ -1789,6 +1792,191 @@ async def idploop3():
     if today in constants.days_to_run:
         try:
             inner_loop2.cancel()
+            constants.inner_loop_counter = 0
+            await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"done for the day")
+
+        except Exception as e:
+            await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"Exception aayi: {e}")
+            print(f"Exception aayi: {e}")
+
+idt3 = datetime.time(hour=17, minute=56, tzinfo=local_tz)
+@tasks.loop(time=idt3)
+async def idploop4():
+
+    today = datetime.datetime.now(local_tz).weekday()
+    if today in constants.days_to_run:
+        try:
+            # Start the inner loop to run every 10 minutes after the initial execution
+            inner_loop3.start()
+            await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"hey")
+
+        except Exception as e:
+            await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"Exception aayi: {e}")
+            print(f"Exception aayi: {e}")
+
+@tasks.loop(minutes=10)
+async def inner_loop3():
+    
+    try:
+        constants.inner_loop_counter += 1
+
+        lobby_number = (int(constants.inner_loop_counter) % (int(constants.SLOTS_LIMIT) / int(constants.LOBBY_SIZE))/2) + 4
+        if lobby_number == 0:
+            lobby_number = (int(constants.SLOTS_LIMIT) / int(constants.LOBBY_SIZE))
+
+        print(lobby_number)
+        role = discord.utils.get(bot.get_guild(constants.GUILD_ID).roles, name= f"Group {lobby_number} IDP")
+        idchannel = discord.utils.get(bot.get_guild(constants.GUILD_ID).channels, name=f"group-{lobby_number}-idp")
+
+        await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"Please enter Match {lobby_number} ID.")
+        
+        def check(msg):
+            if msg.channel.id == constants.UPDATES_CHANNEL_ID and msg.content.isdigit() and msg.author.id != bot.user.id:
+                member = bot.get_guild(constants.GUILD_ID).get_member(msg.author.id)
+                if member and any(role.name in constants.roles_for_purge_perm for role in member.roles):
+                    return True
+            return False
+        
+        response = await bot.wait_for(
+    'message',
+    check=check,
+    timeout=390
+)
+        
+        if response.content.strip():  # Check if the response is not empty after stripping whitespace
+            # Process the response if needed
+            current_time = datetime.datetime.now(local_tz)
+            match_times = constants.match_schedule[lobby_number][1]
+            start_time_str = match_times['st']
+            id_time_str = match_times['idt']
+            start_time = datetime.datetime.strptime(start_time_str, "%I:%M %p").replace(tzinfo=local_tz)
+            id_time = datetime.datetime.strptime(id_time_str, "%I:%M %p").replace(tzinfo=local_tz)
+            if current_time.time() >= id_time.time():
+                final_start_time = (current_time + datetime.timedelta(minutes=5)).time()
+            else:
+                final_start_time = start_time
+            await idchannel.send(f"""TRIDENT ESPORTS TIER 3 SCRIMS 
+{role.mention}
+
+MATCH - 01
+MAP- ERANGLE
+
+ID - {response.content}
+PASS - TG{lobby_number}{lobby_number}{lobby_number}
+START - {final_start_time.strftime('%I:%M %p')}
+ 
+TEAMS ARE REQUESTED TO JOIN 2 MINS PRIOR TO THE START TIME
+
+Rules Strictly To Be Followed:-
+
+1. Sit according to the allotted slots!
+2. Pov recording is mandatory for all players. We may request 'Raw Pov' at any time.
+3. Emergency pickups are strictly prohibited.
+4. Missing a single match will result in a team ban.""")
+            
+        await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"IDP SENT BORO, START TIME SHALL BE {final_start_time.strftime('%I:%M %p')} {response.author.mention}")
+
+    except asyncio.TimeoutError:
+        pass
+
+    except Exception as e:
+        await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"Exception aayi: {e}")
+        print(f"Exception aayi: {e}")
+
+idt4 = datetime.time(hour=18, minute=34, tzinfo=local_tz)
+@tasks.loop(time=idt4)
+async def idploop5():
+
+    today = datetime.datetime.now(local_tz).weekday()
+    if today in constants.days_to_run:
+        try:
+            inner_loop3.cancel()
+            await asyncio.sleep(120)
+            constants.inner_loop_counter = 0
+            # Start the inner loop to run every 10 minutes after the initial execution
+            inner_loop4.start()
+            await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"hey")
+
+        except Exception as e:
+            await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"Exception aayi: {e}")
+            print(f"Exception aayi: {e}")
+
+@tasks.loop(minutes=10)
+async def inner_loop4():
+    try:
+        constants.inner_loop_counter += 1
+
+        lobby_number = (int(constants.inner_loop_counter) % (int(constants.SLOTS_LIMIT) / int(constants.LOBBY_SIZE))/2) + 4
+        if lobby_number == 0:
+            lobby_number = (int(constants.SLOTS_LIMIT) / int(constants.LOBBY_SIZE))
+
+        print(lobby_number)
+        role = discord.utils.get(bot.get_guild(constants.GUILD_ID).roles, name= f"Group {lobby_number} IDP")
+        idchannel = discord.utils.get(bot.get_guild(constants.GUILD_ID).channels, name=f"group-{lobby_number}-idp")
+
+        await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"Please enter Match {lobby_number} ID.")
+        
+        def check(msg):
+            if msg.channel.id == constants.UPDATES_CHANNEL_ID and msg.content.isdigit() and msg.author.id != bot.user.id:
+                member = bot.get_guild(constants.GUILD_ID).get_member(msg.author.id)
+                if member and any(role.name in constants.roles_for_purge_perm for role in member.roles):
+                    return True
+            return False
+        
+        response = await bot.wait_for(
+    'message',
+    check=check,
+    timeout=390
+)
+        
+        if response.content.strip():  # Check if the response is not empty after stripping whitespace
+            # Process the response if needed
+            current_time = datetime.datetime.now(local_tz)
+            match_times = constants.match_schedule[lobby_number][2]
+            start_time_str = match_times['st']
+            id_time_str = match_times['idt']
+            start_time = datetime.datetime.strptime(start_time_str, "%I:%M %p").replace(tzinfo=local_tz)
+            id_time = datetime.datetime.strptime(id_time_str, "%I:%M %p").replace(tzinfo=local_tz)
+            if current_time.time() >= id_time.time():
+                final_start_time = (current_time + datetime.timedelta(minutes=6)).time()
+            else:
+                final_start_time = start_time
+            await idchannel.send(f"""TRIDENT ESPORTS TIER 3 SCRIMS 
+{role.mention}
+                                 
+MATCH - 02
+MAP- MIRAMAR
+
+ID - {response.content}
+PASS - TG{lobby_number}{lobby_number}{lobby_number}
+START - {final_start_time.strftime('%I:%M %p')}
+ 
+TEAMS ARE REQUESTED TO JOIN 2 MINS PRIOR TO THE START TIME
+
+Rules Strictly To Be Followed:-
+
+1. Sit according to the allotted slots!
+2. Pov recording is mandatory for all players. We may request 'Raw Pov' at any time.
+3. Emergency pickups are strictly prohibited.
+4. Missing a single match will result in a team ban.""")
+            
+        await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"IDP SENT BORO, START TIME SHALL BE {final_start_time.strftime('%I:%M %p')} {response.author.mention}")
+
+    except asyncio.TimeoutError:
+        pass
+    
+    except Exception as e:
+        await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"Exception aayi: {e}")
+        print(f"Exception aayi: {e}")
+
+idtloopstop2 = datetime.time(hour=19, minute=14, tzinfo=local_tz)
+@tasks.loop(time=idtloopstop2)
+async def idploop6():
+
+    today = datetime.datetime.now(local_tz).weekday()
+    if today in constants.days_to_run:
+        try:
+            inner_loop4.cancel()
             constants.inner_loop_counter = 0
             await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"done for the day")
 
@@ -1957,6 +2145,10 @@ async def enrollTeam(user,interaction):
             # Check if the team name is banned or on cooldown
             if team_name.lower() == "cooldown" or team_name.lower() == "banned" or team_name.lower() == "left_server":
                 await thread.send(f"{user.mention} This team name is not allowed. Please choose a different team name.")
+
+            # Check if the team name has more than sufficient char
+            if int(len(team_name)) > 40:
+                await thread.send(f"{user.mention} Too long team name, Please choose a different team name.")
 
             # Check if the team name already exists
             if not await is_team_name_unique(team_name):
@@ -2771,6 +2963,8 @@ async def send_slots_list(team_names, lobby_number, lobby_channel,edit_slots_lis
             return
 
     message = await lobby_channel.send(embed=embed)
+    lobby_role = discord.utils.get(bot.get_guild(constants.GUILD_ID).roles, name=f"Group {lobby_number} IDP")
+    followupmsg = await lobby_channel.send(lobby_role.mention)
     try:
         await message.edit(view=IdpChannelTasksView())
     except Exception as e:
