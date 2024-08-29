@@ -1637,7 +1637,7 @@ async def inner_loop1():
 
         lobby_number = int(constants.inner_loop_counter) % (int(constants.SLOTS_LIMIT) / int(constants.LOBBY_SIZE))/2
         if lobby_number == 0:
-            lobby_number = (int(constants.SLOTS_LIMIT) / int(constants.LOBBY_SIZE))/2
+            lobby_number = int((int(constants.SLOTS_LIMIT) / int(constants.LOBBY_SIZE))/2)
 
         print(lobby_number)
         role = discord.utils.get(bot.get_guild(constants.GUILD_ID).roles, name= f"Group {lobby_number} IDP")
@@ -1723,7 +1723,7 @@ async def inner_loop2():
 
         lobby_number = int(constants.inner_loop_counter) % (int(constants.SLOTS_LIMIT) / int(constants.LOBBY_SIZE))/2
         if lobby_number == 0:
-            lobby_number = (int(constants.SLOTS_LIMIT) / int(constants.LOBBY_SIZE))/2
+            lobby_number = int((int(constants.SLOTS_LIMIT) / int(constants.LOBBY_SIZE))/2)
 
         print(lobby_number)
         role = discord.utils.get(bot.get_guild(constants.GUILD_ID).roles, name= f"Group {lobby_number} IDP")
@@ -1820,9 +1820,9 @@ async def inner_loop3():
     try:
         constants.inner_loop_counter += 1
 
-        lobby_number = (int(constants.inner_loop_counter) % (int(constants.SLOTS_LIMIT) / int(constants.LOBBY_SIZE))/2) + 4
+        lobby_number = int((int(constants.inner_loop_counter) % ((int(constants.SLOTS_LIMIT) / int(constants.LOBBY_SIZE))/2)) + 4)
         if lobby_number == 0:
-            lobby_number = (int(constants.SLOTS_LIMIT) / int(constants.LOBBY_SIZE))
+            lobby_number = int(int(constants.SLOTS_LIMIT) / int(constants.LOBBY_SIZE))
 
         print(lobby_number)
         role = discord.utils.get(bot.get_guild(constants.GUILD_ID).roles, name= f"Group {lobby_number} IDP")
@@ -1906,9 +1906,9 @@ async def inner_loop4():
     try:
         constants.inner_loop_counter += 1
 
-        lobby_number = (int(constants.inner_loop_counter) % (int(constants.SLOTS_LIMIT) / int(constants.LOBBY_SIZE))/2) + 4
+        lobby_number = int((int(constants.inner_loop_counter) % ((int(constants.SLOTS_LIMIT) / int(constants.LOBBY_SIZE))/2)) + 4)
         if lobby_number == 0:
-            lobby_number = (int(constants.SLOTS_LIMIT) / int(constants.LOBBY_SIZE))
+            lobby_number = int(int(constants.SLOTS_LIMIT) / int(constants.LOBBY_SIZE))
 
         print(lobby_number)
         role = discord.utils.get(bot.get_guild(constants.GUILD_ID).roles, name= f"Group {lobby_number} IDP")
