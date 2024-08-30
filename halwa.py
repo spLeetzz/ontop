@@ -1635,7 +1635,7 @@ async def inner_loop1():
     try:
         constants.inner_loop_counter += 1
 
-        lobby_number = int(int(constants.inner_loop_counter) % (int(constants.SLOTS_LIMIT) / int(constants.LOBBY_SIZE))/2)
+        lobby_number = int(int(constants.inner_loop_counter) % ((int(constants.SLOTS_LIMIT) / int(constants.LOBBY_SIZE))/2))
         if lobby_number == 0:
             lobby_number = int((int(constants.SLOTS_LIMIT) / int(constants.LOBBY_SIZE))/2)
 
@@ -1721,7 +1721,7 @@ async def inner_loop2():
     try:
         constants.inner_loop_counter += 1
 
-        lobby_number = int(int(constants.inner_loop_counter) % (int(constants.SLOTS_LIMIT) / int(constants.LOBBY_SIZE))/2)
+        lobby_number = int(int(constants.inner_loop_counter) % ((int(constants.SLOTS_LIMIT) / int(constants.LOBBY_SIZE))/2))
         if lobby_number == 0:
             lobby_number = int((int(constants.SLOTS_LIMIT) / int(constants.LOBBY_SIZE))/2)
 
