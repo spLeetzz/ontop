@@ -541,11 +541,12 @@ class PlayerSelectDropdown(discord.ui.Select):
         user = interaction.user
         try:
             benificar = bot.get_guild(constants.GUILD_ID).get_member(selected_value)
-            async with asyncio.TaskGroup() as taskhandler:
-                taskhandler.create_task(user.remove_roles(self.role))
-                taskhandler.create_task(bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"Hey {user.mention}, Your lobby role has been transferred to your teammate {benificar}"))
-                taskhandler.create_task(interaction.response.send_message("Done.", ephemeral=True,delete_after=30))
+            await user.remove_roles(self.role)
+            asyncio.sleep(2)
             await assign_role(benificar,self.role.id)
+            await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"Hey {user.mention}, Your lobby role has been transferred to your teammate {benificar}")
+            await interaction.response.send_message("Done.", ephemeral=True,delete_after=30)
+            
         except discord.errors.Forbidden:
             await interaction.response.send_message("I do not have permission to manage your roles.", ephemeral=True,delete_after=30)
         except discord.errors.HTTPException:
