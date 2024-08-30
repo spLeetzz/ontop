@@ -542,7 +542,7 @@ class PlayerSelectDropdown(discord.ui.Select):
         try:
             benificar = bot.get_guild(constants.GUILD_ID).get_member(selected_value)
             await user.remove_roles(self.role)
-            asyncio.sleep(2)
+            await asyncio.sleep(2)
             await assign_role(benificar,self.role.id)
             await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"Hey {user.mention}, Your lobby role has been transferred to your teammate {benificar}")
             await interaction.response.send_message("Done.", ephemeral=True,delete_after=30)
@@ -2596,7 +2596,7 @@ async def is_team_name_unique(team_name):
         constants.ban_sheet, _ = await connect_to_google_sheets(json_keyfile_path, sheet_id=constants.BAN_SHEET_ID)
         constants.blacklist_sheet, _ = await connect_to_google_sheets(json_keyfile_path, sheet_id=constants.BLACKLIST_SHEET_ID)
 
-        asyncio.sleep(1)
+        await asyncio.sleep(1)
         team_names = constants.sheet.col_values(2)  # Assuming team names are in the first column
         return team_name not in team_names
 
