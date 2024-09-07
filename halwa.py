@@ -866,7 +866,7 @@ async def on_ready():
             except Exception as e:
                 print(f"Got Exception {e} when delaing with lobby json file")
 
-    # start_auto.start()
+    start_auto.start()
     clear_lb_auto.start()
     idploop.start()
     idploop2.start()
