@@ -678,7 +678,7 @@ class AddTeamButton(discord.ui.Button):
                         
                 role = discord.utils.get(bot.get_guild(constants.GUILD_ID).roles, name= f"Group {channel_number} IDP")
                 await interaction.guild.get_member(id_of_member_associated).add_roles(role)
-                await mod_channel.send("Done babu")
+                await mod_channel.send("kay")
 
             except asyncio.TimeoutError:
                 pass
@@ -866,8 +866,8 @@ async def on_ready():
             except Exception as e:
                 print(f"Got Exception {e} when delaing with lobby json file")
 
-    start_auto.start()
-    clear_lb_auto.start()
+    # start_auto.start()
+    # clear_lb_auto.start()
     idploop.start()
     idploop2.start()
     idploop3.start()
