@@ -18,10 +18,11 @@ from string import ascii_lowercase
 from constants import constants
 import datetime
 import json
-import yt_dlp as youtube_dl
+import yt_dlp
+from collections import deque
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 
 intents = discord.Intents.default()
 intents.members = True
@@ -1101,53 +1102,51 @@ async def delete_from_sheet(ctx, error):
     else:
         await ctx.send(f"An error occurred: {error}")
 
-# ytdl options for extracting best audio format
-ytdl_options = {
-    'format': 'bestaudio',
-    'noplaylist': True,
-    'quiet': True,  # Suppresses most output
-    'extractaudio': True,  # Extracts audio only
-    'audioquality': 1,  # Best quality
-    'outtmpl': 'downloads/%(id)s.%(ext)s',  # Save files to a specific folder
-}
-
 ffmpeg_options = {
     'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
     'options': '-vn -b:a 320k -buffer_size 1024k'  # Adjust buffer size for better handling
 }
 
-ytdl = youtube_dl.YoutubeDL(ytdl_options)
+song_queue = deque()
 
 async def search_and_play(url: str):
+    # ydl_opts for high-quality audio extraction
     ydl_opts = {
-    'format': 'bestaudio',  # Choose the best available audio quality
-    'quiet': True,           # Suppress unnecessary output
-    'extractaudio': True,    # Extract only audio
-    'outtmpl': '%(id)s.%(ext)s',  # Save audio to a file with the video ID as the filename
-    'postprocessors': [{
-        'key': 'FFmpegAudio',
-        'preferredcodec': 'mp3',
-        'preferredquality': '320',  # Highest quality for MP3
-    }],
-    'cookiefile': '/path/to/cookies.txt',  # Use cookies from a browser session to avoid CAPTCHA
-    'headers': {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-    },
-    'retries': 10,  # Retry on failure
-}
-    with youtube_dl.YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(url, download=False)  # Extract video info without downloading
-        if 'formats' in info:
-            for f in info['formats']:
-                if f.get('acodec') != 'none':  # Check if it has a valid audio codec
-                    return f['url']  # Return the audio URL
+        'format': 'bestaudio/best',  # Prefer the best available audio format
+        'extractaudio': True,        # Extract only audio
+        'audioquality': 0,           # Best quality for audio
+        'outtmpl': '%(id)s.%(ext)s',  # Save audio to a file with the video ID as the filename
+        'prefer_ffmpeg': True,       # Force using ffmpeg for better audio extraction
+        'ffmpeg_location': '/usr/bin/ffmpeg',  # Ensure correct ffmpeg path if using FFmpeg
+        'retries': 10,  # Retry on failure
+        'noplaylist': True,  # Don't play the entire playlist (if URL is a playlist)
+        'prefer-ffmpeg': True,  # Prefer ffmpeg to handle audio conversion
+        'ffmpeg_args': [
+            '-vn',  # Don't process video
+            '-acodec', 'libmp3lame',  # Use libmp3lame codec for MP3 audio
+            '-ab', '320k',  # Set bitrate to 320 kbps (high-quality MP3)
+        ],
+    }
+
+    # Run the extraction asynchronously
+    return await asyncio.to_thread(extract_audio_url, url, ydl_opts)
+
+async def extract_audio_url(url, ydl_opts):
+    # Use asyncio.to_thread to run the blocking yt-dlp code in a separate thread
+    return await asyncio.to_thread(_extract_audio_url, url, ydl_opts)
+
+def _extract_audio_url(url, ydl_opts):
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+            if 'formats' in info:
+                for f in info['formats']:
+                    if f.get('acodec') != 'none':  # Ensure it has a valid audio codec
+                        return f['url']  # Return the audio URL
+            return None
+    except Exception as e:
+        print(f"Error occurred while extracting audio: {e}")
         return None
-
-import asyncio
-from collections import deque
-
-# Initialize a deque for the queue to keep track of upcoming songs
-song_queue = deque()
 
 @bot.command(name="play", help="Plays a song from a YouTube URL in a voice channel.")
 async def play(ctx, url: str):
