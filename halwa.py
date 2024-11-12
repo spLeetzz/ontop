@@ -1131,11 +1131,7 @@ async def search_and_play(url: str):
     # Run the extraction asynchronously
     return await asyncio.to_thread(extract_audio_url, url, ydl_opts)
 
-async def extract_audio_url(url, ydl_opts):
-    # Use asyncio.to_thread to run the blocking yt-dlp code in a separate thread
-    return await asyncio.to_thread(_extract_audio_url, url, ydl_opts)
-
-def _extract_audio_url(url, ydl_opts):
+def extract_audio_url(url, ydl_opts):
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
