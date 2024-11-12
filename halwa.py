@@ -1118,7 +1118,7 @@ async def search_and_play(url: str):
         'outtmpl': '%(id)s.%(ext)s',  # Save audio to a file with the video ID as the filename
         'prefer_ffmpeg': True,       # Force using ffmpeg for better audio extraction
         'ffmpeg_location': '/usr/bin/ffmpeg',  # Ensure correct ffmpeg path if using FFmpeg
-        'cookiefile': 'ytcookies.txt', 
+        'cookiefile': 'ytcookies.txt',  # Optional if using cookies
         'retries': 2,  # Retry on failure
         'noplaylist': True,  # Don't play the entire playlist (if URL is a playlist)
         'prefer-ffmpeg': True,  # Prefer ffmpeg to handle audio conversion
@@ -1129,6 +1129,9 @@ async def search_and_play(url: str):
             '-acodec', 'libmp3lame',  # Use libmp3lame codec for MP3 audio
             '-ab', '320k',  # Set bitrate to 320 kbps (high-quality MP3)
         ],
+        'username': 'oauth',  # Using oauth for login
+        'password': '',  # Leave password empty for OAuth
+        'netrc': True,  # Use .netrc file for OAuth credentials if stored there
     }
 
     # Run the extraction asynchronously
