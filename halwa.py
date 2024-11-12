@@ -1122,6 +1122,8 @@ async def search_and_play(url: str):
         'retries': 2,  # Retry on failure
         'noplaylist': True,  # Don't play the entire playlist (if URL is a playlist)
         'prefer-ffmpeg': True,  # Prefer ffmpeg to handle audio conversion
+        'nocheckcertificate': True,  # Skip SSL certificate validation
+        'geo-bypass': True, 
         'ffmpeg_args': [
             '-vn',  # Don't process video
             '-acodec', 'libmp3lame',  # Use libmp3lame codec for MP3 audio
