@@ -1126,8 +1126,8 @@ async def search_and_play(url: str):
     'outtmpl': '%(id)s.%(ext)s',  # Save audio to a file with the video ID as the filename
     'postprocessors': [{
         'key': 'FFmpegAudio',
-        'preferredcodec': 'opus',   # Use 'opus' codec (best for quality and file size)
-        'preferredquality': '0',     # Set the highest quality for Opus codec (0 for best)
+        'preferredcodec': 'mp3',
+        'preferredquality': '320',  # Highest quality for MP3
     }],
     'cookiefile': '/path/to/cookies.txt',  # Use cookies from a browser session to avoid CAPTCHA
     'headers': {
