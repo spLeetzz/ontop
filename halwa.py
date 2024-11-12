@@ -18,9 +18,10 @@ from string import ascii_lowercase
 from constants import constants
 import datetime
 import json
+import yt_dlp as youtube_dl
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 
 intents = discord.Intents.default()
 intents.members = True
@@ -1099,6 +1100,135 @@ async def delete_from_sheet(ctx, error):
         await ctx.send(f"You don't have the required permissions to use this command: {missing_perms}")
     else:
         await ctx.send(f"An error occurred: {error}")
+
+# ytdl options for extracting best audio format
+ytdl_options = {
+    'format': 'bestaudio',
+    'noplaylist': True,
+    'quiet': True,  # Suppresses most output
+    'extractaudio': True,  # Extracts audio only
+    'audioquality': 1,  # Best quality
+    'outtmpl': 'downloads/%(id)s.%(ext)s',  # Save files to a specific folder
+}
+
+ffmpeg_options = {
+    'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
+    'options': '-vn -b:a 320k -buffer_size 1024k'  # Adjust buffer size for better handling
+}
+
+ytdl = youtube_dl.YoutubeDL(ytdl_options)
+
+async def search_and_play(url: str):
+    ydl_opts = {
+        'format': 'bestaudio/best',  # Prefer the best audio format
+        'quiet': True,
+        'extractaudio': True,  # Extract only audio
+        'outtmpl': '%(id)s.%(ext)s',  # Save audio to a temp file
+    }
+
+    with youtube_dl.YoutubeDL(ydl_opts) as ydl:
+        info = ydl.extract_info(url, download=False)  # Extract video info without downloading
+        if 'formats' in info:
+            for f in info['formats']:
+                if f.get('acodec') != 'none':  # Check if it has a valid audio codec
+                    return f['url']  # Return the audio URL
+        return None
+
+import asyncio
+from collections import deque
+
+# Initialize a deque for the queue to keep track of upcoming songs
+song_queue = deque()
+
+@bot.command(name="play", help="Plays a song from a YouTube URL in a voice channel.")
+async def play(ctx, url: str):
+    # Check if user is in a voice channel
+    if ctx.author.voice is None:
+        await ctx.send("You need to be in a voice channel to use this command.")
+        return
+
+    voice_channel = ctx.author.voice.channel
+
+    # Connect to the voice channel if bot is not already connected
+    if ctx.voice_client is None:
+        await voice_channel.connect()
+    elif ctx.voice_client.channel != voice_channel:
+        await ctx.voice_client.move_to(voice_channel)
+
+    # Get audio source
+    async with ctx.typing():
+        audio_url = await search_and_play(url)
+        if not audio_url:
+            await ctx.send("Could not find a valid audio source.")
+            return
+        
+        print(f"Extracted audio URL: {audio_url}")  # For debugging
+
+        # Ensure ffmpeg_options is defined before usage
+        ffmpeg_options = {
+            'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
+            'options': '-vn'
+        }
+
+        source = discord.FFmpegPCMAudio(audio_url, **ffmpeg_options)
+
+    # If no song is playing, start the song and set up the queue
+    if not ctx.voice_client.is_playing():
+        # Start playing the current song
+        ctx.voice_client.play(source, after=lambda e: asyncio.run_coroutine_threadsafe(cleanup(ctx, e), bot.loop))
+
+        # Send feedback to the user
+        await ctx.send(f"Now playing: {url}")
+    else:
+        # If the bot is already playing, add the song to the queue
+        song_queue.append(url)
+        await ctx.send(f"Added to queue: {url}")
+
+async def cleanup(ctx, error):
+    if error:
+        print(f"Error occurred: {error}")
+    
+    # Check if there are more songs in the queue
+    if len(song_queue) > 0:
+        next_song_url = song_queue.popleft()  # Get the next song from the queue
+        async with ctx.typing():
+            # Play the next song from the queue
+            audio_url = await search_and_play(next_song_url)
+            if not audio_url:
+                await ctx.send("Could not find a valid audio source.")
+                return
+            
+            print(f"Extracted audio URL: {audio_url}")  # For debugging
+
+            # Ensure ffmpeg_options is defined before usage
+            ffmpeg_options = {
+                'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
+                'options': '-vn'
+            }
+
+            source = discord.FFmpegPCMAudio(audio_url, **ffmpeg_options)
+            ctx.voice_client.play(source, after=lambda e: asyncio.run_coroutine_threadsafe(cleanup(ctx, e), bot.loop))  # Play next song
+            await ctx.send(f"Now playing: {next_song_url}")
+    else:
+        # If no more songs in the queue, disconnect the bot
+        if ctx.voice_client:
+            await ctx.voice_client.disconnect()
+
+@bot.command(name="stop", help="Stops the music.")
+async def stop(ctx):
+    if ctx.voice_client.is_playing():
+        ctx.voice_client.stop()
+        await ctx.send("Stopped the music.")
+    else:
+        await ctx.send("Nothing is currently playing.")
+
+@bot.command(name="leave", help="Disconnects the bot from the voice channel.")
+async def leave(ctx):
+    if ctx.voice_client:
+        await ctx.voice_client.disconnect()
+        await ctx.send("Disconnected from the voice channel.")
+    else:
+        await ctx.send("I'm not connected to a voice channel.")
 
 @bot.tree.command(name="ban_team", description="Ban whole team for x hours and y days")
 @app_commands.checks.has_permissions(view_audit_log=True, manage_roles=True)
