@@ -21,7 +21,7 @@ import json
 import yt_dlp as youtube_dl
 
 # Configure logging
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 
 intents = discord.Intents.default()
 intents.members = True
@@ -1120,11 +1120,35 @@ ytdl = youtube_dl.YoutubeDL(ytdl_options)
 
 async def search_and_play(url: str):
     ydl_opts = {
-        'format': 'bestaudio/best',  # Prefer the best audio format
-        'quiet': True,
-        'extractaudio': True,  # Extract only audio
-        'outtmpl': '%(id)s.%(ext)s',  # Save audio to a temp file
+    'format': 'bestaudio',  # Choose the best available audio quality
+    'quiet': True,           # Suppress unnecessary output
+    'extractaudio': True,    # Extract only audio
+    'outtmpl': '%(id)s.%(ext)s',  # Save audio to a file with the video ID as the filename
+    'postprocessors': [{
+        'key': 'FFmpegAudio',
+        'preferredcodec': 'opus',   # Use 'opus' codec (best for quality and file size)
+        'preferredquality': '0',     # Set the highest quality for Opus codec (0 for best)
+    }],
+    'cookiefile': '/path/to/cookies.txt',  # Use cookies from a browser session to avoid CAPTCHA
+    'headers': {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+    },
+    'retries': 10,  # Retry on failure
+}
+
+    ydl_opts = {
+    'format': 'bestaudio/best',
+    'outtmpl': 'downloads/%(id)s.%(ext)s',
+    'postprocessors': [{
+        'key': 'FFmpegAudio',
+        'preferredcodec': 'mp3',
+        'preferredquality': '192',
+    }],
+    'headers': {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
     }
+}
+
 
     with youtube_dl.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=False)  # Extract video info without downloading
