@@ -1118,7 +1118,8 @@ async def search_and_play(url: str):
         'outtmpl': '%(id)s.%(ext)s',  # Save audio to a file with the video ID as the filename
         'prefer_ffmpeg': True,       # Force using ffmpeg for better audio extraction
         'ffmpeg_location': '/usr/bin/ffmpeg',  # Ensure correct ffmpeg path if using FFmpeg
-        'retries': 10,  # Retry on failure
+        'cookiefile': 'ytcookies.txt', 
+        'retries': 2,  # Retry on failure
         'noplaylist': True,  # Don't play the entire playlist (if URL is a playlist)
         'prefer-ffmpeg': True,  # Prefer ffmpeg to handle audio conversion
         'ffmpeg_args': [
