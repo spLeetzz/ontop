@@ -1109,7 +1109,11 @@ ffmpeg_options = {
 
 song_queue = deque()
 
-async def search_and_play(url: str):
+async def search_and_play(query: str):
+    # If the query is not a URL, treat it as a search query
+    if not query.startswith("http"):
+        query = f"ytsearch:{query}"  # Prefix with ytsearch to indicate a search query
+
     # ydl_opts for high-quality audio extraction
     ydl_opts = {
         'format': 'bestaudio/best',  # Prefer the best available audio format
@@ -1135,20 +1139,36 @@ async def search_and_play(url: str):
     }
 
     # Run the extraction asynchronously
-    return await asyncio.to_thread(extract_audio_url, url, ydl_opts)
+    result = await asyncio.to_thread(extract_audio_url, query, ydl_opts)
+    
+    if result:
+        audio_url, title = result
+        return audio_url, title
+    return None, None
 
-def extract_audio_url(url, ydl_opts):
+def extract_audio_url(query, ydl_opts):
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=False)
+            info = ydl.extract_info(query, download=False)
+
+            if 'entries' in info:  # If the result is a playlist or search results, pick the first video
+                info = info['entries'][0]
+            
             if 'formats' in info:
+                # Look for the best audio format with a valid codec
                 for f in info['formats']:
-                    if f.get('acodec') != 'none':  # Ensure it has a valid audio codec
-                        return f['url'], info.get('title')  # Return the audio URL and video title
+                    if f.get('acodec') != 'none' and f.get('url'):
+                        audio_url = f['url']
+                        title = info.get('title', 'Unknown Title')
+                        print(audio_url+"xxxxxxxxxxxxxxxxxxxxxxxxx")
+                        return audio_url, title
+
+            # If no valid format is found, return None
             return None, None
     except Exception as e:
         print(f"Error occurred while extracting audio: {e}")
         return None, None
+
 
 @bot.command(name="play", help="Plays a song from a YouTube URL or song name in a voice channel.")
 async def play(ctx, *, query: str):
@@ -1165,11 +1185,6 @@ async def play(ctx, *, query: str):
     elif ctx.voice_client.channel != voice_channel:
         await ctx.voice_client.move_to(voice_channel)
 
-    # Check if the query is a YouTube Music URL
-    if "music.youtube.com" in query:
-        # Convert YouTube Music URL to regular YouTube URL
-        query = query.replace("music.youtube.com", "youtube.com")
-    
     # Get audio source
     async with ctx.typing():
         audio_url, title = await search_and_play(query)
