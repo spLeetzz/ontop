@@ -1144,14 +1144,14 @@ def extract_audio_url(url, ydl_opts):
             if 'formats' in info:
                 for f in info['formats']:
                     if f.get('acodec') != 'none':  # Ensure it has a valid audio codec
-                        return f['url']  # Return the audio URL
-            return None
+                        return f['url'], info.get('title')  # Return the audio URL and video title
+            return None, None
     except Exception as e:
         print(f"Error occurred while extracting audio: {e}")
-        return None
+        return None, None
 
-@bot.command(name="play", help="Plays a song from a YouTube URL in a voice channel.")
-async def play(ctx, url: str):
+@bot.command(name="play", help="Plays a song from a YouTube URL or song name in a voice channel.")
+async def play(ctx, *, query: str):
     # Check if user is in a voice channel
     if ctx.author.voice is None:
         await ctx.send("You need to be in a voice channel to use this command.")
@@ -1165,14 +1165,22 @@ async def play(ctx, url: str):
     elif ctx.voice_client.channel != voice_channel:
         await ctx.voice_client.move_to(voice_channel)
 
+    # Check if the query is a YouTube Music URL
+    if "music.youtube.com" in query:
+        # Convert YouTube Music URL to regular YouTube URL
+        query = query.replace("music.youtube.com", "youtube.com")
+    
     # Get audio source
     async with ctx.typing():
-        audio_url = await search_and_play(url)
+        audio_url, title = await search_and_play(query)
         if not audio_url:
             await ctx.send("Could not find a valid audio source.")
             return
         
         print(f"Extracted audio URL: {audio_url}")  # For debugging
+
+        # Send feedback to the user with the title of the video
+        await ctx.send(f"Now playing: {title}")
 
         # Ensure ffmpeg_options is defined before usage
         ffmpeg_options = {
@@ -1187,12 +1195,10 @@ async def play(ctx, url: str):
         # Start playing the current song
         ctx.voice_client.play(source, after=lambda e: asyncio.run_coroutine_threadsafe(cleanup(ctx, e), bot.loop))
 
-        # Send feedback to the user
-        await ctx.send(f"Now playing: {url}")
     else:
         # If the bot is already playing, add the song to the queue
-        song_queue.append(url)
-        await ctx.send(f"Added to queue: {url}")
+        song_queue.append(query)
+        await ctx.send(f"Added to queue: {query}")
 
 async def cleanup(ctx, error):
     if error:
@@ -1203,7 +1209,7 @@ async def cleanup(ctx, error):
         next_song_url = song_queue.popleft()  # Get the next song from the queue
         async with ctx.typing():
             # Play the next song from the queue
-            audio_url = await search_and_play(next_song_url)
+            audio_url, title = await search_and_play(next_song_url)
             if not audio_url:
                 await ctx.send("Could not find a valid audio source.")
                 return
@@ -1218,7 +1224,7 @@ async def cleanup(ctx, error):
 
             source = discord.FFmpegPCMAudio(audio_url, **ffmpeg_options)
             ctx.voice_client.play(source, after=lambda e: asyncio.run_coroutine_threadsafe(cleanup(ctx, e), bot.loop))  # Play next song
-            await ctx.send(f"Now playing: {next_song_url}")
+            await ctx.send(f"Now playing: {title}")
     else:
         # If no more songs in the queue, disconnect the bot
         if ctx.voice_client:
