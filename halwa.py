@@ -1135,21 +1135,6 @@ async def search_and_play(url: str):
     },
     'retries': 10,  # Retry on failure
 }
-
-    ydl_opts = {
-    'format': 'bestaudio/best',
-    'outtmpl': 'downloads/%(id)s.%(ext)s',
-    'postprocessors': [{
-        'key': 'FFmpegAudio',
-        'preferredcodec': 'mp3',
-        'preferredquality': '192',
-    }],
-    'headers': {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-    }
-}
-
-
     with youtube_dl.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=False)  # Extract video info without downloading
         if 'formats' in info:
