@@ -1425,11 +1425,11 @@ async def faq_error(ctx: commands.Context, error: commands.CommandError):
 
 @bot.hybrid_command(name="spamloop", description="spam loop")
 @commands.has_permissions(manage_roles=True,view_audit_log=True)
-async def faq(ctx: commands.Context,*, message: str):
+async def faq(ctx: commands.Context,*, message: str,time : int):
     try:
         for _ in range(0,99999999999999):
             await ctx.channel.send(message)
-            await asyncio.sleep(60)
+            await asyncio.sleep(time)
             
     except discord.HTTPException as e:
         await ctx.send(f"An error occurred while sending the message: {e}")
