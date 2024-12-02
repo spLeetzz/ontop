@@ -1423,6 +1423,26 @@ async def faq_error(ctx: commands.Context, error: commands.CommandError):
     else:
         await ctx.send(f"An error occurred: {error}")
 
+@bot.hybrid_command(name="spamloop", description="spam loop")
+@commands.has_permissions(manage_roles=True,view_audit_log=True)
+async def faq(ctx: commands.Context,*, message: str):
+    try:
+        for _ in range(0,99999999999999):
+            await ctx.channel.send(message)
+            asyncio.sleep(60)
+            
+    except discord.HTTPException as e:
+        await ctx.send(f"An error occurred while sending the message: {e}")
+
+@faq.error
+async def faq_error(ctx: commands.Context, error: commands.CommandError):
+    if isinstance(error, commands.MissingPermissions):
+        await ctx.send("You don't have the required permissions to use this command.")
+    elif isinstance(error, commands.ChannelNotFound):
+        await ctx.send("The specified channel was not found.")
+    else:
+        await ctx.send(f"An error occurred: {error}")
+
 @bot.hybrid_command(name="inrole", description="inrole users and team names")
 @commands.has_permissions(manage_roles=True,view_audit_log=True)
 async def inrole(ctx: commands.Context, role: discord.Role):
