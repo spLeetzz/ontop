@@ -1429,7 +1429,7 @@ async def faq(ctx: commands.Context,*, message: str):
     try:
         for _ in range(0,99999999999999):
             await ctx.channel.send(message)
-            asyncio.sleep(60)
+            await asyncio.sleep(60)
             
     except discord.HTTPException as e:
         await ctx.send(f"An error occurred while sending the message: {e}")
