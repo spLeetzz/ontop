@@ -1406,6 +1406,23 @@ async def say_error(ctx: commands.Context, error: commands.CommandError):
     else:
         await ctx.send(f"An error occurred: {error}")
 
+@bot.hybrid_command(name="saythischannel", description="""Make the bot say a specified message in this channel.""")
+@commands.has_permissions(manage_roles=True)
+async def saythischannel(ctx: commands.Context, message: str):
+    try:
+        await ctx.channel.send(message)
+    except discord.HTTPException as e:
+        await ctx.send(f"An error occurred while sending the message: {e}")
+
+@saythischannel.error
+async def saythischannel_error(ctx: commands.Context, error: commands.CommandError):
+    if isinstance(error, commands.MissingPermissions):
+        await ctx.send("You don't have the required permissions to use this command.")
+    elif isinstance(error, commands.ChannelNotFound):
+        await ctx.send("The specified channel was not found.")
+    else:
+        await ctx.send(f"An error occurred: {error}")
+
 @bot.hybrid_command(name="faq", description="send faq view")
 @commands.has_permissions(manage_roles=True)
 async def faq(ctx: commands.Context, channel: discord.TextChannel, *, message: str):
