@@ -1632,7 +1632,7 @@ async def start_auto():
 
         await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"*REG STARTED!*\nCurrent captcha variables: {constants.captcha_question_variables[0]}, {constants.captcha_question_variables[1]} + {constants.captcha_question_variables[2]}, {constants.captcha_question_variables[3]} + {constants.captcha_question_variables[4]}")
 
-y = datetime.time(hour=11, minute=0, tzinfo=local_tz)
+y = datetime.time(hour=11, minute=45, tzinfo=local_tz)
 @tasks.loop(time=y)
 async def clear_lb_auto():
 
@@ -2183,7 +2183,7 @@ async def enrollTeam(user,interaction):
                 await thread.send(f"{user.mention} This team name is not allowed. Please choose a different team name.")
 
             # Check if the team name has more than sufficient char
-            if int(len(team_name)) > 40:
+            if int(len(team_name)) > 23:
                 await thread.send(f"{user.mention} Too long team name, Please choose a different team name.")
 
             # Check if the team name already exists
