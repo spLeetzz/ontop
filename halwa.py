@@ -1488,6 +1488,7 @@ async def inrole(ctx: commands.Context, error: commands.CommandError):
 @app_commands.checks.has_permissions(manage_roles=True, view_audit_log=True)
 async def amr_one(interaction: discord.Interaction, team_name : str):
     try:
+        interaction.response.defer()
         # Get the interaction channel name
         channel_name = interaction.channel.name
 
@@ -1528,6 +1529,8 @@ async def amr_one(interaction: discord.Interaction, team_name : str):
             row = [team_name,int(time.time()),int((0 * 3600) + (days_until_sunday * 86400)),datetime.datetime.now(tz=constants.timezone).strftime("%Y-%m-%d %H:%M"),f"{days_until_sunday} days {0} hours",str(user_id)]
             constants.cooldown_sheet.append_row(row)
 
+            interaction.response.send_message("did",ephemeral=True,delete_after=2)
+
     except discord.HTTPException as e:
         await interaction.send(f"An error occurred while sending the message: {e}")
 
@@ -1544,6 +1547,7 @@ async def amr_one(ctx: commands.Context, error: commands.CommandError):
 @app_commands.checks.has_permissions(manage_roles=True, view_audit_log=True)
 async def amr_two(interaction: discord.Interaction, team_name : str):
     try:
+        interaction.response.defer()
         # Get the interaction channel name
         channel_name = interaction.channel.name
 
@@ -1583,6 +1587,8 @@ async def amr_two(interaction: discord.Interaction, team_name : str):
 
             row = [team_name,int(time.time()),int((0 * 3600) + (days_until_sunday * 86400)),datetime.datetime.now(tz=constants.timezone).strftime("%Y-%m-%d %H:%M"),f"{days_until_sunday} days {0} hours",str(user_id)]
             constants.cooldown_sheet.append_row(row)
+
+            interaction.response.send_message("did",ephemeral=True,delete_after=2)
         
     except discord.HTTPException as e:
         await interaction.send(f"An error occurred while sending the message: {e}")
