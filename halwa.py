@@ -1488,7 +1488,6 @@ async def inrole(ctx: commands.Context, error: commands.CommandError):
 @app_commands.checks.has_permissions(manage_roles=True, view_audit_log=True)
 async def amr_one(interaction: discord.Interaction, team_name : str):
     try:
-        interaction.response.defer()
         # Get the interaction channel name
         channel_name = interaction.channel.name
 
@@ -1512,7 +1511,7 @@ async def amr_one(interaction: discord.Interaction, team_name : str):
 
             team_name = await validate_registration(user="None", check_cooldown = False,check_left_server = False,user_idd=user_id)
             if team_name in constants.cd_team_list:
-                await interaction.response.send_message("Bhai ye team already hai cooldown me, if duration badhana h to splitz ko pakdo, aese command se krna thoda mushkil hai")
+                await interaction.response.send_message("Bhai ye team already hai cooldown me, if duration badhana h to splitz ko pakdo, aese command se krna thoda mushkil hai",ephemeral=True)
                 return
             elif not team_name:
                 await interaction.response.send_message("Couldn't find any team with this user.")
@@ -1529,9 +1528,9 @@ async def amr_one(interaction: discord.Interaction, team_name : str):
             row = [team_name,int(time.time()),int((0 * 3600) + (days_until_sunday * 86400)),datetime.datetime.now(tz=constants.timezone).strftime("%Y-%m-%d %H:%M"),f"{days_until_sunday} days {0} hours",str(user_id)]
             constants.cooldown_sheet.append_row(row)
 
-            interaction.response.send_message("did",ephemeral=True,delete_after=2)
+            interaction.response.send_message("did",ephemeral=True,delete_after=1)
 
-    except discord.HTTPException as e:
+    except Exception as e:
         await interaction.send(f"An error occurred while sending the message: {e}")
 
 @amr_one.error
@@ -1547,7 +1546,6 @@ async def amr_one(ctx: commands.Context, error: commands.CommandError):
 @app_commands.checks.has_permissions(manage_roles=True, view_audit_log=True)
 async def amr_two(interaction: discord.Interaction, team_name : str):
     try:
-        interaction.response.defer()
         # Get the interaction channel name
         channel_name = interaction.channel.name
 
@@ -1571,7 +1569,7 @@ async def amr_two(interaction: discord.Interaction, team_name : str):
 
             team_name = await validate_registration(user="None", check_cooldown = False,check_left_server = False,user_idd=user_id)
             if team_name in constants.cd_team_list:
-                await interaction.response.send_message("Bhai ye team already hai cooldown me, if duration badhana h to splitz ko pakdo, aese command se krna thoda mushkil hai")
+                await interaction.response.send_message("Bhai ye team already hai cooldown me, if duration badhana h to splitz ko pakdo, aese command se krna thoda mushkil hai",ephemeral=True)
                 return
             elif not team_name:
                 await interaction.response.send_message("Couldn't find any team with this user.")
@@ -1588,9 +1586,9 @@ async def amr_two(interaction: discord.Interaction, team_name : str):
             row = [team_name,int(time.time()),int((0 * 3600) + (days_until_sunday * 86400)),datetime.datetime.now(tz=constants.timezone).strftime("%Y-%m-%d %H:%M"),f"{days_until_sunday} days {0} hours",str(user_id)]
             constants.cooldown_sheet.append_row(row)
 
-            interaction.response.send_message("did",ephemeral=True,delete_after=2)
+            interaction.response.send_message("did",ephemeral=True,delete_after=1)
         
-    except discord.HTTPException as e:
+    except Exception as e:
         await interaction.send(f"An error occurred while sending the message: {e}")
 
 @amr_two.error
