@@ -651,35 +651,13 @@ class AddTeamButton(discord.ui.Button):
                     f"{interaction.user.mention} let me know the team's name."
                 )
 
-                id_of_member_associated = await get_user_response_in_thread(
+                member = await get_user_response_in_thread(
                     interaction.user,
                     mod_channel,
-                    f"{interaction.user.mention} mention the user you wanna add.",return_first_mention=True
+                    f"{interaction.user.mention} mention the user you wanna add.",return_first_member=True
                 )
-                
-                # New team to add
-                new_team = {team_name: id_of_member_associated}
 
-                # Extract the channel number from the matching channel name
-                channel_number = interaction.channel.name.split('-')[1]
-                json_file_name = f"lobby_{channel_number}_teams.json"
-
-                with open(json_file_name, 'r+') as f:
-                    data = json.load(f)   # Read the existing JSON data into a dictionary
-                    data.update(new_team)    # Add the new team to the dictionary
-                    f.seek(0)             # Move the file pointer to the beginning of the file
-                    json.dump(data, f, indent=1)   # Write the updated dictionary back to the file
-                    f.truncate()          # Ensure the file is truncated to the new length
-
-                team_names = list(data.keys())
-                async with asyncio.TaskGroup() as taskhandler:
-                    try:
-                        await send_slots_list(team_names, channel_number, interaction.channel,edit_slots_list= True)
-                    except Exception as e:
-                        print(f"Got Exception: {e}")
-                        
-                role = discord.utils.get(bot.get_guild(constants.GUILD_ID).roles, name= f"Group {channel_number} IDP")
-                await interaction.guild.get_member(id_of_member_associated).add_roles(role)
+                await add_team_slotlist(team_name,member,interaction.channel)
                 await mod_channel.send("kay")
 
             except asyncio.TimeoutError:
@@ -1477,6 +1455,24 @@ async def inrole(ctx: commands.Context, role: discord.Role):
 
 @inrole.error
 async def inrole(ctx: commands.Context, error: commands.CommandError):
+    if isinstance(error, commands.MissingPermissions):
+        await ctx.send("You don't have the required permissions to use this command.")
+    elif isinstance(error, commands.ChannelNotFound):
+        await ctx.send("The specified channel was not found.")
+    else:
+        await ctx.send(f"An error occurred: {error}")
+
+@bot.hybrid_command(name="add_team", description="Add team in T3 Slots List.")
+@commands.has_any_role(*constants.roles_for_purge_perm)
+async def add_team(ctx: commands.Context, team_name: str,member: discord.Member,channel: discord.TextChannel):
+    try:
+        add_team_slotlist(team_name,member,channel)
+        await ctx.send(f"{team_name} added in {channel} by {ctx}")
+    except discord.HTTPException as e:
+        await ctx.send(f"An error occurred while sending the message: {e}")
+
+@add_team.error
+async def add_team(ctx: commands.Context, error: commands.CommandError):
     if isinstance(error, commands.MissingPermissions):
         await ctx.send("You don't have the required permissions to use this command.")
     elif isinstance(error, commands.ChannelNotFound):
@@ -2390,16 +2386,16 @@ async def get_user_response(user, prompt=""):
         await user.send("Response timed out. Please try again later.")
         return None
 
-async def get_user_response_in_thread(user, channel, prompt="", timeout=300, return_message_object=False,embed=None,return_first_mention=False):
+async def get_user_response_in_thread(user, channel, prompt="", timeout=300, return_message_object=False,embed=None,return_first_member=False):
     await channel.send(prompt,embed = embed)
     response = await bot.wait_for('message', check=lambda msg: msg.author == user and msg.channel == channel, timeout = int(timeout))
     if response.content.strip():  # Check if the response is not empty after stripping whitespace
         if return_message_object:
             return response  # Return the message object if requested
-        if return_first_mention:
-            user_ids = response.mentions[:1]
-            user_id = user_ids[0]
-            return user_id.id
+        if return_first_member:
+            members = response.mentions[:1]
+            member = members[0]
+            return member
         else:
             return response.content  # Return the content of the message by default
     else:
@@ -2967,6 +2963,33 @@ async def assign_team_to_lobby(user, lobby_number):
 
     if lobby_role and lobby_channel:
         await user.add_roles(lobby_role)
+
+async def add_team_slotlist(team_name,member,channel):
+
+    # New team to add
+    new_team = {team_name: member.id}
+
+    # Extract the channel number from the matching channel name
+    channel_number = channel.name.split('-')[1]
+    
+    json_file_name = f"lobby_{channel_number}_teams.json"
+
+    with open(json_file_name, 'r+') as f:
+        data = json.load(f)   # Read the existing JSON data into a dictionary
+        data.update(new_team)    # Add the new team to the dictionary
+        f.seek(0)             # Move the file pointer to the beginning of the file
+        json.dump(data, f, indent=1)   # Write the updated dictionary back to the file
+        f.truncate()          # Ensure the file is truncated to the new length
+
+    team_names = list(data.keys())
+    async with asyncio.TaskGroup() as taskhandler:
+        try:
+            await send_slots_list(team_names, channel_number, channel,edit_slots_list= True)
+        except Exception as e:
+            print(f"Got Exception: {e}")
+            
+    role = discord.utils.get(bot.get_guild(constants.GUILD_ID).roles, name= f"Group {channel_number} IDP")
+    await member.add_roles(role)
 
 async def send_slots_list(team_names, lobby_number, lobby_channel,edit_slots_list=  False):
     # Prepare the slots list message
