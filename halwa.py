@@ -1466,8 +1466,8 @@ async def inrole(ctx: commands.Context, error: commands.CommandError):
 @commands.has_any_role(*constants.roles_for_purge_perm)
 async def add_team(ctx: commands.Context, team_name: str,member: discord.Member,channel: discord.TextChannel):
     try:
-        add_team_slotlist(team_name,member,channel)
-        await ctx.send(f"{team_name} added in {channel} by {ctx}")
+        await add_team_slotlist(team_name,member,channel)
+        await ctx.send(f"{team_name} added in {channel.mention} by {ctx.author.name}")
     except discord.HTTPException as e:
         await ctx.send(f"An error occurred while sending the message: {e}")
 
