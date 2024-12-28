@@ -1491,7 +1491,7 @@ async def add_team_error(ctx: commands.Context, error: commands.CommandError):
 )
 async def upload_results(interaction: discord.Interaction, results: str,select_option: app_commands.Choice[str]):
     try:
-        await interaction.response.defer()
+        await interaction.response.send_message("okay workin",ephemeral=True,delete_after=3)
         # Split the results string using the specified delimiter
         teams = results.split("<>")
         
@@ -1510,7 +1510,7 @@ async def upload_results(interaction: discord.Interaction, results: str,select_o
 
                     response = await share_lobby_results(lobby_number=i, team_name=team,amr_number=1) 
                 
-                elif select_option.value == '2' or (select_option.value == '3' and i>5):
+                elif select_option.value == '2' or (select_option.value == '3' and i>4):
 
                     response = await share_lobby_results(lobby_number=i, team_name=team,amr_number=2) 
                 
@@ -1522,8 +1522,6 @@ async def upload_results(interaction: discord.Interaction, results: str,select_o
             except Exception as e:
                 print(f"Exception in lobby {i} results: {e}")
                 await interaction.channel.send(f"Could not update Lobby {i} results.")
-            
-        await interaction.response.send_message("Done",ephemeral=True,delete_after=1)
         
     except Exception as e:
         await interaction.channel.send(f"An error occurred: {e}")
