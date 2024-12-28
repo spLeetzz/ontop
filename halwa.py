@@ -1531,10 +1531,6 @@ async def upload_results_error(interaction: discord.Interaction, error):
     if isinstance(error, commands.MissingPermissions):
         missing_perms = ', '.join(error.missing_permissions)
         await interaction.response.send_message(f"You don't have the required permissions to use this command: {missing_perms}")
-    elif isinstance(error, ValueError):
-        await interaction.response.send_message("You must specify a valid duration.")
-    else:
-        await interaction.response.send_message(f"An error occurred: {error}")
 
 @bot.tree.command(name="amr_one", description="Grant amateur scrims role (1) thru idp channel.")
 @app_commands.checks.has_permissions(manage_roles=True, view_audit_log=True)
