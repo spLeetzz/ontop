@@ -1469,16 +1469,12 @@ async def add_team(ctx: commands.Context, team_name: str,member: discord.Member,
         await add_team_slotlist(team_name,member,channel)
         await ctx.send(f"{team_name} added in {channel.mention} by {ctx.author.name}")
     except discord.HTTPException as e:
-        await ctx.send(f"An error occurred while sending the message: {e}")
+        await ctx.send(f"Error aaya: {e}")
 
 @add_team.error
 async def add_team_error(ctx: commands.Context, error: commands.CommandError):
     if isinstance(error, commands.MissingPermissions):
         await ctx.send("You don't have the required permissions to use this command.")
-    elif isinstance(error, commands.ChannelNotFound):
-        await ctx.send("The specified channel was not found.")
-    else:
-        await ctx.send(f"An error occurred: {error}")
 
 @bot.tree.command(name="upload_results", description="Share all t3 results.")
 @app_commands.checks.has_any_role(*constants.roles_for_purge_perm)
