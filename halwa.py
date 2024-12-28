@@ -1501,7 +1501,6 @@ async def upload_results(interaction: discord.Interaction, results: str,select_o
 
             try:
                 response = None
-                print(select_option) 
                 if select_option.value == '1' or (select_option.value == '3' and i<5):
 
                     response = await share_lobby_results(lobby_number=i, team_name=team,amr_number=1) 
