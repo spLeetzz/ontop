@@ -1497,7 +1497,7 @@ async def upload_results(interaction: discord.Interaction, results: str,select_o
         
         # Ensure there are exactly 8 teams in the results
         if len(teams) != 8:
-            await interaction.response.send_message("Error: The results string must contain exactly 8 teams separated by '<>'.")
+            await interaction.channel.send("Error: The results string must contain exactly 8 teams separated by '<>'.")
             return
         
         # Loop through the teams and pass them to the pass_results function with lobby numbers
@@ -1514,15 +1514,15 @@ async def upload_results(interaction: discord.Interaction, results: str,select_o
                 
                 # Send a confirmation message for each lobby
                 if response:
-                    await interaction.response.send_message(f"Lobby {i} results updated: {team}\n{response}")
+                    await interaction.channel.send(f"Lobby {i} results updated: {team}\n{response}")
                 else:
-                    await interaction.response.send_message(f"Lobby {i} results updated: {team}")
+                    await interaction.channel.send(f"Lobby {i} results updated: {team}")
             except Exception as e:
                 print(f"Exception in lobby {i} results: {e}")
-                await interaction.response.send_message(f"Could not update Lobby {i} results.")
+                await interaction.channel.send(f"Could not update Lobby {i} results.")
         
     except Exception as e:
-        await interaction.response.send_message(f"An error occurred: {e}")
+        await interaction.channel.send(f"An error occurred: {e}")
 
 @upload_results.error
 async def upload_results_error(interaction: discord.Interaction, error):
