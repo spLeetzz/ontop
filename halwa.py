@@ -1454,7 +1454,7 @@ async def inrole(ctx: commands.Context, role: discord.Role):
         await ctx.send(f"An error occurred while sending the message: {e}")
 
 @inrole.error
-async def inrole(ctx: commands.Context, error: commands.CommandError):
+async def inrole_error(ctx: commands.Context, error: commands.CommandError):
     if isinstance(error, commands.MissingPermissions):
         await ctx.send("You don't have the required permissions to use this command.")
     elif isinstance(error, commands.ChannelNotFound):
@@ -1472,13 +1472,67 @@ async def add_team(ctx: commands.Context, team_name: str,member: discord.Member,
         await ctx.send(f"An error occurred while sending the message: {e}")
 
 @add_team.error
-async def add_team(ctx: commands.Context, error: commands.CommandError):
+async def add_team_error(ctx: commands.Context, error: commands.CommandError):
     if isinstance(error, commands.MissingPermissions):
         await ctx.send("You don't have the required permissions to use this command.")
     elif isinstance(error, commands.ChannelNotFound):
         await ctx.send("The specified channel was not found.")
     else:
         await ctx.send(f"An error occurred: {error}")
+
+@bot.tree.command(name="upload_results", description="Share all t3 results.")
+@app_commands.checks.has_any_role(*constants.roles_for_purge_perm)
+@app_commands.choices(
+    select_option=[
+        app_commands.Choice(name="amr1", value="1"),
+        app_commands.Choice(name="amr2", value="2"),
+        app_commands.Choice(name="hybrid(4-4)", value="3")
+    ]
+)
+async def upload_results(interaction: discord.Interaction, results: str,select_option: app_commands.Choice[str]):
+    try:
+        await interaction.response.defer()
+        # Split the results string using the specified delimiter
+        teams = results.split("<>")
+        
+        # Ensure there are exactly 8 teams in the results
+        if len(teams) != 8:
+            await interaction.response.send_message("Error: The results string must contain exactly 8 teams separated by '<>'.")
+            return
+        
+        # Loop through the teams and pass them to the pass_results function with lobby numbers
+        for i, team in enumerate(teams, start=1):
+
+            try: 
+                if select_option == '1' or (select_option == '3' and i<5):
+
+                    response = await share_lobby_results(lobby_number=i, team_name=team,amr_number=1) 
+                
+                elif select_option == '2' or (select_option == '3' and i>5):
+
+                    response = await share_lobby_results(lobby_number=i, team_name=team,amr_number=2) 
+                
+                # Send a confirmation message for each lobby
+                if response:
+                    await interaction.response.send_message(f"Lobby {i} results updated: {team}\n{response}")
+                else:
+                    await interaction.response.send_message(f"Lobby {i} results updated: {team}")
+            except Exception as e:
+                print(f"Exception in lobby {i} results: {e}")
+                await interaction.response.send_message(f"Could not update Lobby {i} results.")
+        
+    except Exception as e:
+        await interaction.response.send_message(f"An error occurred: {e}")
+
+@upload_results.error
+async def upload_results_error(interaction: discord.Interaction, error):
+    if isinstance(error, commands.MissingPermissions):
+        missing_perms = ', '.join(error.missing_permissions)
+        await interaction.response.send_message(f"You don't have the required permissions to use this command: {missing_perms}")
+    elif isinstance(error, ValueError):
+        await interaction.response.send_message("You must specify a valid duration.")
+    else:
+        await interaction.response.send_message(f"An error occurred: {error}")
 
 @bot.tree.command(name="amr_one", description="Grant amateur scrims role (1) thru idp channel.")
 @app_commands.checks.has_permissions(manage_roles=True, view_audit_log=True)
@@ -1494,40 +1548,12 @@ async def amr_one(interaction: discord.Interaction, team_name : str):
             # Extract the channel number from the matching channel name
             channel_number = matching_channel.split('-')[1]
 
-            with open(f"lobby_{channel_number}_teams.json", 'r') as f:
-                teams_json = json.load(f)
-
-            user_id = teams_json[team_name]
-            amr1 = interaction.guild.get_role(1219781255638286407)
-            await interaction.guild.get_member(user_id).add_roles(amr1)
-
-            role = discord.utils.get(bot.get_guild(constants.GUILD_ID).roles, name= f"Group {channel_number} IDP")
-
-            await interaction.channel.send(f"{role.mention}\nResults have been updated in <#{constants.RESULTS_CHANNEL_ID}>\n\n{team_name} -> <@{user_id}>\n\nQualified for Amateur Scrims.")
-
-            team_name = await validate_registration(user="None", check_cooldown = False,check_left_server = False,user_idd=user_id)
-            if team_name in constants.cd_team_list:
-                await interaction.response.send_message("Bhai ye team already hai cooldown me, if duration badhana h to splitz ko pakdo, aese command se krna thoda mushkil hai",ephemeral=True)
-                return
-            elif not team_name:
-                await interaction.response.send_message("Couldn't find any team with this user.")
-                return
-            
-            local_tz = datetime.datetime.now().astimezone().tzinfo
-            today = datetime.datetime.now(local_tz).weekday()
-
-            days_until_sunday = 6 - today
-            # If today is Sunday (weekday() == 6), adjust to return 0
-            if days_until_sunday == 0:
-                days_until_sunday = 0
-
-            row = [team_name,int(time.time()),int((0 * 3600) + (days_until_sunday * 86400)),datetime.datetime.now(tz=constants.timezone).strftime("%Y-%m-%d %H:%M"),f"{days_until_sunday} days {0} hours",str(user_id)]
-            constants.cooldown_sheet.append_row(row)
+            await share_lobby_results(lobby_number=channel_number, team_name=team_name,amr_number=1) 
 
             interaction.response.send_message("did",ephemeral=True,delete_after=1)
 
     except Exception as e:
-        await interaction.send(f"An error occurred while sending the message: {e}")
+        await interaction.send(f"Exception aayi: {e}")
 
 @amr_one.error
 async def amr_one(ctx: commands.Context, error: commands.CommandError):
@@ -1552,40 +1578,12 @@ async def amr_two(interaction: discord.Interaction, team_name : str):
             # Extract the channel number from the matching channel name
             channel_number = matching_channel.split('-')[1]
 
-            with open(f"lobby_{channel_number}_teams.json", 'r') as f:
-                teams_json = json.load(f)
-
-            user_id = teams_json[team_name]
-            amr2 = interaction.guild.get_role(1247510834524192859)
-            await interaction.guild.get_member(user_id).add_roles(amr2)
-
-            role = discord.utils.get(bot.get_guild(constants.GUILD_ID).roles, name= f"Group {channel_number} IDP")
-
-            await interaction.channel.send(f"{role.mention}\nResults have been updated in <#{constants.RESULTS_CHANNEL_ID}>\n\n{team_name} -> <@{user_id}>\n\nQualified for Amateur Scrims.")
-
-            team_name = await validate_registration(user="None", check_cooldown = False,check_left_server = False,user_idd=user_id)
-            if team_name in constants.cd_team_list:
-                await interaction.response.send_message("Bhai ye team already hai cooldown me, if duration badhana h to splitz ko pakdo, aese command se krna thoda mushkil hai",ephemeral=True)
-                return
-            elif not team_name:
-                await interaction.response.send_message("Couldn't find any team with this user.")
-                return
-            
-            local_tz = datetime.datetime.now().astimezone().tzinfo
-            today = datetime.datetime.now(local_tz).weekday()
-
-            days_until_sunday = 6 - today
-            # If today is Sunday (weekday() == 6), adjust to return 0
-            if days_until_sunday == 0:
-                days_until_sunday = 0
-
-            row = [team_name,int(time.time()),int((0 * 3600) + (days_until_sunday * 86400)),datetime.datetime.now(tz=constants.timezone).strftime("%Y-%m-%d %H:%M"),f"{days_until_sunday} days {0} hours",str(user_id)]
-            constants.cooldown_sheet.append_row(row)
+            await share_lobby_results(lobby_number=channel_number, team_name=team_name,amr_number=2) 
 
             interaction.response.send_message("did",ephemeral=True,delete_after=1)
-        
+
     except Exception as e:
-        await interaction.send(f"An error occurred while sending the message: {e}")
+        await interaction.send(f"Exception aayi: {e}")
 
 @amr_two.error
 async def amr_two(ctx: commands.Context, error: commands.CommandError):
@@ -2990,6 +2988,38 @@ async def add_team_slotlist(team_name,member,channel):
             
     role = discord.utils.get(bot.get_guild(constants.GUILD_ID).roles, name= f"Group {channel_number} IDP")
     await member.add_roles(role)
+
+async def share_lobby_results(lobby_number, team_name,amr_number):
+    with open(f"lobby_{lobby_number}_teams.json", 'r') as f:
+        teams_json = json.load(f)
+
+        user_id = teams_json[team_name]
+
+        amateur_role = discord.utils.get(bot.get_guild(constants.GUILD_ID).roles, name= f"Amateur IDP {amr_number}")
+        member = bot.get_guild(constants.GUILD_ID).get_member(user_id)
+        await member.add_roles(amateur_role)
+
+        role = discord.utils.get(bot.get_guild(constants.GUILD_ID).roles, name= f"Group {lobby_number} IDP")
+        channel = discord.utils.get(bot.get_guild(constants.GUILD_ID).text_channels, name=f"group-{lobby_number}-idp")
+
+        await channel.send(f"{role.mention}\nResults have been updated in <#{constants.RESULTS_CHANNEL_ID}>\n\n{team_name} : <@{user_id}>\n\nQualified for Amateur Scrims.")
+
+        team_name = await validate_registration(user="None", check_cooldown = False,check_left_server = False,user_idd=user_id)
+        if team_name in constants.cd_team_list:
+            return f"{team_name} is already in cooldown."
+        elif not team_name:
+            return f"Can't find any team for user: {member.mention}"
+        
+        local_tz = datetime.datetime.now().astimezone().tzinfo
+        today = datetime.datetime.now(local_tz).weekday()
+
+        days_until_sunday = 6 - today
+        # If today is Sunday (weekday() == 6), adjust to return 0
+        if days_until_sunday == 0:
+            days_until_sunday = 0
+
+        row = [team_name,int(time.time()),int((0 * 3600) + (days_until_sunday * 86400)),datetime.datetime.now(tz=constants.timezone).strftime("%Y-%m-%d %H:%M"),f"{days_until_sunday} days {0} hours",str(user_id)]
+        constants.cooldown_sheet.append_row(row)
 
 async def send_slots_list(team_names, lobby_number, lobby_channel,edit_slots_list=  False):
     # Prepare the slots list message
