@@ -846,16 +846,16 @@ async def on_ready():
             except Exception as e:
                 print(f"Got Exception {e} when delaing with lobby json file")
 
-    start_auto.start()
-    clear_lb_auto.start()
-    idploop.start()
-    idploop2.start()
-    idploop3.start()
-    idploop4.start()
-    idploop5.start()
-    idploop6.start()
-    t3rulesreminder.start()
-    t3rulesreminder2.start()
+    # start_auto.start()
+    # clear_lb_auto.start()
+    # idploop.start()
+    # idploop2.start()
+    # idploop3.start()
+    # idploop4.start()
+    # idploop5.start()
+    # idploop6.start()
+    # t3rulesreminder.start()
+    # t3rulesreminder2.start()
     
     print(f"Set bro.")
 
