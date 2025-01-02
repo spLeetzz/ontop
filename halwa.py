@@ -7,7 +7,6 @@ from discord.ext.commands import MissingPermissions
 import gspread
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
-from pandas import DataFrame
 import logging
 import time
 import os
@@ -18,8 +17,7 @@ from string import ascii_lowercase
 from constants import constants
 import datetime
 import json
-import yt_dlp
-from collections import deque
+import psutil
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -856,6 +854,17 @@ async def on_ready():
     # idploop6.start()
     # t3rulesreminder.start()
     # t3rulesreminder2.start()
+    # Get the process ID (PID) of the current program
+    pid = os.getpid()
+    process = psutil.Process(pid)
+
+    # Get memory usage in bytes
+    memory_info = process.memory_info()
+
+    # Convert memory usage to MB
+    memory_usage_mb = memory_info.rss / (1024 * 1024)  # rss is the Resident Set Size (physical memory)
+
+    print(f"Memory Usage: {memory_usage_mb:.2f} MB")
     
     print(f"Set bro.")
 
@@ -2839,28 +2848,32 @@ async def save_timestamp_to_csv(user, timestamp_ms,lobby_number,status : str):
         writer = csv.writer(csvfile)
         writer.writerow([user, timestamp_ms,f"Lobby {lobby_number}",status])
 
-async def save_as_csv(teams_dict, csv_file,save_all_flag=False):
-    if save_all_flag:
-        # Extract User IDs and team names from the dictionary
-        team_names = [key for key in teams_dict.keys()]
-        user_ids = [','.join(teams_dict[team_name]) for team_name in team_names]
+async def save_as_csv(teams_dict, csv_file, save_all_flag=False):
+    with open(csv_file, mode='w', newline='', encoding='utf-8') as file:
+        writer = csv.writer(file)
 
-        # Create a DataFrame with User IDs and team names as columns
-        df = DataFrame({'Team_Name': team_names,'User_IDS': user_ids})
-        
-        # Write the DataFrame to a CSV file
-        df.to_csv(csv_file, index=False)  # Set index=False to exclude row numbers in the CSV file
-        return
-        
-    # Extract User IDs and team names from the dictionary
-    user_ids = [key for key in teams_dict.keys()]
-    team_names = [teams_dict[user_id] for user_id in user_ids]
-    
-    # Create a DataFrame with User IDs and team names as columns
-    df = DataFrame({'User_ID': user_ids, 'Team_Name': team_names})
-    
-    # Write the DataFrame to a CSV file
-    df.to_csv(csv_file, index=False)  # Set index=False to exclude row numbers in the CSV file
+        if save_all_flag:
+            # Write the header row
+            writer.writerow(['Team_Name', 'User_IDS'])
+
+            # Extract User IDs and team names from the dictionary
+            team_names = [key for key in teams_dict.keys()]
+            user_ids = [','.join(teams_dict[team_name]) for team_name in team_names]
+
+            # Write team names and corresponding user IDs to the CSV
+            for team_name, user_id in zip(team_names, user_ids):
+                writer.writerow([team_name, user_id])
+        else:
+            # Write the header row
+            writer.writerow(['User_ID', 'Team_Name'])
+
+            # Extract User IDs and team names from the dictionary
+            user_ids = [key for key in teams_dict.keys()]
+            team_names = [teams_dict[user_id] for user_id in user_ids]
+
+            # Write user IDs and corresponding team names to the CSV
+            for user_id, team_name in zip(user_ids, team_names):
+                writer.writerow([user_id, team_name])
 
 # Function to assign role to a user
 async def assign_role(user, role_id):
