@@ -844,7 +844,7 @@ async def on_ready():
                 message = await bot.get_channel(int(v[1])).fetch_message(int(v[0]))
                 await message.edit(view=IdpChannelTasksView())
             except Exception as e:
-                print(f"Got Exception {e} when delaing with lobby json file")
+                print(f"Got Exception {e} when dealing with lobby json file")
 
     # start_auto.start()
     # clear_lb_auto.start()
