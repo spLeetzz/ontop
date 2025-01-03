@@ -18,6 +18,7 @@ from constants import constants
 import datetime
 import json
 import psutil
+import sys
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -690,7 +691,7 @@ async def validate_captcha(captcha_phrase : str, sum1_answer : int, sum2_answer 
 # Event handler for when the bot is ready
 @bot.event
 async def on_ready():
-    
+
     print(f"We have logged in as {bot.user} but wait we ain't ready")
 
     await bot.tree.sync()  # For both text and slash commands
@@ -844,16 +845,16 @@ async def on_ready():
             except Exception as e:
                 print(f"Got Exception {e} when dealing with lobby json file")
 
-    # start_auto.start()
-    # clear_lb_auto.start()
-    # idploop.start()
-    # idploop2.start()
-    # idploop3.start()
-    # idploop4.start()
-    # idploop5.start()
-    # idploop6.start()
-    # t3rulesreminder.start()
-    # t3rulesreminder2.start()
+    start_auto.start()
+    clear_lb_auto.start()
+    idploop.start()
+    idploop2.start()
+    idploop3.start()
+    idploop4.start()
+    idploop5.start()
+    idploop6.start()
+    t3rulesreminder.start()
+    t3rulesreminder2.start()
     # Get the process ID (PID) of the current program
     pid = os.getpid()
     process = psutil.Process(pid)
@@ -2747,7 +2748,6 @@ def refresh_cache4():
     initialized = False
     while True:
         try:
-
             rows = constants.cooldown_sheet.get_all_values()
             with constants.cd_list_thread_lock:
                 constants.cd_team_list = [row[0] for row in rows[1:]]
@@ -3113,5 +3113,6 @@ if __name__ == "__main__":
 
     with asyncio.Runner() as runner:
         runner.run(init_sheet())
+        
     # Run the bot with the specified token
     bot.run(os.environ.get('DISCORD_TOKEN'))
