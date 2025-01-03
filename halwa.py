@@ -519,6 +519,7 @@ class TransferIDPButton(discord.ui.Button):
                     await interaction.response.send_message(f"Unable to retrieve any team associated with you, did you deleted it?",ephemeral=True,delete_after=40)
             except Exception as e:
                 print(e)
+                await interaction.response.send_message(f"Some error occured at our end.",ephemeral=True,delete_after=20)
 
         elif len(matching_roles) == 0:
             await interaction.response.send_message(f"You dont Got any role that can be transferred:.",ephemeral=True,delete_after=40)
