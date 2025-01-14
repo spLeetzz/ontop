@@ -15,7 +15,6 @@ import csv
 import random
 from string import ascii_lowercase
 from constants import constants
-import datetime
 import json
 import psutil
 import sys
