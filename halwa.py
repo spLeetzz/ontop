@@ -507,6 +507,7 @@ class TransferIDPButton(discord.ui.Button):
         super().__init__(label=f'Transfer IDP role', style=discord.ButtonStyle.grey)
 
     async def callback(self, interaction: discord.Interaction):
+        await interaction.defer(ephemeral=True)
         matching_roles = [role for role in interaction.user.roles if role.name in constants.idp_role_names]
 
         if len(matching_roles) == 1:
@@ -541,6 +542,7 @@ class PlayerSelectDropdown(discord.ui.Select):
         selected_value = int(self.values[0])
         user = interaction.user
         try:
+            await interaction.defer(ephemeral=True)
             benificar = bot.get_guild(constants.GUILD_ID).get_member(selected_value)
             await user.remove_roles(self.role)
             await asyncio.sleep(2)
