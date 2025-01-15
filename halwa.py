@@ -514,18 +514,18 @@ class TransferIDPButton(discord.ui.Button):
             try:
                 result = await isAlreadyEnrolled(interaction.user.id,used2returnrowwithmessage=True,ctx_is_in_team=True)
                 if result:
-                    await interaction.response.send_message(f"{result[0]}\nSelect player in the dropdown below whom you wanna transfer this IDP role to.",view=PlayerSelectView(row = result[1],role = matching_roles[0]),ephemeral=True,delete_after=120)
+                    await interaction.followup.send(f"{result[0]}\nSelect player in the dropdown below whom you wanna transfer this IDP role to.",view=PlayerSelectView(row = result[1],role = matching_roles[0]),ephemeral=True,delete_after=120)
                 else:
-                    await interaction.response.send_message(f"Unable to retrieve any team associated with you, did you deleted it?",ephemeral=True,delete_after=40)
+                    await interaction.followup.send(f"Unable to retrieve any team associated with you, did you deleted it?",ephemeral=True,delete_after=40)
             except Exception as e:
                 print(e)
-                await interaction.response.send_message(f"Some error occured at our end.",ephemeral=True,delete_after=20)
+                await interaction.followup.send(f"Some error occured at our end.",ephemeral=True,delete_after=20)
 
         elif len(matching_roles) == 0:
-            await interaction.response.send_message(f"You dont Got any role that can be transferred:.",ephemeral=True,delete_after=40)
+            await interaction.followup.send(f"You dont Got any role that can be transferred:.",ephemeral=True,delete_after=40)
 
         else:
-            await interaction.response.send_message(f"You have like more than one Lobbies roles, i am comfused and can not handle role transfers for you.",ephemeral=True,delete_after=40)
+            await interaction.followup.send(f"You have like more than one Lobbies roles, i am comfused and can not handle role transfers for you.",ephemeral=True,delete_after=40)
 
 class PlayerSelectDropdown(discord.ui.Select):
     def __init__(self,row,role):
@@ -548,14 +548,14 @@ class PlayerSelectDropdown(discord.ui.Select):
             await asyncio.sleep(2)
             await assign_role(benificar,self.role.id)
             await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"Hey {user.mention}, Your lobby role has been transferred to your teammate {benificar}")
-            await interaction.response.send_message("Done.", ephemeral=True,delete_after=30)
+            await interaction.followup.send("Done.", ephemeral=True,delete_after=30)
             
         except discord.errors.Forbidden:
-            await interaction.response.send_message("I do not have permission to manage your roles.", ephemeral=True,delete_after=30)
+            await interaction.followup.send("I do not have permission to manage your roles.", ephemeral=True,delete_after=30)
         except discord.errors.HTTPException:
-            await interaction.response.send_message("Failed to remove role due to a Discord API error.", ephemeral=True,delete_after=60)
+            await interaction.followup.send("Failed to remove role due to a Discord API error.", ephemeral=True,delete_after=60)
         except Exception as e:
-            await interaction.response.send_message(f"Got some error: {e}", ephemeral=True,delete_after=60)
+            await interaction.followup.send(f"Got some error: {e}", ephemeral=True,delete_after=60)
 
 class ModToolsButton(discord.ui.Button):
     def __init__(self):
