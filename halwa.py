@@ -147,9 +147,67 @@ async def send_remenu(channel):
     message = await channel.send(embed=embed, view=view)
     return message
 
+# async def send_overview_menu(channel):
+#     view = ScrimsOverviewView()  
+#     message = await channel.send(content=f"Hey there, here's a complete overview of BGMI scrims at Trident:\n\nThere are 4 tiers basically,\n\n`Trident Rookie Scrims(Tier 3):`\n\n- Open for all, anyone can participate, registrations open at 12 PM Tuesday-Saturday in <#{constants.REGISTRATION_CHANNEL_ID}>\n- 8 Groups every day, Top 1 from each Group qualify for Amateur Scrims\n- Every Group plays 2 matches, Erangle-Miramar\n\n`Amateur Scrims(T2 filtration):`\n\n- 2 Groups on Sunday, Top 4 from each Group qualify for Tier 2 scrims\n- Every Group plays 3 matches, Erangle-Miramar-Sanhok\n\n`Trident Elite Scrims(Tier 2):`\n\n- 4 Groups, Every team plays 24 matches over 6 days.\n- Tuesday-Sunday daily 4 matches, Erangle-Miramar-Sanhok-Vikendi\n- Top 6 teams based on cumulative leaderboard of both Groups qualify for Pro Scrims.\n- Bottom 12 teams are demoted from Tier 2 to Tier 3.\n\n`Trident Pro Scrims:`\n\n- Tuesday-Sunday daily 4 matches, Erangle-Miramar-Sanhok-Vikendi\n- Top 6 teams based on leaderboard retain their spots in Pro Scrims.\n- Rest of the teams are demoted from Pro Scrims to Tier 2.\n\nAny announcements and updates would be shared thru the <#1188849982632099940> channels.\nReact with buttons beneath for more information and make sure to follow all rules.",view=view)
+#     return message
+
 async def send_overview_menu(channel):
-    view = ScrimsOverviewView()  
-    message = await channel.send(content=f"Hey there, here's a complete overview of BGMI scrims at Trident:\n\nThere are 4 tiers basically,\n\n`Trident Rookie Scrims(Tier 3):`\n\n- Open for all, anyone can participate, registrations open at 12 PM Tuesday-Saturday in <#{constants.REGISTRATION_CHANNEL_ID}>\n- 8 Groups every day, Top 1 from each Group qualify for Amateur Scrims\n- Every Group plays 2 matches, Erangle-Miramar\n\n`Amateur Scrims(T2 filtration):`\n\n- 2 Groups on Sunday, Top 4 from each Group qualify for Tier 2 scrims\n- Every Group plays 3 matches, Erangle-Miramar-Sanhok\n\n`Trident Elite Scrims(Tier 2):`\n\n- 4 Groups, Every team plays 24 matches over 6 days.\n- Tuesday-Sunday daily 4 matches, Erangle-Miramar-Sanhok-Vikendi\n- Top 6 teams based on cumulative leaderboard of both Groups qualify for Pro Scrims.\n- Bottom 12 teams are demoted from Tier 2 to Tier 3.\n\n`Trident Pro Scrims:`\n\n- Tuesday-Sunday daily 4 matches, Erangle-Miramar-Sanhok-Vikendi\n- Top 6 teams based on leaderboard retain their spots in Pro Scrims.\n- Rest of the teams are demoted from Pro Scrims to Tier 2.\n\nAny announcements and updates would be shared thru the <#1188849982632099940> channels.\nReact with buttons beneath for more information and make sure to follow all rules.",view=view)
+    view = ScrimsOverviewView() 
+    message = await channel.send(content="""## Trident BGMI Scrims 
+
+---
+
+**1. Trident Rookie Scrims (Tier 3):**  
+- **Open for all:** Anyone with <@&1217461189152608277> role can participate.  
+- **Registration:** Opens at 12 PM (Tuesday-Saturday) in **<#1252296674739490908>**.  
+- **Format:**  
+  - 8 Groups daily.  
+  - Each Group plays **2 matches**.  
+  - **Top 1** team from each Group qualifies for Amateur Scrims.  
+
+---
+
+**2. Amateur Scrims (Tier 2 Filtration):**  
+- **Day:** Sunday.  
+- **Format:**  
+  - 2 Groups.  
+  - Each Group plays **3 matches**.  
+  - **Top 6 teams** from each Group qualify for Tier 2 Scrims.  
+
+---
+
+**3. Trident Elite Scrims (Tier 2):**  
+- **Format:**  
+  - 4 Groups, each team plays **24 matches** across 6 days (Friday-Wednesday).  
+  - **Daily matches:** 4 matches/day.  
+  - **Qualification:**  
+    - **Top 18 teams** (cumulative leaderboard) qualify for Tier 1 Scrims.  
+    - **Bottom 12 teams** are demoted to T3.  
+
+---
+
+**4. Trident Tier 1 Scrims:**  
+- **Format:**  
+  - **27 Teams** split into **3 Groups** (A, B, C) with **9 teams each**.  
+  - Play in a **Round-Robin format** over 3 days (Friday-Sunday).  
+  - **Total matches:** 12 matches, with each group playing **8 matches**.  
+  - **Qualification:**  
+    - **Top 9 teams** qualify for Pro Scrims and next week’s Tier 1 Scrims.  
+    - **Bottom 18 teams** are demoted to T2.  
+
+---
+
+**5. Trident Pro Scrims:**  
+- **Format:**  
+  - **Top 9 teams** from Tier 1 compete with **9 invited professional teams**.  
+  - 4 matches/day across 3 days (Monday-Wednesday).  
+  - Teams earn points for the **Trident BGMI Overall Leaderboard**.  
+
+---
+
+Any announcements and updates would be shared thru the ⁠<#1188849982632099940> channels.
+React with buttons beneath for more information and make sure to follow all rules.""",view=view)
     return message
 
 class LobbySelectDropdown(discord.ui.Select):
@@ -246,6 +304,7 @@ class CaptchaModal(discord.ui.Modal):
         self.add_item(self.sum2_input)
 
     async def on_submit(self, interaction: discord.Interaction):
+        
         user = interaction.user
         user_id = interaction.user.id
 
