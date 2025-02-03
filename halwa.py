@@ -782,7 +782,7 @@ class AmateurDetailsModal(discord.ui.Modal):
         # Construct the message to send to the mod channel
         message_content = (
             f"Submitted by {user.mention}\n"
-            f"Team Name: {number}\n"
+            f"Team Name: {team_name}\n"
             f"Number: {number}"
         )
 
