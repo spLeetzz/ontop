@@ -747,7 +747,7 @@ class ModToolsView(discord.ui.View):
 
 class AmateurDetailsButton(discord.ui.Button):
     def __init__(self):
-        super().__init__(label="Team Name Change", style=discord.ButtonStyle.green)
+        super().__init__(label="Submit Team Details", style=discord.ButtonStyle.green)
 
     async def callback(self, interaction: discord.Interaction):
         await interaction.response.send_modal(AmateurDetailsModal())
