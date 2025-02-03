@@ -745,6 +745,64 @@ class ModToolsView(discord.ui.View):
         self.add_item(AddTeamButton())
         self.add_item(CopyTeamNamesButton())
 
+class AmateurDetailsButton(discord.ui.Button):
+    def __init__(self):
+        super().__init__(label="Team Name Change", style=discord.ButtonStyle.green)
+
+    async def callback(self, interaction: discord.Interaction):
+        await interaction.response.send_modal(AmateurDetailsModal())
+
+class AmateurDetailsView(discord.ui.View):
+    def __init__(self,disabled = False):
+        super().__init__(timeout=None)
+        self.add_item(AmateurDetailsButton())
+
+class AmateurDetailsModal(discord.ui.Modal):
+    def __init__(self):
+        super().__init__(title="Amateur Team Details!")
+        
+        # Adding input fields for old and new team names
+        self.team_name_input = discord.ui.TextInput(
+            label="Team Name", required=True
+        )
+        self.add_item(self.team_name_input)
+        
+        self.number_input = discord.ui.TextInput(
+            label="Whatsapp number to add in Trident Scrims Group", required=True
+        )
+        self.add_item(self.number_input)
+    
+    async def on_submit(self, interaction: discord.Interaction):
+        # Extract the details from the form inputs
+        team_name = self.team_name_input.value
+        number = self.number_input.value
+        user = interaction.user
+        user_id = user.id
+
+        # Construct the message to send to the mod channel
+        message_content = (
+            f"Submitted by {user.mention}\n"
+            f"Team Name: {number}\n"
+            f"Number: {number}"
+        )
+
+        # Send the details to the mod channel
+        mod_channel = await interaction.client.fetch_channel(constants.STAFF_CHANNEL_ID)
+        await mod_channel.send(message_content)
+
+        # Acknowledge the submission to the user
+        await interaction.response.send_message(
+            f"Your details have been submitted! Please wait atleast 24 hours and you will be added to the group.",
+            ephemeral=True,delete_after=120
+        )
+
+    async def on_error(self, interaction: discord.Interaction, error: Exception):
+        await interaction.response.send_message(
+            "An error occurred while processing your request. Please try again later.",
+            ephemeral=True, delete_after=240
+        )
+        print(f"An error occurred during the team name change request for {interaction.user}: {error}")
+
 async def validate_captcha(captcha_phrase : str, sum1_answer : int, sum2_answer : int):
     # Placeholder for actual captcha validation logic
     return (captcha_phrase.lower().rstrip() == constants.captcha_question_variables[0] and sum1_answer == int(constants.captcha_question_variables[1] + constants.captcha_question_variables[2]) and sum2_answer == int(constants.captcha_question_variables[3] + constants.captcha_question_variables[4]))  # Replace with actual validation
@@ -1526,6 +1584,24 @@ async def inrole(ctx: commands.Context, role: discord.Role):
 
 @inrole.error
 async def inrole_error(ctx: commands.Context, error: commands.CommandError):
+    if isinstance(error, commands.MissingPermissions):
+        await ctx.send("You don't have the required permissions to use this command.")
+    elif isinstance(error, commands.ChannelNotFound):
+        await ctx.send("The specified channel was not found.")
+    else:
+        await ctx.send(f"An error occurred: {error}")
+
+@bot.hybrid_command(name="amateur_details_view", description="Ask Team Details from Amateur Teams.")
+@commands.has_permissions(manage_roles=True)
+async def amateur_details_view(ctx: commands.Context, channel: discord.TextChannel):
+    try:
+        message = "Click the button below to submit your team details."
+        await channel.send(message, view=AmateurDetailsView())
+    except discord.HTTPException as e:
+        await ctx.send(f"An error occurred while sending the message: {e}")
+
+@amateur_details_view.error
+async def amateur_details_view_error(ctx: commands.Context, error: commands.CommandError):
     if isinstance(error, commands.MissingPermissions):
         await ctx.send("You don't have the required permissions to use this command.")
     elif isinstance(error, commands.ChannelNotFound):
