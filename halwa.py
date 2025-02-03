@@ -768,7 +768,7 @@ class AmateurDetailsModal(discord.ui.Modal):
         self.add_item(self.team_name_input)
         
         self.number_input = discord.ui.TextInput(
-            label="Whatsapp number to add in Trident Scrims Group", required=True
+            label="Whatsapp no. to add in Trident Scrims Group", required=True
         )
         self.add_item(self.number_input)
     
