@@ -1547,6 +1547,56 @@ async def faq_error(ctx: commands.Context, error: commands.CommandError):
     else:
         await ctx.send(f"An error occurred: {error}")
 
+
+@bot.hybrid_command(name="role_by_reply", description="Assign a specified role to all mentioned users in the replied message.")
+@commands.has_permissions(manage_roles=True)
+async def role_by_reply(ctx, role_id: int):
+    
+    if ctx.interaction:
+            await ctx.send("Please use this as a normal command not / command.")
+            return
+
+    if not ctx.message.reference:
+        await ctx.send("You need to reply to a message containing mentions to use this command.")
+        return
+    
+    try:
+        replied_message = await ctx.channel.fetch_message(ctx.message.reference.message_id)
+        mentioned_users = replied_message.mentions
+        
+        if not mentioned_users:
+            await ctx.send("No users were mentioned in the replied message.")
+            return
+        
+        for user in mentioned_users:
+            try:
+
+                role = discord.utils.get(ctx.guild.roles, id=role_id)
+                if not role:
+                    await ctx.send("Invalid role ID. Make sure the role exists and I have permission to manage it.")
+                    return
+                await user.add_roles(role)
+            except discord.Forbidden:
+                await ctx.send(f"I don't have permission to assign roles to {user.mention}.")
+            except discord.HTTPException as e:
+                await ctx.send(f"Failed to assign role to {user.mention}: {e}")
+        
+        await ctx.send(f"Assigned {role.mention} to {len(mentioned_users)} users.")
+        print(f"Assigned {role.name} to {[user.name for user in mentioned_users]} in {ctx.channel.name}.")
+    except discord.NotFound:
+        await ctx.send("Couldn't fetch the replied message. It might have been deleted.")
+    except discord.HTTPException as e:
+        await ctx.send(f"An error occurred while assigning roles: {e}")
+
+@role_by_reply.error
+async def role_by_reply_error(ctx, error):
+    if isinstance(error, commands.MissingPermissions):
+        await ctx.send("You don't have the required permissions to use this command.")
+    elif isinstance(error, commands.BadArgument):
+        await ctx.send("Please specify a valid role.")
+    else:
+        await ctx.send(f"An error occurred: {error}")
+        
 # @bot.hybrid_command(name="spamloop", description="spam loop")
 # @commands.has_permissions(manage_roles=True,view_audit_log=True)
 # async def spamloop(ctx: commands.Context,*, message: str,time : int):
