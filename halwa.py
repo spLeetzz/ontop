@@ -1581,7 +1581,7 @@ async def role_by_reply(ctx, role_id: int):
             except discord.HTTPException as e:
                 await ctx.send(f"Failed to assign role to {user.mention}: {e}")
         
-        await ctx.send(f"Assigned {role.mention} to {len(mentioned_users)} users.")
+        await ctx.send(f"Assigned {role.name} to {len(mentioned_users)} users.")
         print(f"Assigned {role.name} to {[user.name for user in mentioned_users]} in {ctx.channel.name}.")
     except discord.NotFound:
         await ctx.send("Couldn't fetch the replied message. It might have been deleted.")
