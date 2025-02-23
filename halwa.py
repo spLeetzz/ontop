@@ -67,10 +67,10 @@ class TournamentDropdown(discord.ui.Select):
                 await interaction.message.edit(view=TournamentView())
                 return
             
-            elif not any(role.name == constants.REQUIRED_ROLE_NAME for role in user.roles):
-                await interaction.response.send_message(f"Hey {user.mention} you are not verified yet, please complete that first.\nIf verified ho and still this pops up, claim your verification role from <#{constants.TICKET_CHANNEL_ID}>", ephemeral=True,delete_after=30)
-                await interaction.message.edit(view=TournamentView())
-                return
+            # elif not any(role.name == constants.REQUIRED_ROLE_NAME for role in user.roles):
+            #     await interaction.response.send_message(f"Hey {user.mention} you are not verified yet, please complete that first.\nIf verified ho and still this pops up, claim your verification role from <#{constants.TICKET_CHANNEL_ID}>", ephemeral=True,delete_after=30)
+            #     await interaction.message.edit(view=TournamentView())
+            #     return
             
             async with asyncio.TaskGroup() as task_group:
                 task_group.create_task(interaction.response.send_message("Enrollment Started, Check your mentions!", ephemeral=True, delete_after=10))
@@ -1196,6 +1196,7 @@ async def show_limits(ctx):
 @commands.has_any_role('++D','Admin','.',"Mahatma")
 async def delete_from_sheet(ctx,member: discord.User):
     try:
+        await ctx.defer()
         row = await delete_team_from_sheet(member.id,constants.GOOGLE_SHEET_ID,ctx=ctx)
         await ctx.send(f"Team data deleted successfully.\n{row}")
     except Exception as e:
@@ -1547,7 +1548,6 @@ async def faq_error(ctx: commands.Context, error: commands.CommandError):
     else:
         await ctx.send(f"An error occurred: {error}")
 
-
 @bot.hybrid_command(name="role_by_reply", description="Assign a specified role to all mentioned users in the replied message.")
 @commands.has_permissions(manage_roles=True)
 async def role_by_reply(ctx, role_id: int):
@@ -1838,7 +1838,10 @@ async def clear_lb_auto():
         for channel_name in lobby_channel_names:
             channel = discord.utils.get(bot.get_guild(constants.GUILD_ID).channels, name=channel_name)
             if channel:
-                await channel.purge(after=(datetime.datetime.now() - datetime.timedelta(hours=24)))
+                if today == 1:
+                    await channel.purge()
+                else:
+                    await channel.purge(after=(datetime.datetime.now() - datetime.timedelta(hours=24)))
 
         await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"*CLEARED LOBBIES!*")
 
@@ -2703,8 +2706,9 @@ async def validate_enrollment(user, team_name, player_igns, thread):
             # for verify wala lafda :
             if player:
 
-                if not any(role.name == constants.REQUIRED_ROLE_NAME for role in player.roles):
-                    unverified_players.append(player.mention)
+                # if not any(role.name == constants.REQUIRED_ROLE_NAME for role in player.roles):
+                #     unverified_players.append(player.mention)
+                continue
 
             else:
                 await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} There was some error and due to it we arent able to fetch <@{discord_id}>, report to support team if he's present in this server and still this comes.")
