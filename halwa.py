@@ -972,7 +972,7 @@ async def on_ready():
     idploop4.start()
     idploop5.start()
     idploop6.start()
-    t3rulesreminder.start()
+    # t3rulesreminder.start()
     t3rulesreminder2.start()
     # Get the process ID (PID) of the current program
     pid = os.getpid()
@@ -3254,7 +3254,7 @@ async def send_slots_list(team_names, lobby_number, lobby_channel,edit_slots_lis
 
     message = await lobby_channel.send(embed=embed)
     lobby_role = discord.utils.get(bot.get_guild(constants.GUILD_ID).roles, name=f"Group {lobby_number} IDP")
-    followupmsg = await lobby_channel.send(lobby_role.mention)
+    await lobby_channel.send(f"{lobby_role.mention}\n\nAll players IGN must have TEAM TAG included, otherwise you will be kicked from the room.\nYou can even play from new id but this is required.")
     try:
         await message.edit(view=IdpChannelTasksView())
     except Exception as e:
