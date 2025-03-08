@@ -1329,8 +1329,8 @@ async def clear_amateur(ctx):
     channel_names = [
         "amateur-updates",
         "amateur-slotlist",
-        "amateur-idp1",
-        "amateur-idp2",
+        "amateur-idp-1",
+        "amateur-idp-2",
         "amateur-queries",
     ]
 
