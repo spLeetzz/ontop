@@ -1785,7 +1785,7 @@ async def amr_two(ctx: commands.Context, error: commands.CommandError):
         await ctx.send(f"An error occurred: {error}")
 
 local_tz = datetime.datetime.now().astimezone().tzinfo
-x = datetime.time(hour=12, minute=0, tzinfo=local_tz)
+x = datetime.time(hour=12, minute=5, tzinfo=local_tz)
 @tasks.loop(time=x)
 async def start_auto():
 
@@ -1820,7 +1820,7 @@ async def start_auto():
 
         await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"*REG STARTED!*\nCurrent captcha variables: {constants.captcha_question_variables[0]}, {constants.captcha_question_variables[1]} + {constants.captcha_question_variables[2]}, {constants.captcha_question_variables[3]} + {constants.captcha_question_variables[4]}")
 
-y = datetime.time(hour=11, minute=45, tzinfo=local_tz)
+y = datetime.time(hour=12, minute=1, tzinfo=local_tz)
 @tasks.loop(time=y)
 async def clear_lb_auto():
 
@@ -1845,7 +1845,7 @@ async def clear_lb_auto():
 
         await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"*CLEARED LOBBIES!*")
 
-idt1 = datetime.time(hour=15, minute=56, tzinfo=local_tz)
+idt1 = datetime.time(hour=15, minute=58, tzinfo=local_tz)
 @tasks.loop(time=idt1)
 async def idploop():
 
