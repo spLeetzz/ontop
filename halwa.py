@@ -173,16 +173,16 @@ async def send_overview_menu(channel):
 - **Format:**  
   - 2 Groups.  
   - Each Group plays **3 matches**.  
-  - **Top 6 teams** from each Group qualify for Tier 2 Scrims.  
+  - **Top 4 teams** from each Group qualify for Tier 2 Scrims.  
 
 ---
 
 **3. Trident Elite Scrims (Tier 2):**  
 - **Format:**  
-  - 4 Groups, each team plays **24 matches** across 6 days (Friday-Wednesday).  
-  - **Daily matches:** 4 matches/day.  
+  - 4 Groups, each team plays **18 matches** across 6 days (Tuesday-Sunday).  
+  - **Daily matches:** 3 matches/day.  
   - **Qualification:**  
-    - **Top 18 teams** (cumulative leaderboard) qualify for Tier 1 Scrims.  
+    - **Top 9 teams** (cumulative leaderboard) qualify for Tier 1 Scrims.  
     - **Bottom 12 teams** are demoted to T3.  
 
 ---
@@ -190,8 +190,9 @@ async def send_overview_menu(channel):
 **4. Trident Tier 1 Scrims:**  
 - **Format:**  
   - **27 Teams** split into **3 Groups** (A, B, C) with **9 teams each**.  
-  - Play in a **Round-Robin format** over 3 days (Friday-Sunday).  
-  - **Total matches:** 12 matches, with each group playing **8 matches**.  
+  - (9 qualified from T2 + 9 Invited + 9 teams from previous week's T1 scrims) 
+  - Play in a **Round-Robin format** over 3 days (Tuesday-Thursday).  
+  - **Total matches:** 9 matches, with each group playing **6 matches**.  
   - **Qualification:**  
     - **Top 9 teams** qualify for Pro Scrims and next week’s Tier 1 Scrims.  
     - **Bottom 18 teams** are demoted to T2.  
@@ -201,7 +202,7 @@ async def send_overview_menu(channel):
 **5. Trident Pro Scrims:**  
 - **Format:**  
   - **Top 9 teams** from Tier 1 compete with **9 invited professional teams**.  
-  - 4 matches/day across 3 days (Monday-Wednesday).  
+  - 3 matches/day across 3 days (Friday-Sunday).  
   - Teams earn points for the **Trident BGMI Overall Leaderboard**.  
 
 ---
