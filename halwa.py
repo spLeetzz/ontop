@@ -1992,7 +1992,7 @@ async def inner_loop2():
 {role.mention}
                                  
 MATCH - 02
-MAP- MIRAMAR
+MAP- RONDO
 
 ID - {response.content}
 PASS - TG{lobby_number}{lobby_number}{lobby_number}
@@ -2173,7 +2173,7 @@ async def inner_loop4():
 {role.mention}
                                  
 MATCH - 02
-MAP- MIRAMAR
+MAP- RONDO
 
 ID - {response.content}
 PASS - TG{lobby_number}{lobby_number}{lobby_number}
