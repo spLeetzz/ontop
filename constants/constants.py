@@ -19,6 +19,15 @@ HOW_TO_PLAY_CHANNEL_ID = 1259394375880802434
 RESULTS_CHANNEL_ID = 1188850520803262565
 STAFF_CHANNEL_ID = 1203357142548094977
 
+GROUP_LOBBY_MAP = {
+    "A": [1, 2, 3, 4],
+    "B": [5, 6, 7, 8],
+}
+group_locks = {
+    "A": asyncio.Lock(),
+    "B": asyncio.Lock(),
+}
+
 # Other constants
 SLOTS_LIMIT = 160
 LOBBY_SIZE = 20
@@ -40,6 +49,7 @@ COOLDOWN_SHEET_ID = "1H-PUeegORmUKQmIn6t7qSk4GIIP5TFFoEofl6GC37yo"
 
 disabled_status = True #(RegistrationView)
 # Initialize a list to store dictionaries for each lobby
+registered_set = set()
 lobby_teams = [{} for _ in range(int(SLOTS_LIMIT // LOBBY_SIZE))]
 lobby_locks = [asyncio.Lock() for _ in range(int(SLOTS_LIMIT // LOBBY_SIZE))]
 running_processes_lock = asyncio.Lock()
