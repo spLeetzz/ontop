@@ -22,14 +22,22 @@ STAFF_CHANNEL_ID = 1203357142548094977
 GROUP_LOBBY_MAP = {
     "A": [1, 2, 3, 4],
     "B": [5, 6, 7, 8],
+    "C": [9, 10, 11, 12],
 }
 group_locks = {
     "A": asyncio.Lock(),
     "B": asyncio.Lock(),
+    "C": asyncio.Lock()
+}
+
+GROUP_LABELS = {
+    "A": "4 PM",
+    "B": "6 PM",
+    "C": "8 PM",
 }
 
 # Other constants
-SLOTS_LIMIT = 160
+SLOTS_LIMIT = 240
 LOBBY_SIZE = 20
 REQUIRED_ROLE_NAME = "T3 verified"
 GUILD_ID = 1187405344226426930

@@ -472,14 +472,15 @@ class RegistrationView(discord.ui.View):
 class RegistrationView2(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
-        self.add_item(GroupButton("A"))
-        self.add_item(GroupButton("B"))
+        for group in constants.GROUP_LOBBY_MAP.keys():
+            self.add_item(GroupButton(group))
         self.add_item(PracticeRegistrationButton())
 
 class GroupButton(discord.ui.Button):
     def __init__(self, group):
+
         super().__init__(
-            label=f"Group {group}",
+            label=f"Group {group}: {constants.GROUP_LABELS[group]}",
             style=discord.ButtonStyle.green,
             disabled=constants.disabled_status,
         )
