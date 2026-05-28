@@ -427,7 +427,7 @@ class CaptchaModal(discord.ui.Modal):
 
 class PracticeRegistrationButton(discord.ui.Button):
     def __init__(self):
-        super().__init__(label=f'TRIAL REG', style=discord.ButtonStyle.primary,emoji=constants.practice_emoteid,row=2)
+        super().__init__(label=f'TRIAL REG', style=discord.ButtonStyle.primary,emoji=constants.practice_emoteid)
 
     async def callback(self, interaction: discord.Interaction):
         team_name = await validate_registration(interaction.user)
