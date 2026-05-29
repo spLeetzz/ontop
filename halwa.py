@@ -2320,7 +2320,7 @@ idt4 = datetime.time(hour=18, minute=34, tzinfo=local_tz)
 @tasks.loop(time=idt4)
 async def idploop5():
 
-    today = datetime.datetime.now(local_tz).weekday()idploop5
+    today = datetime.datetime.now(local_tz).weekday()
     if today in constants.days_to_run:
         try:
             inner_loop3.cancel()
