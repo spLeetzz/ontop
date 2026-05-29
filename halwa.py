@@ -1168,12 +1168,12 @@ async def on_ready():
 
     start_auto.start()
     clear_lb_auto.start()
-    idploop.start()
-    idploop2.start()
-    idploop3.start()
-    idploop4.start()
-    idploop5.start()
-    idploop6.start()
+    # idploop.start()
+    # idploop2.start()
+    # idploop3.start()
+    # idploop4.start()
+    # idploop5.start()
+    # idploop6.start()
     t3rulesreminder.start()
     t3rulesreminder2.start()
     # Get the process ID (PID) of the current program
@@ -2320,7 +2320,7 @@ idt4 = datetime.time(hour=18, minute=34, tzinfo=local_tz)
 @tasks.loop(time=idt4)
 async def idploop5():
 
-    today = datetime.datetime.now(local_tz).weekday()
+    today = datetime.datetime.now(local_tz).weekday()idploop5
     if today in constants.days_to_run:
         try:
             inner_loop3.cancel()
