@@ -23,21 +23,25 @@ GROUP_LOBBY_MAP = {
     "A": [1, 2, 3, 4, 5],
     "B": [6, 7, 8, 9, 10],
     "C": [11, 12, 13, 14, 15],
+    "D": [16, 17, 18, 19, 20]
 }
+
 group_locks = {
     "A": asyncio.Lock(),
     "B": asyncio.Lock(),
-    "C": asyncio.Lock()
+    "C": asyncio.Lock(),
+    "D": asyncio.Lock()     
 }
 
 GROUP_LABELS = {
-    "A": "4 PM",
-    "B": "6 PM",
-    "C": "8 PM",
+    "A": "2 PM",
+    "B": "4 PM",
+    "C": "6 PM",
+    "D": "8 PM",
 }
 
 # Other constants
-SLOTS_LIMIT = 300
+SLOTS_LIMIT = 400
 LOBBY_SIZE = 20
 REQUIRED_ROLE_NAME = "T3 verified"
 GUILD_ID = 1187405344226426930
