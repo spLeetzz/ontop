@@ -20,10 +20,10 @@ RESULTS_CHANNEL_ID = 1188850520803262565
 STAFF_CHANNEL_ID = 1203357142548094977
 
 GROUP_LOBBY_MAP = {
-    "A": [1, 2, 3, 4, 5],
-    "B": [6, 7, 8, 9, 10],
-    "C": [11, 12, 13, 14, 15],
-    "D": [16, 17, 18, 19, 20]
+    "A": [1, 2, 3, 4],
+    "B": [5, 6, 7, 8],
+    "C": [9, 10, 11, 12],
+    "D": [13, 14, 15, 16],
 }
 
 group_locks = {
@@ -41,7 +41,7 @@ GROUP_LABELS = {
 }
 
 # Other constants
-SLOTS_LIMIT = 400
+SLOTS_LIMIT = 320
 LOBBY_SIZE = 20
 REQUIRED_ROLE_NAME = "T3 verified"
 GUILD_ID = 1187405344226426930
@@ -52,6 +52,19 @@ PREFERENCE_MESSAGE_ID = None
 REG_MESSAGE_ID = 1509065201176019040
 SCRIMS_INFO_MESSAGE_ID = 1354370354809929771
 FAQ_MESSAGE_ID = 1260069527538896997
+
+SPECIAL_SLOTS_LIMIT = 20
+SPECIAL_LOBBY_SIZE = 20
+special_registered_teams = {}
+special_lobby_teams = [{} for _ in range(int(SPECIAL_SLOTS_LIMIT // SPECIAL_LOBBY_SIZE))]
+special_lobby_locks = [asyncio.Lock() for _ in range(int(SPECIAL_SLOTS_LIMIT // SPECIAL_LOBBY_SIZE))]
+
+special_registration_lock = asyncio.Lock()
+
+SPECIAL_REGISTRATION_CHANNEL_ID = 1513409916352594054
+SPECIAL_REG_MESSAGE_ID = None
+
+special_disabled_status = True
 
 # Google Sheets details
 GOOGLE_SHEET_ID = "1dwy7jgeT8gfqWZ7J1CPgcnMC8RuUxgv-fqrHrJwGUDY"
