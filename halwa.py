@@ -401,7 +401,7 @@ class CaptchaModal(discord.ui.Modal):
                                 taskhandler.create_task(bot.get_channel(constants.UPDATES_CHANNEL_ID).send(file=discord.File(json_file_name)))
                                 try:
                                     idp_channel = discord.utils.get(bot.get_guild(constants.GUILD_ID).channels, name=f"t3-idp-{lobby_number}")
-                                    await send_slots_list(team_names, lobby_number,idp_channel)
+                                    await send_slots_list(team_names, lobby_number,idp_channel, add_button=False)
 #                                     pov_message = """Hello Teams,
 
 # Please follow these steps to record your Point of View (POV) while playing BGMI:
@@ -1300,38 +1300,81 @@ async def connect_to_google_sheets(json_keyfile_path, sheet_id,retry_interval=1)
 #     else:
 #         await ctx.send(f"An error occurred: {error}")
 
-@bot.hybrid_command(name="start",description="To Start REG, the captcha you pass in will be default for everyone.")
-@commands.has_permissions(view_audit_log=True, manage_roles=True)
-async def start(ctx, captcha_phrase : str):
-
-    await ctx.defer()
+async def start_registration(captcha_phrase: str):
     constants.registered_set = set()
     constants.registered_teams.clear()
-    constants.lobby_teams = [{} for _ in range(int(int(constants.SLOTS_LIMIT) / int(constants.LOBBY_SIZE)))]
+    constants.lobby_teams = [{} for _ in range(
+        int(constants.SLOTS_LIMIT) // int(constants.LOBBY_SIZE)
+    )]
     constants.disabled_status = False
     constants.captcha_question_variables.clear()
 
+    constants.special_registered_teams.clear()
+    constants.special_lobby_teams = [{} for _ in range(
+        int(constants.SPECIAL_SLOTS_LIMIT) // int(constants.SPECIAL_LOBBY_SIZE)
+    )]
+    constants.special_disabled_status = False
+
     try:
-        await bot.get_channel(constants.REGISTRATION_CHANNEL_ID).purge(check=lambda m: m.id != constants.REG_MESSAGE_ID, limit=100)
+        special_message = await bot.get_channel(
+            constants.SPECIAL_REGISTRATION_CHANNEL_ID
+        ).fetch_message(constants.SPECIAL_REG_MESSAGE_ID)
+
+        await special_message.edit(view=RegistrationView())
+
+    except Exception as e:
+        print(f"Failed to reset special registration: {e}")
+
+    try:
+        await bot.get_channel(constants.REGISTRATION_CHANNEL_ID).purge(
+            check=lambda m: m.id != constants.REG_MESSAGE_ID,
+            limit=100
+        )
+
         print("Messages purged successfully.")
-        # Clear timestamps.csv
-        with open('timestamps.csv', 'w', newline=''): pass
-        message = await bot.get_channel(constants.REGISTRATION_CHANNEL_ID).fetch_message(constants.REG_MESSAGE_ID)
+
+        with open('timestamps.csv', 'w', newline=''):
+            pass
+
+        message = await bot.get_channel(
+            constants.REGISTRATION_CHANNEL_ID
+        ).fetch_message(constants.REG_MESSAGE_ID)
+
         await message.edit(view=RegistrationView2())
 
-        with open('lobby_details.json','w') as json_file:
-            json.dump({},json_file)
+        with open('lobby_details.json', 'w') as json_file:
+            json.dump({}, json_file)
 
     except discord.HTTPException as e:
         print(f"An error occurred while purging messages: {e}")
 
-    constants.captcha_question_variables.append(captcha_phrase.lower().rstrip())
-    constants.captcha_question_variables.append(random.randint(10, 99))
-    constants.captcha_question_variables.append(random.randint(10, 99))
-    constants.captcha_question_variables.append(random.randint(10, 99))
-    constants.captcha_question_variables.append(random.randint(10, 99))
+    constants.captcha_question_variables.extend([
+        captcha_phrase.lower().rstrip(),
+        random.randint(10, 99),
+        random.randint(10, 99),
+        random.randint(10, 99),
+        random.randint(10, 99),
+    ])
     
-    await ctx.send(f"refresheeeeeeeeeeeeeeeeeeeed\nCurrent captcha variables: {constants.captcha_question_variables[0]}, {constants.captcha_question_variables[1]} + {constants.captcha_question_variables[2]}, {constants.captcha_question_variables[3]} + {constants.captcha_question_variables[4]}")
+@bot.hybrid_command(
+    name="start",
+    description="To Start REG, the captcha you pass in will be default for everyone."
+)
+@commands.has_permissions(view_audit_log=True, manage_roles=True)
+async def start(ctx, captcha_phrase: str):
+    await ctx.defer()
+
+    await start_registration(captcha_phrase)
+
+    await ctx.send(
+        f"refresheeeeeeeeeeeeeeeeeeeed\n"
+        f"Current captcha variables: "
+        f"{constants.captcha_question_variables[0]}, "
+        f"{constants.captcha_question_variables[1]} + "
+        f"{constants.captcha_question_variables[2]}, "
+        f"{constants.captcha_question_variables[3]} + "
+        f"{constants.captcha_question_variables[4]}"
+    )
 
 @start.error
 async def start_error(ctx, error):
@@ -1507,54 +1550,6 @@ async def blacklist_user_error(interaction: discord.Interaction, error):
         await interaction.response.send_message("You must specify a valid duration.")
     else:
         await interaction.response.send_message(f"An error occurred: {error}")
-
-@bot.hybrid_command(name="clearlb", description="**Clear lobby Channels and role")
-@commands.has_permissions(view_audit_log=True, manage_roles=True)
-async def clear_lb(ctx):
-
-    await ctx.send("kr rha thoda wait krna ..")
-
-    lobby_role_names = [f"Group {i} IDP" for i in range(1, int(constants.SLOTS_LIMIT / constants.LOBBY_SIZE) + 1)]
-    lobby_channel_names = [f"group-{i}-idp" for i in range(1, int(constants.SLOTS_LIMIT / constants.LOBBY_SIZE) + 1)]
-
-    try:
-        for role_name in lobby_role_names:
-            role = discord.utils.get(ctx.guild.roles, name=role_name)
-            if role:
-                for member in role.members:
-                    await member.remove_roles(role)
-
-        # role = discord.utils.get(ctx.guild.roles, name="Amateur IDP 1")
-        # if role:
-        #     for member in role.members:
-        #         await member.remove_roles(role)
-
-        # role = discord.utils.get(ctx.guild.roles, name="Amateur IDP 2")
-        # if role:
-        #     for member in role.members:
-        #         await member.remove_roles(role)
-
-        for channel_name in lobby_channel_names:
-            channel = discord.utils.get(ctx.guild.channels, name=channel_name)
-            if channel:
-                await channel.purge(after=(datetime.datetime.now() - datetime.timedelta(hours=24)),before=ctx.message.created_at)
-
-        await ctx.send("Lobby channels (last 24 hrs) and roles are cleared now.")
-    
-    except discord.Forbidden:
-        await ctx.send("I do not have permission to manage roles or channels.")
-    except discord.HTTPException as e:
-        await ctx.send(f"An HTTP error occurred: {e}")    
-    except Exception as e:
-        await ctx.send(f"An error occurred: {e}")
-
-@clear_lb.error
-async def clear_lb(ctx, error):
-    if isinstance(error, commands.MissingPermissions):
-        missing_perms = ', '.join(error.missing_permissions)
-        await ctx.send(f"You don't have the required permissions to use this command: {missing_perms}")
-    else:
-        await ctx.send(f"An error occurred: {error}")
 
 @bot.hybrid_command(name="clear_amateur", description="**Clear Amateur lobby Channels and role**")
 @commands.has_any_role(*constants.roles_for_purge_perm)
@@ -1912,42 +1907,30 @@ async def add_team_error(ctx: commands.Context, error: commands.CommandError):
 
 @bot.tree.command(name="upload_results", description="Share all t3 results.")
 @app_commands.checks.has_any_role(*constants.roles_for_purge_perm)
-@app_commands.choices(
-    select_option=[
-        app_commands.Choice(name="amr1", value="1"),
-        app_commands.Choice(name="amr2", value="2"),
-        app_commands.Choice(name="hybrid(4-4)", value="3")
-    ]
-)
-async def upload_results(interaction: discord.Interaction, results: str,select_option: app_commands.Choice[str]):
+async def upload_results(interaction: discord.Interaction, results: str):
     try:
-        await interaction.response.send_message("okay workin",ephemeral=True,delete_after=3)
-        # Split the results string using the specified delimiter
+        await interaction.response.send_message("okay workin", ephemeral=True, delete_after=3)
+
         teams = results.split("<>")
-        
-        # Ensure there are exactly 8 teams in the results
-        if len(teams) != 8:
-            await interaction.channel.send("Error: The results string must contain exactly 8 teams separated by '<>'.")
+
+        if len(teams) != 16:
+            await interaction.channel.send("Error: The results string must contain exactly 16 teams separated by '<>'.")
             return
         
-        # Loop through the teams and pass them to the pass_results function with lobby numbers
         for i, team in enumerate(teams, start=1):
 
+            # Skip empty teams
+            if team == "__":
+                continue
+
             try:
-                response = None
-                if select_option.value == '1' or (select_option.value == '3' and i<5):
-
-                    response = await share_lobby_results(lobby_number=i, team_name=team,amr_number=1) 
+                await share_lobby_results(
+                    lobby_number=i,
+                    team_name=team
+                )
                 
-                elif select_option.value == '2' or (select_option.value == '3' and i>4):
+                await interaction.channel.send(f"Lobby {i} results updated: {team}")
 
-                    response = await share_lobby_results(lobby_number=i, team_name=team,amr_number=2) 
-                
-                # Send a confirmation message for each lobby
-                if response:
-                    await interaction.channel.send(f"Lobby {i} results updated: {team}\n{response}")
-                else:
-                    await interaction.channel.send(f"Lobby {i} results updated: {team}")
             except Exception as e:
                 print(f"Exception in lobby {i} results: {e}")
                 await interaction.channel.send(f"Could not update Lobby {i} results.")
@@ -1955,122 +1938,88 @@ async def upload_results(interaction: discord.Interaction, results: str,select_o
     except Exception as e:
         await interaction.channel.send(f"An error occurred: {e}")
 
+
 @upload_results.error
 async def upload_results_error(interaction: discord.Interaction, error):
     if isinstance(error, commands.MissingPermissions):
         missing_perms = ', '.join(error.missing_permissions)
-        await interaction.response.send_message(f"You don't have the required permissions to use this command: {missing_perms}")
-
-@bot.tree.command(name="amr_one", description="Grant amateur scrims role (1) thru idp channel.")
-@app_commands.checks.has_permissions(manage_roles=True, view_audit_log=True)
-async def amr_one(interaction: discord.Interaction, team_name : str):
-    try:
-        # Get the interaction channel name
-        channel_name = interaction.channel.name
-
-        # Check if the channel name matches any in the channel_role_names list
-        matching_channel = next((name for name in constants.channel_names if name == channel_name), None)
-
-        if matching_channel:
-            # Extract the channel number from the matching channel name
-            channel_number = matching_channel.split('-')[1]
-
-            await share_lobby_results(lobby_number=channel_number, team_name=team_name,amr_number=1) 
-
-            interaction.response.send_message("did",ephemeral=True,delete_after=1)
-
-    except Exception as e:
-        await interaction.send(f"Exception aayi: {e}")
-
-@amr_one.error
-async def amr_one(ctx: commands.Context, error: commands.CommandError):
-    if isinstance(error, commands.MissingPermissions):
-        await ctx.send("You don't have the required permissions to use this command.")
-    elif isinstance(error, commands.ChannelNotFound):
-        await ctx.send("The specified channel was not found.")
-    else:
-        await ctx.send(f"An error occurred: {error}")
-
-@bot.tree.command(name="amr_two", description="Grant amateur scrims role (2) thru idp channel.")
-@app_commands.checks.has_permissions(manage_roles=True, view_audit_log=True)
-async def amr_two(interaction: discord.Interaction, team_name : str):
-    try:
-        # Get the interaction channel name
-        channel_name = interaction.channel.name
-
-        # Check if the channel name matches any in the channel_role_names list
-        matching_channel = next((name for name in constants.channel_names if name == channel_name), None)
-
-        if matching_channel:
-            # Extract the channel number from the matching channel name
-            channel_number = matching_channel.split('-')[1]
-
-            await share_lobby_results(lobby_number=channel_number, team_name=team_name,amr_number=2) 
-
-            interaction.response.send_message("did",ephemeral=True,delete_after=1)
-
-    except Exception as e:
-        await interaction.send(f"Exception aayi: {e}")
-
-@amr_two.error
-async def amr_two(ctx: commands.Context, error: commands.CommandError):
-    if isinstance(error, commands.MissingPermissions):
-        await ctx.send("You don't have the required permissions to use this command.")
-    elif isinstance(error, commands.ChannelNotFound):
-        await ctx.send("The specified channel was not found.")
-    else:
-        await ctx.send(f"An error occurred: {error}")
+        await interaction.response.send_message(
+            f"You don't have the required permissions to use this command: {missing_perms}"
+        )
 
 local_tz = datetime.datetime.now().astimezone().tzinfo
 x = datetime.time(hour=12, minute=0, tzinfo=local_tz)
 @tasks.loop(time=x)
 async def start_auto():
-
     today = datetime.datetime.now(local_tz).weekday()
+
     if today in constants.days_to_run:
         print("REG STARTED!")
-        constants.registered_teams.clear()
-        constants.lobby_teams = [{} for _ in range(int(int(constants.SLOTS_LIMIT) / int(constants.LOBBY_SIZE)))]
-        constants.disabled_status = False
-        constants.registered_set = set()
-        constants.captcha_question_variables.clear()
-        captcha_phrase = ''.join(random.choice(ascii_lowercase) for _ in range(random.randint(5, 6)))
-        
-        constants.special_registered_teams.clear()
-        constants.special_lobby_teams =  [{} for _ in range(int(int(constants.SPECIAL_SLOTS_LIMIT) / int(constants.SPECIAL_LOBBY_SIZE)))]
-        constants.special_disabled_status = False
 
-        try:
-            special_message = await bot.get_channel(
-                constants.SPECIAL_REGISTRATION_CHANNEL_ID
-            ).fetch_message(constants.SPECIAL_REG_MESSAGE_ID)
+        captcha_phrase = ''.join(
+            random.choice(ascii_lowercase)
+            for _ in range(random.randint(5, 6))
+        )
 
-            await special_message.edit(view=RegistrationView())
+        await start_registration(captcha_phrase)
 
-        except Exception as e:
-            print(f"Failed to reset special registration: {e}")
+        await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(
+            f"*REG STARTED!*\n"
+            f"Current captcha variables: "
+            f"{constants.captcha_question_variables[0]}, "
+            f"{constants.captcha_question_variables[1]} + "
+            f"{constants.captcha_question_variables[2]}, "
+            f"{constants.captcha_question_variables[3]} + "
+            f"{constants.captcha_question_variables[4]}"
+        )
 
-        try:
-            await bot.get_channel(constants.REGISTRATION_CHANNEL_ID).purge(check=lambda m: m.id != constants.REG_MESSAGE_ID, limit=100)
-            print("Messages purged successfully.")
-            # Clear timestamps.csv
-            with open('timestamps.csv', 'w', newline=''): pass
-            message = await bot.get_channel(constants.REGISTRATION_CHANNEL_ID).fetch_message(constants.REG_MESSAGE_ID)
-            await message.edit(view=RegistrationView2())
+async def clear_lobbies(purge_all=False, before_time=None):
+    guild = bot.get_guild(constants.GUILD_ID)
 
-            with open('lobby_details.json','w') as json_file:
-                json.dump({},json_file)
+    lobby_role_names = [f"Group {i} IDP" for i in range(1, int(constants.SLOTS_LIMIT / constants.LOBBY_SIZE) + 1)]
+    lobby_channel_names = [f"group-{i}-idp" for i in range(1, int(constants.SLOTS_LIMIT / constants.LOBBY_SIZE) + 1)]
 
-        except discord.HTTPException as e:
-            print(f"An error occurred while purging messages: {e}")
+    # Add T3
+    lobby_role_names.extend(
+        [f"T3 G{i} IDP" for i in range(1, int(constants.SPECIAL_SLOTS_LIMIT / constants.SPECIAL_LOBBY_SIZE) + 1)]
+    )
 
-        constants.captcha_question_variables.append(captcha_phrase.lower().rstrip())
-        constants.captcha_question_variables.append(random.randint(10, 99))
-        constants.captcha_question_variables.append(random.randint(10, 99))
-        constants.captcha_question_variables.append(random.randint(10, 99))
-        constants.captcha_question_variables.append(random.randint(10, 99))
+    lobby_channel_names.extend(
+        [f"t3-idp-{i}" for i in range(1, int(constants.SPECIAL_SLOTS_LIMIT / constants.SPECIAL_LOBBY_SIZE) + 1)]
+    )
 
-        await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"*REG STARTED!*\nCurrent captcha variables: {constants.captcha_question_variables[0]}, {constants.captcha_question_variables[1]} + {constants.captcha_question_variables[2]}, {constants.captcha_question_variables[3]} + {constants.captcha_question_variables[4]}")
+    for role_name in lobby_role_names:
+        role = discord.utils.get(guild.roles, name=role_name)
+        if role:
+            for member in role.members:
+                await member.remove_roles(role)
+
+    for channel_name in lobby_channel_names:
+        channel = discord.utils.get(guild.channels, name=channel_name)
+        if channel:
+            if purge_all:
+                await channel.purge()
+            elif before_time:
+                await channel.purge(after=(datetime.datetime.now() - datetime.timedelta(hours=24)), before=before_time)
+            else:
+                await channel.purge(after=(datetime.datetime.now() - datetime.timedelta(hours=24)))
+
+@bot.hybrid_command(name="clearlb", description="**Clear lobby Channels and role")
+@commands.has_permissions(view_audit_log=True, manage_roles=True)
+async def clear_lb(ctx):
+
+    await ctx.send("kr rha thoda wait krna ..")
+
+    try:
+        await clear_lobbies(before_time=ctx.message.created_at)
+        await ctx.send("Lobby channels (last 24 hrs) and roles are cleared now.")
+    
+    except discord.Forbidden:
+        await ctx.send("I do not have permission to manage roles or channels.")
+    except discord.HTTPException as e:
+        await ctx.send(f"An HTTP error occurred: {e}")    
+    except Exception as e:
+        await ctx.send(f"An error occurred: {e}")
 
 y = datetime.time(hour=11, minute=45, tzinfo=local_tz)
 @tasks.loop(time=y)
@@ -2078,33 +2027,16 @@ async def clear_lb_auto():
 
     today = datetime.datetime.now(local_tz).weekday()
     if today in constants.days_to_run:
-        lobby_role_names = [f"Group {i} IDP" for i in range(1, int(constants.SLOTS_LIMIT / constants.LOBBY_SIZE) + 1)]
-        lobby_channel_names = [f"group-{i}-idp" for i in range(1, int(constants.SLOTS_LIMIT / constants.LOBBY_SIZE) + 1)]
+        try:
+            if today == 1:
+                await clear_lobbies(purge_all=True)
+            else:
+                await clear_lobbies()
 
-        # Add T3
-        lobby_role_names.extend(
-            [f"T3 G{i} IDP" for i in range(1, int(constants.SPECIAL_SLOTS_LIMIT / constants.SPECIAL_LOBBY_SIZE) + 1)]
-        )
-
-        lobby_channel_names.extend(
-            [f"t3-idp-{i}" for i in range(1, int(constants.SPECIAL_SLOTS_LIMIT / constants.SPECIAL_LOBBY_SIZE) + 1)]
-        )
-
-        for role_name in lobby_role_names:
-            role = discord.utils.get(bot.get_guild(constants.GUILD_ID).roles, name=role_name)
-            if role:
-                for member in role.members:
-                    await member.remove_roles(role)
-
-        for channel_name in lobby_channel_names:
-            channel = discord.utils.get(bot.get_guild(constants.GUILD_ID).channels, name=channel_name)
-            if channel:
-                if today == 1:
-                    await channel.purge()
-                else:
-                    await channel.purge(after=(datetime.datetime.now() - datetime.timedelta(hours=24)))
-
-        await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"*CLEARED LOBBIES!*")
+            await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"*CLEARED LOBBIES!*")
+        
+        except Exception as e:
+            print(f"Error in clear_lb_auto: {e}")
 
 idt1 = datetime.time(hour=15, minute=56, tzinfo=local_tz)
 @tasks.loop(time=idt1)
@@ -3460,39 +3392,38 @@ async def add_team_slotlist(team_name,member,channel):
     role = discord.utils.get(bot.get_guild(constants.GUILD_ID).roles, name= f"Group {channel_number} IDP")
     await member.add_roles(role)
 
-async def share_lobby_results(lobby_number, team_name,amr_number):
+async def share_lobby_results(lobby_number, team_name):
     with open(f"lobby_{lobby_number}_teams.json", 'r') as f:
         teams_json = json.load(f)
 
         user_id = teams_json[team_name]
 
-        amateur_role = discord.utils.get(bot.get_guild(constants.GUILD_ID).roles, name= f"Amateur IDP {amr_number}")
+        t3_role = discord.utils.get(bot.get_guild(constants.GUILD_ID).roles, name= f"T3 Verified")
         member = bot.get_guild(constants.GUILD_ID).get_member(user_id)
-        await member.add_roles(amateur_role)
+        await member.add_roles(t3_role)
 
-        role = discord.utils.get(bot.get_guild(constants.GUILD_ID).roles, name= f"Group {lobby_number} IDP")
         channel = discord.utils.get(bot.get_guild(constants.GUILD_ID).text_channels, name=f"group-{lobby_number}-idp")
 
-        await channel.send(f"{role.mention}\nResults have been updated in <#{constants.RESULTS_CHANNEL_ID}>\n\n{team_name} : <@{user_id}>\n\nQualified for Amateur Scrims.")
+        await channel.send(f"Results updated in <#{constants.RESULTS_CHANNEL_ID}>\n\n{team_name} : <@{user_id}>\n\nPromoted to Tier 3.")
 
-        team_name = await validate_registration(user="None", check_cooldown = False,check_left_server = False,user_idd=user_id)
-        if team_name in constants.cd_team_list:
-            return f"{team_name} is already in cooldown."
-        elif not team_name:
-            return f"Can't find any team for user: {member.mention}"
+        # team_name = await validate_registration(user="None", check_cooldown = False,check_left_server = False,user_idd=user_id)
+        # if team_name in constants.cd_team_list:
+        #     return f"{team_name} is already in cooldown."
+        # elif not team_name:
+        #     return f"Can't find any team for user: {member.mention}"
         
-        local_tz = datetime.datetime.now().astimezone().tzinfo
-        today = datetime.datetime.now(local_tz).weekday()
+        # local_tz = datetime.datetime.now().astimezone().tzinfo
+        # today = datetime.datetime.now(local_tz).weekday()
 
-        days_until_sunday = 6 - today
-        # If today is Sunday (weekday() == 6), adjust to return 0
-        if days_until_sunday == 0:
-            days_until_sunday = 0
+        # days_until_sunday = 6 - today
+        # # If today is Sunday (weekday() == 6), adjust to return 0
+        # if days_until_sunday == 0:
+        #     days_until_sunday = 0
 
-        row = [team_name,int(time.time()),int((0 * 3600) + (days_until_sunday * 86400)),datetime.datetime.now(tz=constants.timezone).strftime("%Y-%m-%d %H:%M"),f"{days_until_sunday} days {0} hours",str(user_id)]
-        constants.cooldown_sheet.append_row(row)
+        # row = [team_name,int(time.time()),int((0 * 3600) + (days_until_sunday * 86400)),datetime.datetime.now(tz=constants.timezone).strftime("%Y-%m-%d %H:%M"),f"{days_until_sunday} days {0} hours",str(user_id)]
+        # constants.cooldown_sheet.append_row(row)
 
-async def send_slots_list(team_names, lobby_number, lobby_channel,edit_slots_list=  False):
+async def send_slots_list(team_names, lobby_number, lobby_channel,edit_slots_list=  False, add_button = True):
     # Prepare the slots list message
     slots_list_message = "```yaml\n"
     
@@ -3530,7 +3461,8 @@ async def send_slots_list(team_names, lobby_number, lobby_channel,edit_slots_lis
     lobby_role = discord.utils.get(bot.get_guild(constants.GUILD_ID).roles, name=f"Group {lobby_number} IDP")
     await lobby_channel.send(f"{lobby_role.mention}\n\nAll players IGN must have TEAM TAG included, otherwise you will be kicked from the room.\nYou can even play from new id but this is required.")
     try:
-        await message.edit(view=IdpChannelTasksView())
+        if add_button:
+            await message.edit(view=IdpChannelTasksView())
     except Exception as e:
         print(e)
     constants.temp_json_dict[lobby_number] = [message.id,lobby_channel.id]
