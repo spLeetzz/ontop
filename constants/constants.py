@@ -36,8 +36,8 @@ group_locks = {
 GROUP_LABELS = {
     "A": "2 PM",
     "B": "4 PM",
-    "C": "6 PM",
-    "D": "8 PM",
+    "C": "7 PM",
+    "D": "9 PM",
 }
 
 # Other constants
@@ -53,8 +53,8 @@ REG_MESSAGE_ID = 1509065201176019040
 SCRIMS_INFO_MESSAGE_ID = 1354370354809929771
 FAQ_MESSAGE_ID = 1260069527538896997
 
-SPECIAL_SLOTS_LIMIT = 20
-SPECIAL_LOBBY_SIZE = 20
+SPECIAL_SLOTS_LIMIT = 36
+SPECIAL_LOBBY_SIZE = 18
 special_registered_teams = {}
 special_lobby_teams = [{} for _ in range(int(SPECIAL_SLOTS_LIMIT // SPECIAL_LOBBY_SIZE))]
 special_lobby_locks = [asyncio.Lock() for _ in range(int(SPECIAL_SLOTS_LIMIT // SPECIAL_LOBBY_SIZE))]

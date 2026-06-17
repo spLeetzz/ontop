@@ -441,7 +441,6 @@ class RegistrationView(discord.ui.View):
             self.add_item(LobbyButton(i))
         self.add_item(PracticeRegistrationButton())
 
-
 class PracticeRegistrationButton(discord.ui.Button):
     def __init__(self):
         super().__init__(label=f'TRIAL REG', style=discord.ButtonStyle.primary,emoji=constants.practice_emoteid)
@@ -2404,7 +2403,7 @@ async def idploop6():
             await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"Exception aayi: {e}")
             print(f"Exception aayi: {e}")
 
-rulesremindertime = datetime.time(hour=14, minute=00, tzinfo=local_tz)
+rulesremindertime = datetime.time(hour=13, minute=00, tzinfo=local_tz)
 @tasks.loop(time=rulesremindertime)
 async def t3rulesreminder():
 
@@ -2422,7 +2421,7 @@ async def t3rulesreminder():
             await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"Exception aayi: {e}")
             print(f"Exception aayi: {e}")
 
-rulesremindertime2 = datetime.time(hour=14, minute=50, tzinfo=local_tz)
+rulesremindertime2 = datetime.time(hour=13, minute=50, tzinfo=local_tz)
 @tasks.loop(time=rulesremindertime2)
 async def t3rulesreminder2():
 
