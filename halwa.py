@@ -151,7 +151,7 @@ async def send_remenu(channel):
 async def send_remenu2(channel):
     embed = discord.Embed(title="BookMySlot", description=f"**OPENS AT 12 PM**\n\n1. Make sure that you have completed the enrollment of your team from this channel <#{constants.ENROLLMENT_CHANNEL_ID}>\n2. Please book a slot only if you wanna participate in the scrims, there wont be any slot cancellation/reassignment later on.\n3. Fastest ones to register in any lobby will be allocated with the slots.\n4. You need to pass in a simple Captcha test for registration, have a look at it anytime with 'TRIAL REG' button.", color=0x229db7)
     # 2. One team can participate once in a week, cooldowns refresh every Tuesday.
-    view = RegistrationView()  
+    view = RegistrationView3()  
     message = await channel.send(embed=embed, view=view)
     return message
 
@@ -680,6 +680,207 @@ class GroupCaptchaModal(discord.ui.Modal):
             )
             print(f"An error occurred during registration for {interaction.user}: {error}")
 
+class RegistrationView3(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+        for group in constants.GROUP_LOBBY_MAP2.keys():
+            self.add_item(GroupButton2(group))
+        self.add_item(PracticeRegistrationButton())
+
+class GroupButton2(discord.ui.Button):
+    def __init__(self, group):
+
+        super().__init__(
+            label=f"Group {group}: {constants.GROUP_LABELS2[group]}",
+            style=discord.ButtonStyle.green,
+            disabled=constants.special_disabled_status,
+        )
+        self.group = group
+
+    async def callback(self, interaction: discord.Interaction):
+        user = interaction.user
+        user_id = interaction.user.id
+        team_name = await validate_registration(user)
+
+        if not team_name:
+            return await interaction.response.send_message(
+                f"You are not a part of any team right now, please ask your IGL or yourself enlist your team from <#{constants.ENROLLMENT_CHANNEL_ID}>.",
+                ephemeral=True, delete_after=60
+            )
+        if team_name in constants.banned_team_list:
+            return await interaction.response.send_message(
+                f"{user.mention} Someone from your team is banned at the moment.\nReach out to the support team in case there's an issue via <#{constants.HELP_CHANNEL_ID}>.",
+                ephemeral=True, delete_after=60
+            )
+        if team_name in constants.cd_team_list:
+            return await interaction.response.send_message(
+                f"{user.mention} Someone from your team is on cooldown, please wait for the cooldown period to end\nReach out to the support team in case there's an issue via <#{constants.HELP_CHANNEL_ID}>.",
+                ephemeral=True, delete_after=60
+            )
+        if team_name == 'left_server':
+            return await interaction.response.send_message(
+                f"{user.mention} Someone from your team is not present in this server rn.",
+                ephemeral=True, delete_after=60
+            )
+        if (team_name, self.group) in constants.special_registered_set:
+            return await interaction.response.send_message(
+                f"Someone from your team booked a slot in Group {self.group}.",
+                ephemeral=True, delete_after=120
+            )
+
+        # quick pre-check, any slot available in this group at all?
+        group_lobbies = constants.GROUP_LOBBY_MAP2[self.group]
+        has_slot = False
+
+        for lobby in group_lobbies:
+            if available_slots2(lobby) > 0:
+                has_slot = True
+                break
+
+        if not has_slot:
+            return await interaction.response.send_message(
+                f"Group {self.group} is full.",
+                ephemeral=True,
+                delete_after=10,
+            )
+
+        await interaction.response.send_modal(
+            GroupCaptchaModal2(self.group, team_name)
+        )
+
+class GroupCaptchaModal2(discord.ui.Modal):
+    def __init__(self, group, team_name):
+        super().__init__(title="Let's fill in a captcha real quick!")
+        self.group = group
+        self.team_name = team_name
+        self.slots_available = True
+        self.already_registered = False
+
+        self.sentence_input = discord.ui.TextInput(
+            label=f"Type this beneath:\n{constants.captcha_question_variables[0]}",
+            placeholder=constants.captcha_question_variables[0], required=True
+        )
+        self.sum1_input = discord.ui.TextInput(
+            label=f"{constants.captcha_question_variables[1]} + {constants.captcha_question_variables[2]}",
+            placeholder="Answer this easyyyy summation 1", required=True
+        )
+        self.sum2_input = discord.ui.TextInput(
+            label=f"{constants.captcha_question_variables[3]} + {constants.captcha_question_variables[4]}",
+            placeholder="Answer this easyyyy summation 2", required=True
+        )
+        self.add_item(self.sentence_input)
+        self.add_item(self.sum1_input)
+        self.add_item(self.sum2_input)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        user = interaction.user
+        user_id = interaction.user.id
+
+        if not await validate_captcha(
+            self.sentence_input.value.rstrip(),
+            int(self.sum1_input.value.rstrip()),
+            int(self.sum2_input.value.rstrip())
+        ):
+            return await interaction.response.send_message(
+                "Invalid captcha 😢 GG! Please try again later.", ephemeral=True, delete_after=30
+            )
+
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        timestamp_ms = datetime.datetime.now(tz=constants.timezone).strftime("%b %d %H:%M:%S.%f")
+        group_lobbies = constants.GROUP_LOBBY_MAP2[self.group]
+        assigned_lobby = None
+
+        async with constants.group_locks2[self.group]:
+            # re-check after lock
+            if (self.team_name, self.group) in constants.special_registered_set:
+                self.already_registered = True
+            else:
+                for lobby in group_lobbies:
+                    slots = available_slots2(lobby)
+                    if int(slots) > 0:
+                        assigned_lobby = lobby
+                        break
+                if not assigned_lobby:
+                    self.slots_available = False
+                else:
+                    constants.special_registered_teams[self.team_name] = await isAlreadyEnrolled(user_id, used2returnrow=True)
+                    constants.special_registered_set.add((self.team_name, self.group))
+                    constants.special_lobby_teams[assigned_lobby - 1][self.team_name] = user_id
+
+        if self.already_registered:
+            return await interaction.followup.send(
+                "Someone from your team has already booked a slot for today.", ephemeral=True
+            )
+        if not self.slots_available:
+            await save_timestamp_to_csv(user, timestamp_ms, group_lobbies[0], "LATE")
+            return await interaction.followup.send(
+                f"Sorry, Group {self.group} is full.", ephemeral=True
+            )
+
+        # lobby filled notification
+        if available_slots2(assigned_lobby) <= 0:
+            await bot.get_channel(constants.SPECIAL_REGISTRATION_CHANNEL_ID).send(
+                f"Slots filled in Group {self.group}, Lobby {assigned_lobby}"
+            )
+
+        task1 = asyncio.create_task(
+            interaction.followup.send(
+                f'Registration confirmed for "{self.team_name}" in Group {self.group} → Lobby {assigned_lobby}.',
+                ephemeral=True
+            )
+        )
+        task3 = asyncio.create_task(assign_team_to_lobby(user, assigned_lobby, True))
+        task4 = asyncio.create_task(save_timestamp_to_csv(user, timestamp_ms, assigned_lobby, "BOOKED"))
+        await asyncio.gather(task1, task3, task4)
+
+        async with constants.special_registration_lock:
+            if len(constants.special_registered_set) >= constants.SPECIAL_SLOTS_LIMIT:
+                print("REGISTRATION FULL")
+                if not constants.special_disabled_status:
+                    constants.special_disabled_status = True
+                    message = await bot.get_channel(constants.SPECIAL_REGISTRATION_CHANNEL_ID).fetch_message(constants.SPECIAL_REG_MESSAGE_ID)
+                    await message.edit(view=RegistrationView3())
+                    await save_as_csv(constants.special_registered_teams, 'registered_teams.csv', save_all_flag=True)
+                    await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(file=discord.File('registered_teams.csv'))
+                    for lobby_number, lobby_teams_dict in enumerate(constants.special_lobby_teams, 1):
+                        json_file_name = f"lobby_{lobby_number}_teams.json"
+                        with open(json_file_name, 'w') as f:
+                            json.dump(lobby_teams_dict, f, indent=1)
+                        team_names = list(lobby_teams_dict.keys())
+                        async with asyncio.TaskGroup() as taskhandler:
+                            taskhandler.create_task(
+                                bot.get_channel(constants.UPDATES_CHANNEL_ID).send(file=discord.File(json_file_name))
+                            )
+                            try:
+                                idp_channel = discord.utils.get(
+                                    bot.get_guild(constants.GUILD_ID).channels,
+                                    name=f"t3-idp-{lobby_number}"
+                                )
+                                await send_slots_list(team_names, lobby_number, idp_channel)
+                            except Exception as e:
+                                print(f"Got Exception when sending lobby csv files: {e}")
+                    await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(
+                        f"You can download the Google Sheets app to view the list of users and their registration timestamps of {datetime.datetime.today().strftime('%d %b')} from this CSV file (for transparency). If you cant find you name in these, you were later than all these 😢.",
+                        file=discord.File('timestamps.csv')
+                    )
+                    with open('lobby_details.json', 'w') as json_file:
+                        json.dump(constants.temp_json_dict, json_file, indent=1)
+
+        print("Registration confirmed for user:", user_id)
+        print(f"Assigned Lobby {assigned_lobby} in Group {self.group}")
+
+    async def on_error(self, interaction: discord.Interaction, error: Exception):
+        if isinstance(error, ValueError):
+            await interaction.response.send_message(
+                "Summation answers can be numbers only.", ephemeral=True, delete_after=240
+            )
+        else:
+            await interaction.response.send_message(
+                "Network died either on your or our end. Please Try again later",
+                ephemeral=True, delete_after=240
+            )
+            print(f"An error occurred during registration for {interaction.user}: {error}")
+
 class HowToPlayButton(discord.ui.Button):
     def __init__(self):
         super().__init__(label=f'How To Play', style=discord.ButtonStyle.primary)
@@ -1077,7 +1278,7 @@ async def on_ready():
             message = None
 
         if message:
-            await message.edit(view=RegistrationView())
+            await message.edit(view=RegistrationView3())
         else:
             message = await send_remenu2(
                 bot.get_channel(constants.SPECIAL_REGISTRATION_CHANNEL_ID)
@@ -1308,6 +1509,7 @@ async def start_registration(captcha_phrase: str):
     constants.disabled_status = False
     constants.captcha_question_variables.clear()
 
+    constants.special_registered_set = set()
     constants.special_registered_teams.clear()
     constants.special_lobby_teams = [{} for _ in range(
         int(constants.SPECIAL_SLOTS_LIMIT) // int(constants.SPECIAL_LOBBY_SIZE)
@@ -1319,7 +1521,7 @@ async def start_registration(captcha_phrase: str):
             constants.SPECIAL_REGISTRATION_CHANNEL_ID
         ).fetch_message(constants.SPECIAL_REG_MESSAGE_ID)
 
-        await special_message.edit(view=RegistrationView())
+        await special_message.edit(view=RegistrationView3())
 
     except Exception as e:
         print(f"Failed to reset special registration: {e}")
@@ -1411,17 +1613,6 @@ async def break_reg(ctx):
             try:
                 idp_channel = discord.utils.get(bot.get_guild(constants.GUILD_ID).channels, name=f"group-{lobby_number}-idp")
                 await send_slots_list(team_names, lobby_number,idp_channel)
-#                 pov_message = """Hello Teams,
-
-# Please follow these steps to record your Point of View (POV) while playing BGMI:
-# 1. Before opening the BGMI app show the list of background running apps on your device
-# 2. Go to the PlayStore (for Android users) or Appstore (for iOS users) and open the BGMI app.
-# 3. Join the Lobby using the provided details.
-# 4. Before starting the match, ensure that both your in-game audio and your own voice (microphone) are being recorded.
-# 5. Play the match.
-# 6. After each match, make sure to show the list of background running apps and IMEI on your device.
-# 7. You need to repeat the above steps for every match you play."""
-#                 await idp_channel.send(pov_message)
             except Exception as e:
                 print(f"Got Exception when sending lobby csv files: {e}")
                 
@@ -1440,31 +1631,31 @@ async def break_reg_error(ctx, error):
     else:
         await ctx.send(f"An error occurred: {error}")
 
-@bot.hybrid_command(name="editslots", description="Change the slots limit and lobby size.")
-@commands.has_permissions(view_audit_log=True, manage_roles=True)
-async def editslots(ctx, slots_limit: int, lobby_size: int):
-    await ctx.defer()
+# @bot.hybrid_command(name="editslots", description="Change the slots limit and lobby size.")
+# @commands.has_permissions(view_audit_log=True, manage_roles=True)
+# async def editslots(ctx, slots_limit: int, lobby_size: int):
+#     await ctx.defer()
 
-    constants.SLOTS_LIMIT = slots_limit
-    constants.LOBBY_SIZE = lobby_size
-    constants.lobby_teams = [{} for _ in range(int(slots_limit / lobby_size))]
+#     constants.SLOTS_LIMIT = slots_limit
+#     constants.LOBBY_SIZE = lobby_size
+#     constants.lobby_teams = [{} for _ in range(int(slots_limit / lobby_size))]
 
-    try:
-        message = await bot.get_channel(constants.REGISTRATION_CHANNEL_ID).fetch_message(constants.REG_MESSAGE_ID)
-        await message.edit(view=RegistrationView2())
+#     try:
+#         message = await bot.get_channel(constants.REGISTRATION_CHANNEL_ID).fetch_message(constants.REG_MESSAGE_ID)
+#         await message.edit(view=RegistrationView2())
 
-    except discord.HTTPException as e:
-        print(f"An error occurred while purging messages: {e}")
+#     except discord.HTTPException as e:
+#         print(f"An error occurred while purging messages: {e}")
 
-    await ctx.send(f"Slots limit and lobby size updated:\nSlots limit: {slots_limit}\nLobby size: {lobby_size}")
+#     await ctx.send(f"Slots limit and lobby size updated:\nSlots limit: {slots_limit}\nLobby size: {lobby_size}")
 
-@editslots.error
-async def editslots_error(ctx, error):
-    if isinstance(error, commands.MissingPermissions):
-        missing_perms = ', '.join(error.missing_permissions)
-        await ctx.send(f"You don't have the required permissions to use this command: {missing_perms}")
-    else:
-        await ctx.send(f"An error occurred: {error}")
+# @editslots.error
+# async def editslots_error(ctx, error):
+#     if isinstance(error, commands.MissingPermissions):
+#         missing_perms = ', '.join(error.missing_permissions)
+#         await ctx.send(f"You don't have the required permissions to use this command: {missing_perms}")
+#     else:
+#         await ctx.send(f"An error occurred: {error}")
 
 @bot.hybrid_command(name="show_limits", description="Show the current slots limit and lobby size.")
 @commands.has_permissions(manage_roles=True)

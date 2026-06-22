@@ -26,6 +26,11 @@ GROUP_LOBBY_MAP = {
     "D": [13, 14, 15, 16],
 }
 
+GROUP_LOBBY_MAP2 = {
+    "A": [1, 2],
+    "B": [3, 4]
+}
+
 group_locks = {
     "A": asyncio.Lock(),
     "B": asyncio.Lock(),
@@ -33,11 +38,21 @@ group_locks = {
     "D": asyncio.Lock()     
 }
 
+group_locks2 = {
+    "A": asyncio.Lock(),
+    "B": asyncio.Lock()   
+}
+
 GROUP_LABELS = {
     "A": "2 PM",
     "B": "4 PM",
     "C": "7 PM",
     "D": "9 PM",
+}
+
+GROUP_LABELS2 = {
+    "A": "3 PM",
+    "B": "7 PM"
 }
 
 # Other constants
@@ -56,6 +71,7 @@ FAQ_MESSAGE_ID = 1260069527538896997
 SPECIAL_SLOTS_LIMIT = 36
 SPECIAL_LOBBY_SIZE = 18
 special_registered_teams = {}
+special_registered_set = set()
 special_lobby_teams = [{} for _ in range(int(SPECIAL_SLOTS_LIMIT // SPECIAL_LOBBY_SIZE))]
 special_lobby_locks = [asyncio.Lock() for _ in range(int(SPECIAL_SLOTS_LIMIT // SPECIAL_LOBBY_SIZE))]
 
