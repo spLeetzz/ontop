@@ -1380,7 +1380,7 @@ async def on_ready():
     try:
 
         with open('lobby_details.json', 'r') as f:
-        lobby_details_json = json.load(f)
+            lobby_details_json = json.load(f)
 
         if lobby_details_json:
             for k,v in lobby_details_json.items():
