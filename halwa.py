@@ -856,15 +856,15 @@ class GroupCaptchaModal2(discord.ui.Modal):
                                     bot.get_guild(constants.GUILD_ID).channels,
                                     name=f"t3-idp-{lobby_number}"
                                 )
-                                await send_slots_list(team_names, lobby_number, idp_channel)
+                                await send_slots_list(team_names, lobby_number, idp_channel, use_alt_lobby=True)
                             except Exception as e:
                                 print(f"Got Exception when sending lobby csv files: {e}")
                     await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(
                         f"You can download the Google Sheets app to view the list of users and their registration timestamps of {datetime.datetime.today().strftime('%d %b')} from this CSV file (for transparency). If you cant find you name in these, you were later than all these 😢.",
                         file=discord.File('timestamps.csv')
                     )
-                    with open('lobby_details.json', 'w') as json_file:
-                        json.dump(constants.temp_json_dict, json_file, indent=1)
+                    with open('lobby_details2.json', 'w') as json_file:
+                        json.dump(constants.temp_json_dict2, json_file, indent=1)
 
         print("Registration confirmed for user:", user_id)
         print(f"Assigned Lobby {assigned_lobby} in Group {self.group}")
@@ -1113,7 +1113,7 @@ class AddTeamButton(discord.ui.Button):
 
     async def callback(self, interaction: discord.Interaction):
 
-        if any(role.name in constants.roles_for_purge_perm for role in interaction.user.roles):
+        if any(role.name in constants.roles_for_bot_access for role in interaction.user.roles):
 
             await interaction.response.send_message(f"on itt...",ephemeral=True,delete_after=3)
             try:
@@ -1376,29 +1376,32 @@ async def on_ready():
     #     # Update the interaction message ID
     #     constants.FAQ_MESSAGE_ID = message.id
 
-    with open('lobby_details.json', 'r') as f:
+    # Load and handle lobby_details2.json for RegistrationView3
+    try:
+
+        with open('lobby_details.json', 'r') as f:
         lobby_details_json = json.load(f)
 
-#     await bot.get_channel(constants.HOW_TO_PLAY_CHANNEL_ID).send(f"""1. Get verified on [Trident Gaming](<https://tridentgaming.in/account>) after entering the required details. Verification is a manual process and may take around 1-2 weeks. (All 4 players of your team must be verified from your team in order to play)
-
-# *Aapko [Trident Gaming](<https://tridentgaming.in/account>) website pe jaakar aadhar and baaki details upload update krni hai apni profile me and apne saare teammates se bhi ye karwana hai, fir aapka profile "Under Verification" show hoga, ye "Verified" hone me 1-2 weeks lagege and apko wait krna rahega.*""")
-
-#     await bot.get_channel(constants.HOW_TO_PLAY_CHANNEL_ID).send(f"""2. Once you're verified, hover over to <#{constants.TICKET_CHANNEL_ID}> channel and select "T3 Verification" from the dropdown there, you'll be added to a private channel, send your aadhar card number and a screenshot showing that you are "Verified" on Trident website to claim your discord role. (All 4 players of your team have to claim role on discord by same procedure)
-
-# *Jab aap website par "Verified" ho jao fir <#{constants.TICKET_CHANNEL_ID}> wale channel me jaana and "Click Here" pe click karke "T3 Verification" wala option select krna, fir aapko ek channel me add kr diya jayega jaha aapko apna aadhar number and ek screenshot bhejna jisme ye clearly dikhe ki aap Trident website pe "Verified" ho. Ye kriya aapke saare dosto ko krni hai and ye krne se aapko discord role mil jayega.*\n\n3. Enroll your team from <#{constants.ENROLLMENT_CHANNEL_ID}> , just have to select "Enroll my team" option from there, fill simple details, mention your teammates, and you're fine to Go.
-#    You can even Update/Delete your team later on.
-
-# 4. Book your slot for your preferred lobby from <#{constants.REGISTRATION_CHANNEL_ID}> at 12 PM Tuesday-Saturday. The buttons there will remain disabled whole time, and will open up at registration time.
-
-# *3rd and 4th step samjhne ke liye ek baar aap niche wali video dekhlo, bas ek baar team banani h aapko baar baar mention nai krna h apne dosto ko and ek simple captcha fill krne se aapka registration hoga.*""")
-
-    if lobby_details_json:
-        for k,v in lobby_details_json.items():
-            try:
-                message = await bot.get_channel(int(v[1])).fetch_message(int(v[0]))
-                await message.edit(view=IdpChannelTasksView())
-            except Exception as e:
-                print(f"Got Exception {e} when dealing with lobby json file")
+        if lobby_details_json:
+            for k,v in lobby_details_json.items():
+                try:
+                    message = await bot.get_channel(int(v[1])).fetch_message(int(v[0]))
+                    await message.edit(view=IdpChannelTasksView())
+                except Exception as e:
+                    print(f"Got Exception {e} when dealing with lobby json file")
+                    
+        with open('lobby_details2.json', 'r') as f:
+            lobby_details_json2 = json.load(f)
+        
+        if lobby_details_json2:
+            for k,v in lobby_details_json2.items():
+                try:
+                    message = await bot.get_channel(int(v[1])).fetch_message(int(v[0]))
+                    await message.edit(view=IdpChannelTasksView())
+                except Exception as e:
+                    print(f"Got Exception {e} when dealing with lobby_details2 json file")
+    except FileNotFoundError:
+        print("lobby_details2.json not found, skipping...")
 
     start_auto.start()
     clear_lb_auto.start()
@@ -1546,6 +1549,9 @@ async def start_registration(captcha_phrase: str):
         with open('lobby_details.json', 'w') as json_file:
             json.dump({}, json_file)
 
+        with open('lobby_details2.json', 'w') as json_file:
+            json.dump({}, json_file)
+
     except discord.HTTPException as e:
         print(f"An error occurred while purging messages: {e}")
 
@@ -1561,7 +1567,7 @@ async def start_registration(captcha_phrase: str):
     name="start",
     description="To Start REG, the captcha you pass in will be default for everyone."
 )
-@commands.has_permissions(view_audit_log=True, manage_roles=True)
+@commands.has_any_role(*constants.roles_for_bot_access)
 async def start(ctx, captcha_phrase: str):
     await ctx.defer()
 
@@ -1586,10 +1592,12 @@ async def start_error(ctx, error):
         await ctx.send(f"An error occurred: {error}")
 
 @bot.hybrid_command(name="break",description="**Break Registration in between, Sensitive")
-@commands.has_permissions(view_audit_log=True, manage_roles=True)
+@commands.has_any_role(*constants.roles_for_bot_access)
 async def break_reg(ctx):
 
     await ctx.defer()
+    
+    # Break RegistrationView2
     constants.disabled_status = True
     message = await bot.get_channel(constants.REGISTRATION_CHANNEL_ID).fetch_message(constants.REG_MESSAGE_ID)
     await message.edit(view=RegistrationView2())
@@ -1621,7 +1629,38 @@ async def break_reg(ctx):
     with open('lobby_details.json','w') as json_file:
         json.dump(constants.temp_json_dict,json_file,indent=1)
 
-    await ctx.send(f"breaked REG in between")
+    # Break RegistrationView3
+    try:
+        constants.special_disabled_status = True
+        special_message = await bot.get_channel(constants.SPECIAL_REGISTRATION_CHANNEL_ID).fetch_message(constants.SPECIAL_REG_MESSAGE_ID)
+        await special_message.edit(view=RegistrationView3())
+        
+        # Save special registered teams
+        if constants.special_registered_teams:
+            await save_as_csv(constants.special_registered_teams, 'special_registered_teams.csv', save_all_flag=True)
+            await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(file=discord.File('special_registered_teams.csv'))
+
+        for lobby_number, lobby_teams_dict in enumerate(constants.special_lobby_teams, 1):
+            json_file_name = f"special_lobby_{lobby_number}_teams.json"
+            with open(json_file_name, 'w') as f:
+                json.dump(lobby_teams_dict, f, indent=1)
+
+            team_names = list(lobby_teams_dict.keys())
+            async with asyncio.TaskGroup() as taskhandler:
+                await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(file=discord.File(json_file_name))
+                try:
+                    idp_channel = discord.utils.get(bot.get_guild(constants.GUILD_ID).channels, name=f"t3-idp-{lobby_number}")
+                    await send_slots_list(team_names, lobby_number, idp_channel, use_alt_lobby=True)
+                except Exception as e:
+                    print(f"Got Exception when sending special lobby files: {e}")
+
+        with open('lobby_details2.json','w') as json_file:
+            json.dump(constants.temp_json_dict2,json_file,indent=1)
+    
+    except Exception as e:
+        print(f"Error breaking special registration: {e}")
+
+    await ctx.send(f"Broke registration for both RegistrationView2 and RegistrationView3")
 
 @break_reg.error
 async def break_reg_error(ctx, error):
@@ -1658,7 +1697,7 @@ async def break_reg_error(ctx, error):
 #         await ctx.send(f"An error occurred: {error}")
 
 @bot.hybrid_command(name="show_limits", description="Show the current slots limit and lobby size.")
-@commands.has_permissions(manage_roles=True)
+@commands.has_any_role(*constants.roles_for_bot_access)
 async def show_limits(ctx):
     await ctx.send(f"Current slots limit: {constants.SLOTS_LIMIT}\nCurrent lobby size: {constants.LOBBY_SIZE}")
 
@@ -1741,56 +1780,55 @@ async def blacklist_user_error(interaction: discord.Interaction, error):
     else:
         await interaction.response.send_message(f"An error occurred: {error}")
 
-@bot.hybrid_command(name="clear_amateur", description="**Clear Amateur lobby Channels and role**")
-@commands.has_any_role(*constants.roles_for_purge_perm)
-@commands.has_permissions(view_audit_log=True, manage_roles=True)
-async def clear_amateur(ctx):
-    await ctx.send("kr rha thoda wait krna ..")
+# @bot.hybrid_command(name="clear_amateur", description="**Clear Amateur lobby Channels and role**")
+# @commands.has_any_role(*constants.roles_for_purge_perm)
+# async def clear_amateur(ctx):
+#     await ctx.send("kr rha thoda wait krna ..")
 
-    role_names = ["Amateur IDP 1", "Amateur IDP 2"]
-    channel_names = [
-        "amateur-updates",
-        "amateur-slotlist",
-        "amateur-idp-1",
-        "amateur-idp-2",
-        "amateur-queries",
-    ]
+#     role_names = ["Amateur IDP 1", "Amateur IDP 2"]
+#     channel_names = [
+#         "amateur-updates",
+#         "amateur-slotlist",
+#         "amateur-idp-1",
+#         "amateur-idp-2",
+#         "amateur-queries",
+#     ]
 
-    try:
-        # Remove roles from members
-        for role_name in role_names:
-            role = discord.utils.get(ctx.guild.roles, name=role_name)
-            if role:
-                for member in role.members:
-                    await member.remove_roles(role)
-                    print(f"Removed {role_name} role from {member}")
+#     try:
+#         # Remove roles from members
+#         for role_name in role_names:
+#             role = discord.utils.get(ctx.guild.roles, name=role_name)
+#             if role:
+#                 for member in role.members:
+#                     await member.remove_roles(role)
+#                     print(f"Removed {role_name} role from {member}")
 
-        # Purge messages from channels
-        for channel_name in channel_names:
-            channel = discord.utils.get(ctx.guild.channels, name=channel_name)
-            if channel:
-                await channel.purge(limit=500, reason=f"amateur clearup by {ctx}", before=ctx.interaction.created_at)
-                print(f"Purged messages from {channel_name}")
+#         # Purge messages from channels
+#         for channel_name in channel_names:
+#             channel = discord.utils.get(ctx.guild.channels, name=channel_name)
+#             if channel:
+#                 await channel.purge(limit=500, reason=f"amateur clearup by {ctx}", before=ctx.interaction.created_at)
+#                 print(f"Purged messages from {channel_name}")
 
-        await ctx.send("Amateur Lobby channels (last 24 hrs) and roles are cleared now.")
+#         await ctx.send("Amateur Lobby channels (last 24 hrs) and roles are cleared now.")
 
-    except discord.Forbidden:
-        await ctx.send("I do not have permission to manage roles or channels.")
-    except discord.HTTPException as e:
-        await ctx.send(f"An HTTP error occurred: {e}")    
-    except Exception as e:
-        await ctx.send(f"An error occurred: {e}")
+#     except discord.Forbidden:
+#         await ctx.send("I do not have permission to manage roles or channels.")
+#     except discord.HTTPException as e:
+#         await ctx.send(f"An HTTP error occurred: {e}")    
+#     except Exception as e:
+#         await ctx.send(f"An error occurred: {e}")
 
-@clear_amateur.error
-async def clear_amateur(ctx, error):
-    if isinstance(error, commands.MissingPermissions):
-        missing_perms = ', '.join(error.missing_permissions)
-        await ctx.send(f"You don't have the required permissions to use this command: {missing_perms}")
-    else:
-        await ctx.send(f"An error occurred: {error}")
+# @clear_amateur.error
+# async def clear_amateur(ctx, error):
+#     if isinstance(error, commands.MissingPermissions):
+#         missing_perms = ', '.join(error.missing_permissions)
+#         await ctx.send(f"You don't have the required permissions to use this command: {missing_perms}")
+#     else:
+#         await ctx.send(f"An error occurred: {error}")
 
 @bot.hybrid_command(name="rr", description="Fetch random users who reacted to a message")
-@commands.has_permissions(view_audit_log=True)
+@commands.has_any_role(*constants.roles_for_bot_access)
 async def rr(ctx, num: int):
     
     try:
@@ -1884,7 +1922,6 @@ async def rr(ctx, error):
 
 @bot.hybrid_command(name="purge", description="Purge a specified number of messages from the channel.")
 @commands.has_any_role(*constants.roles_for_purge_perm)
-@commands.has_permissions(manage_messages=True,view_audit_log=True, manage_roles=True)
 async def purge(ctx, number_of_messages: int):
 
     await ctx.defer(ephemeral=True)
@@ -1920,7 +1957,7 @@ async def purge_error(ctx, error):
         await ctx.send(f"An error occurred: {error}")
 
 @bot.hybrid_command(name="say", description="""Make the bot say a specified message in a specified channel.""")
-@commands.has_permissions(manage_roles=True)
+@commands.has_any_role(*constants.roles_for_bot_access)
 async def say(ctx: commands.Context, channel: discord.TextChannel, *, message: str):
     try:
         await channel.send(message)
@@ -1937,7 +1974,7 @@ async def say_error(ctx: commands.Context, error: commands.CommandError):
         await ctx.send(f"An error occurred: {error}")
 
 @bot.hybrid_command(name="saythischannel", description="""Make the bot say a specified message in this channel.""")
-@commands.has_permissions(manage_roles=True)
+@commands.has_any_role(*constants.roles_for_bot_access)
 async def saythischannel(ctx: commands.Context, message: str):
     try:
         await ctx.channel.send(message)
@@ -1954,7 +1991,7 @@ async def saythischannel_error(ctx: commands.Context, error: commands.CommandErr
         await ctx.send(f"An error occurred: {error}")
 
 @bot.hybrid_command(name="faq", description="send faq view")
-@commands.has_permissions(manage_roles=True)
+@commands.has_any_role(*constants.roles_for_bot_access)
 async def faq(ctx: commands.Context, channel: discord.TextChannel, *, message: str):
     try:
         await channel.send(message, view=FaqView())
@@ -1971,7 +2008,7 @@ async def faq_error(ctx: commands.Context, error: commands.CommandError):
         await ctx.send(f"An error occurred: {error}")
 
 @bot.hybrid_command(name="role_by_reply", description="Assign a specified role to all mentioned users in the replied message.")
-@commands.has_permissions(manage_roles=True)
+@commands.has_any_role(*constants.roles_for_bot_access)
 async def role_by_reply(ctx, role_id: int):
     
     if ctx.interaction:
@@ -2040,7 +2077,7 @@ async def role_by_reply_error(ctx, error):
 #         await ctx.send(f"An error occurred: {error}")
 
 @bot.hybrid_command(name="inrole", description="inrole users and team names")
-@commands.has_permissions(manage_roles=True,view_audit_log=True)
+@commands.has_any_role(*constants.roles_for_bot_access)
 async def inrole(ctx: commands.Context, role: discord.Role):
     try:
         # Create a list of formatted mentions asynchronously
@@ -2064,7 +2101,7 @@ async def inrole_error(ctx: commands.Context, error: commands.CommandError):
         await ctx.send(f"An error occurred: {error}")
 
 @bot.hybrid_command(name="amateur_details_view", description="Ask Team Details from Amateur Teams.")
-@commands.has_permissions(manage_roles=True)
+@commands.has_any_role(*constants.roles_for_bot_access)
 async def amateur_details_view(ctx: commands.Context, channel: discord.TextChannel):
     try:
         message = "Click the button below to submit your team details."
@@ -2082,7 +2119,7 @@ async def amateur_details_view_error(ctx: commands.Context, error: commands.Comm
         await ctx.send(f"An error occurred: {error}")
 
 @bot.hybrid_command(name="add_team", description="Add team in T3 Slots List.")
-@commands.has_any_role(*constants.roles_for_purge_perm)
+@commands.has_any_role(*constants.roles_for_bot_access)
 async def add_team(ctx: commands.Context, team_name: str,member: discord.Member,channel: discord.TextChannel):
     try:
         await add_team_slotlist(team_name,member,channel)
@@ -2195,7 +2232,7 @@ async def clear_lobbies(purge_all=False, before_time=None):
                 await channel.purge(after=(datetime.datetime.now() - datetime.timedelta(hours=24)))
 
 @bot.hybrid_command(name="clearlb", description="**Clear lobby Channels and role")
-@commands.has_permissions(view_audit_log=True, manage_roles=True)
+@commands.has_any_role(*constants.roles_for_bot_access)
 async def clear_lb(ctx):
 
     await ctx.send("kr rha thoda wait krna ..")
@@ -3555,13 +3592,24 @@ async def assign_team_to_lobby(user, lobby_number, t3=False):
     if lobby_role:
         await user.add_roles(lobby_role)
 
-async def add_team_slotlist(team_name,member,channel):
+async def add_team_slotlist(team_name,member,channel, use_alt_lobby=None):
 
     # New team to add
     new_team = {team_name: member.id}
 
+    # Auto-detect which lobby system based on channel name if not specified
+    if use_alt_lobby is None:
+        # RegistrationView3 uses 't3-idp-X' channel names
+        # RegistrationView2 uses 'group-X-idp' channel names
+        use_alt_lobby = channel.name.startswith('t3')
+
     # Extract the channel number from the matching channel name
-    channel_number = channel.name.split('-')[1]
+    if use_alt_lobby:
+        # Format: t3-idp-{number}
+        channel_number = int(channel.name.split('-')[-1])
+    else:
+        # Format: group-{number}-idp
+        channel_number = int(channel.name.split('-')[1])
     
     json_file_name = f"lobby_{channel_number}_teams.json"
 
@@ -3575,7 +3623,7 @@ async def add_team_slotlist(team_name,member,channel):
     team_names = list(data.keys())
     async with asyncio.TaskGroup() as taskhandler:
         try:
-            await send_slots_list(team_names, channel_number, channel,edit_slots_list= True)
+            await send_slots_list(team_names, channel_number, channel, edit_slots_list=True, use_alt_lobby=use_alt_lobby)
         except Exception as e:
             print(f"Got Exception: {e}")
             
@@ -3613,7 +3661,7 @@ async def share_lobby_results(lobby_number, team_name):
         # row = [team_name,int(time.time()),int((0 * 3600) + (days_until_sunday * 86400)),datetime.datetime.now(tz=constants.timezone).strftime("%Y-%m-%d %H:%M"),f"{days_until_sunday} days {0} hours",str(user_id)]
         # constants.cooldown_sheet.append_row(row)
 
-async def send_slots_list(team_names, lobby_number, lobby_channel,edit_slots_list=  False, add_button = True):
+async def send_slots_list(team_names, lobby_number, lobby_channel,edit_slots_list=  False, add_button = True, use_alt_lobby = False):
     # Prepare the slots list message
     slots_list_message = "```yaml\n"
     
@@ -3636,7 +3684,8 @@ async def send_slots_list(team_names, lobby_number, lobby_channel,edit_slots_lis
     embed = discord.Embed(title=f"GROUP {lobby_number} SLOTS LIST:", description=slots_list_message,color=0x229db7)
 
     if edit_slots_list:
-        with open('lobby_details.json', 'r') as f:
+        json_file_name = 'lobby_details2.json' if use_alt_lobby else 'lobby_details.json'
+        with open(json_file_name, 'r') as f:
             lobby_details_json = json.load(f)
 
         if lobby_details_json:
@@ -3655,7 +3704,12 @@ async def send_slots_list(team_names, lobby_number, lobby_channel,edit_slots_lis
             await message.edit(view=IdpChannelTasksView())
     except Exception as e:
         print(e)
-    constants.temp_json_dict[lobby_number] = [message.id,lobby_channel.id]
+    
+    # Use the appropriate dictionary based on the parameter
+    if use_alt_lobby:
+        constants.temp_json_dict2[lobby_number] = [message.id, lobby_channel.id]
+    else:
+        constants.temp_json_dict[lobby_number] = [message.id, lobby_channel.id]
 
 async def init_sheet():
 
