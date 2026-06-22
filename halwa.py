@@ -389,7 +389,7 @@ class CaptchaModal(discord.ui.Modal):
                             # csv_file = f"lobby_{lobby_number}_teams.csv"
                             # await save_as_csv(lobby_teams_dict, csv_file)
 
-                            json_file_name = f"lobby_{lobby_number}_teams.json"
+                            json_file_name = f"alt_lobby_{lobby_number}_teams.json"
                             # Write the data dictionary to a JSON file
                             with open(json_file_name, 'w') as f:
                                 json.dump(lobby_teams_dict, f, indent=1)
@@ -401,7 +401,7 @@ class CaptchaModal(discord.ui.Modal):
                                 taskhandler.create_task(bot.get_channel(constants.UPDATES_CHANNEL_ID).send(file=discord.File(json_file_name)))
                                 try:
                                     idp_channel = discord.utils.get(bot.get_guild(constants.GUILD_ID).channels, name=f"t3-idp-{lobby_number}")
-                                    await send_slots_list(team_names, lobby_number,idp_channel, add_button=False)
+                                    await send_slots_list(team_names, lobby_number,idp_channel, add_button=False, use_alt_lobby=True)
 #                                     pov_message = """Hello Teams,
 
 # Please follow these steps to record your Point of View (POV) while playing BGMI:
@@ -843,7 +843,7 @@ class GroupCaptchaModal2(discord.ui.Modal):
                     await save_as_csv(constants.special_registered_teams, 'registered_teams.csv', save_all_flag=True)
                     await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(file=discord.File('registered_teams.csv'))
                     for lobby_number, lobby_teams_dict in enumerate(constants.special_lobby_teams, 1):
-                        json_file_name = f"lobby_{lobby_number}_teams.json"
+                        json_file_name = f"alt_lobby_{lobby_number}_teams.json"
                         with open(json_file_name, 'w') as f:
                             json.dump(lobby_teams_dict, f, indent=1)
                         team_names = list(lobby_teams_dict.keys())
@@ -1056,14 +1056,22 @@ class TeamInfoButton(discord.ui.Button):
             await interaction.response.send_message(f"on itt...",ephemeral=True,delete_after=3)
 
             # Extract the channel number from the matching channel name
-            lobby_number = interaction.channel.name.split('-')[1]
-            lobby_number_int = int(lobby_number)
+            # Handle both 'group-X-idp' and 't3-idp-X' formats
+            channel_name = interaction.channel.name
+            if channel_name.startswith('t3-idp-'):
+                # Format: t3-idp-{number} - use alt_lobby for RegistrationView3
+                lobby_number_int = int(channel_name.split('-')[-1])
+                json_file_name = f"alt_lobby_{lobby_number_int}_teams.json"
+            else:
+                # Format: group-{number}-idp or any other format - use normal lobby files
+                lobby_number_int = int(channel_name.split('-')[1])
+                json_file_name = f"lobby_{lobby_number_int}_teams.json"
             
             if 1 <= lobby_number_int <= (int(constants.SLOTS_LIMIT) / int(constants.LOBBY_SIZE)):
                 
                 temp_dict =  None
 
-                with open(f"lobby_{lobby_number}_teams.json", 'r') as f:
+                with open(json_file_name, 'r') as f:
                     temp_dict = json.load(f)
 
                 message = ""
@@ -1087,14 +1095,22 @@ class CopyTeamNamesButton(discord.ui.Button):
             await interaction.response.send_message(f"on itt...",ephemeral=True,delete_after=1)
 
             # Extract the channel number from the matching channel name
-            lobby_number = interaction.channel.name.split('-')[1]
-            lobby_number_int = int(lobby_number)
+            # Handle both 'group-X-idp' and 't3-idp-X' formats
+            channel_name = interaction.channel.name
+            if channel_name.startswith('t3-idp-'):
+                # Format: t3-idp-{number} - use alt_lobby for RegistrationView3
+                lobby_number_int = int(channel_name.split('-')[-1])
+                json_file_name = f"alt_lobby_{lobby_number_int}_teams.json"
+            else:
+                # Format: group-{number}-idp or any other format - use normal lobby files
+                lobby_number_int = int(channel_name.split('-')[1])
+                json_file_name = f"lobby_{lobby_number_int}_teams.json"
             
             if 1 <= lobby_number_int <= (int(constants.SLOTS_LIMIT) / int(constants.LOBBY_SIZE)):
                 
                 temp_dict =  None
 
-                with open(f"lobby_{lobby_number}_teams.json", 'r') as f:
+                with open(json_file_name, 'r') as f:
                     temp_dict = json.load(f)
 
                 message = ""
@@ -1401,7 +1417,7 @@ async def on_ready():
                 except Exception as e:
                     print(f"Got Exception {e} when dealing with lobby_details2 json file")
     except FileNotFoundError:
-        print("lobby_details2.json not found, skipping...")
+        print("lobby_details.json not found, CRITICAL PROBLEM BUT skipping...")
 
     start_auto.start()
     clear_lb_auto.start()
@@ -1641,7 +1657,7 @@ async def break_reg(ctx):
             await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(file=discord.File('special_registered_teams.csv'))
 
         for lobby_number, lobby_teams_dict in enumerate(constants.special_lobby_teams, 1):
-            json_file_name = f"special_lobby_{lobby_number}_teams.json"
+            json_file_name = f"alt_lobby_{lobby_number}_teams.json"
             with open(json_file_name, 'w') as f:
                 json.dump(lobby_teams_dict, f, indent=1)
 
@@ -3611,7 +3627,8 @@ async def add_team_slotlist(team_name,member,channel, use_alt_lobby=None):
         # Format: group-{number}-idp
         channel_number = int(channel.name.split('-')[1])
     
-    json_file_name = f"lobby_{channel_number}_teams.json"
+    # Use different JSON files for different registration views to avoid collision
+    json_file_name = f"alt_lobby_{channel_number}_teams.json" if use_alt_lobby else f"lobby_{channel_number}_teams.json"
 
     with open(json_file_name, 'r+') as f:
         data = json.load(f)   # Read the existing JSON data into a dictionary
@@ -3626,9 +3643,15 @@ async def add_team_slotlist(team_name,member,channel, use_alt_lobby=None):
             await send_slots_list(team_names, channel_number, channel, edit_slots_list=True, use_alt_lobby=use_alt_lobby)
         except Exception as e:
             print(f"Got Exception: {e}")
-            
-    role = discord.utils.get(bot.get_guild(constants.GUILD_ID).roles, name= f"Group {channel_number} IDP")
-    await member.add_roles(role)
+    
+    # Assign the correct role based on channel type
+    if use_alt_lobby:
+        role = discord.utils.get(bot.get_guild(constants.GUILD_ID).roles, name=f"T3 G{channel_number} IDP")
+    else:
+        role = discord.utils.get(bot.get_guild(constants.GUILD_ID).roles, name=f"Group {channel_number} IDP")
+    
+    if role:
+        await member.add_roles(role)
 
 async def share_lobby_results(lobby_number, team_name):
     with open(f"lobby_{lobby_number}_teams.json", 'r') as f:
@@ -3685,19 +3708,32 @@ async def send_slots_list(team_names, lobby_number, lobby_channel,edit_slots_lis
 
     if edit_slots_list:
         json_file_name = 'lobby_details2.json' if use_alt_lobby else 'lobby_details.json'
-        with open(json_file_name, 'r') as f:
-            lobby_details_json = json.load(f)
+        try:
+            with open(json_file_name, 'r') as f:
+                lobby_details_json = json.load(f)
 
-        if lobby_details_json:
-            try:
-                message = await bot.get_channel(lobby_details_json[lobby_number][1]).fetch_message(lobby_details_json[lobby_number][0])
-            except Exception as e:
-                print(f"Got Exception {e} while fetchin' slot list message.")
-            await message.edit(embed=embed,view=IdpChannelTasksView())
-            return
+            if lobby_details_json and str(lobby_number) in lobby_details_json:
+                try:
+                    message = await bot.get_channel(lobby_details_json[str(lobby_number)][1]).fetch_message(lobby_details_json[str(lobby_number)][0])
+                    await message.edit(embed=embed,view=IdpChannelTasksView())
+                    return
+                except Exception as e:
+                    print(f"Got Exception {e} while fetchin' slot list message for lobby {lobby_number}.")
+            else:
+                print(f"Lobby {lobby_number} not found in {json_file_name}, creating new message instead.")
+        except FileNotFoundError:
+            print(f"{json_file_name} not found, creating new message instead.")
+        except Exception as e:
+            print(f"Error reading {json_file_name}: {e}, creating new message instead.")
 
     message = await lobby_channel.send(embed=embed)
-    lobby_role = discord.utils.get(bot.get_guild(constants.GUILD_ID).roles, name=f"Group {lobby_number} IDP")
+    
+    # Use the appropriate role name based on which lobby system
+    if use_alt_lobby:
+        lobby_role = discord.utils.get(bot.get_guild(constants.GUILD_ID).roles, name=f"T3 G{lobby_number} IDP")
+    else:
+        lobby_role = discord.utils.get(bot.get_guild(constants.GUILD_ID).roles, name=f"Group {lobby_number} IDP")
+    
     await lobby_channel.send(f"{lobby_role.mention}\n\nAll players IGN must have TEAM TAG included, otherwise you will be kicked from the room.\nYou can even play from new id but this is required.")
     try:
         if add_button:
