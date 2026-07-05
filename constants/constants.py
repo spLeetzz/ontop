@@ -17,7 +17,7 @@ TICKET_CHANNEL_ID = 1187407524983480461
 # PREF_SELECTION_CHANNEL_ID = 1241547499416588409
 HOW_TO_PLAY_CHANNEL_ID = 1259394375880802434
 RESULTS_CHANNEL_ID = 1188850520803262565
-STAFF_CHANNEL_ID = 1203357142548094977
+STAFF_CHANNEL_ID = 1522643481036718131
 
 GROUP_LOBBY_MAP = {
     "A": [1, 2, 3, 4],
@@ -27,8 +27,8 @@ GROUP_LOBBY_MAP = {
 }
 
 GROUP_LOBBY_MAP2 = {
-    "A": [1, 2],
-    "B": [3, 4]
+    "A": [1],
+    "B": [2]
 }
 
 group_locks = {
@@ -68,7 +68,7 @@ REG_MESSAGE_ID = 1516682505456062496
 SCRIMS_INFO_MESSAGE_ID = 1354370354809929771
 FAQ_MESSAGE_ID = 1260069527538896997
 
-SPECIAL_SLOTS_LIMIT = 72
+SPECIAL_SLOTS_LIMIT = 36
 SPECIAL_LOBBY_SIZE = 18
 special_registered_teams = {}
 special_registered_set = set()
@@ -110,7 +110,7 @@ captcha_question_variables = []
 banned_team_list = []
 blk_users_list = []
 cd_team_list = []
-days_to_run = {1, 2, 3, 4, 5, 6}  # 1: Tuesday
+days_to_run = {0, 1, 2, 3, 4, 5}  # 1: Tuesday
 sheet = None
 ban_sheet = None
 blacklist_sheet = None
@@ -121,7 +121,7 @@ emotes_list = ["<:number1:1252296980638597221>", "<:number2:1252297093926883411>
 practice_emoteid = "<:Holdgun:1252297519543877684>"
 stary_emote = "<a:_:1188860052187119707>"
 roles_for_purge_perm = ['Admin','++D']
-roles_for_bot_access = ['Admin','++D','Bot Access']
+roles_for_bot_access = ['Admin','++D','Scrim Managers']
 idp_role_names = [f"Group {x} IDP" for x in range(1,int(SLOTS_LIMIT // LOBBY_SIZE) + 1)]
 channel_names = [f"group-{x}-idp" for x in range(1,int(SLOTS_LIMIT // LOBBY_SIZE) + 1)]
 inner_loop_counter = 0
