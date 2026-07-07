@@ -20,10 +20,11 @@ RESULTS_CHANNEL_ID = 1188850520803262565
 STAFF_CHANNEL_ID = 1522643481036718131
 
 GROUP_LOBBY_MAP = {
-    "A": [1, 2, 3, 4],
-    "B": [5, 6, 7, 8],
-    "C": [9, 10, 11, 12],
-    "D": [13, 14, 15, 16],
+    "A": [1, 2, 3],
+    "B": [4, 5, 6],
+    "C": [7, 8, 9],
+    "D": [10, 11, 12, 13],
+    "E": [14, 15, 16],
 }
 
 GROUP_LOBBY_MAP2 = {
@@ -32,10 +33,8 @@ GROUP_LOBBY_MAP2 = {
 }
 
 group_locks = {
-    "A": asyncio.Lock(),
-    "B": asyncio.Lock(),
-    "C": asyncio.Lock(),
-    "D": asyncio.Lock()     
+    "A": asyncio.Lock(), "B": asyncio.Lock(), "C": asyncio.Lock(),
+    "D": asyncio.Lock(), "E": asyncio.Lock()
 }
 
 group_locks2 = {
@@ -43,12 +42,12 @@ group_locks2 = {
     "B": asyncio.Lock()   
 }
 
-GROUP_LABELS = {
-    "A": "2 PM",
-    "B": "4 PM",
-    "C": "7 PM",
-    "D": "9 PM",
-}
+# GROUP_LABELS = {
+#     "A": "2 PM",
+#     "B": "4 PM",
+#     "C": "7 PM",
+#     "D": "9 PM",
+# }
 
 GROUP_LABELS2 = {
     "A": "3 PM",

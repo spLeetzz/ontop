@@ -490,7 +490,7 @@ class GroupButton(discord.ui.Button):
     def __init__(self, group):
 
         super().__init__(
-            label=f"Group {group}: {constants.GROUP_LABELS[group]}",
+            label=f"Group {group}",
             style=discord.ButtonStyle.green,
             disabled=constants.disabled_status,
         )
@@ -722,9 +722,16 @@ class GroupButton2(discord.ui.Button):
                 f"{user.mention} Someone from your team is not present in this server rn.",
                 ephemeral=True, delete_after=60
             )
-        if (team_name, self.group) in constants.special_registered_set:
+        # if (team_name, self.group) in constants.special_registered_set:
+        #     return await interaction.response.send_message(
+        #         f"Someone from your team booked a slot in Group {self.group}.",
+        #         ephemeral=True, delete_after=120
+        #     )
+
+        # disable multi group registration
+        if team_name in constants.special_registered_teams:
             return await interaction.response.send_message(
-                f"Someone from your team booked a slot in Group {self.group}.",
+                f"{user.mention} Someone from your team already booked a slot in another group.",
                 ephemeral=True, delete_after=120
             )
 
@@ -792,7 +799,11 @@ class GroupCaptchaModal2(discord.ui.Modal):
 
         async with constants.group_locks2[self.group]:
             # re-check after lock
-            if (self.team_name, self.group) in constants.special_registered_set:
+            # if (self.team_name, self.group) in constants.special_registered_set:
+            #     self.already_registered = True
+
+            # disable multi group registration
+            if self.team_name in constants.special_registered_teams:
                 self.already_registered = True
             else:
                 for lobby in group_lobbies:
@@ -1607,76 +1618,84 @@ async def start_error(ctx, error):
     else:
         await ctx.send(f"An error occurred: {error}")
 
-@bot.hybrid_command(name="break",description="**Break Registration in between, Sensitive")
+@bot.hybrid_command(name="break", description="**Break Registration in between, Sensitive")
+@app_commands.describe(target="which registration to break")
+@app_commands.choices(target=[
+    app_commands.Choice(name="main", value="main"),
+    app_commands.Choice(name="special", value="special"),
+])
 @commands.has_any_role(*constants.roles_for_bot_access)
-async def break_reg(ctx):
-
+async def break_reg(ctx, target: str):
     await ctx.defer()
-    
-    # Break RegistrationView2
+
+    if target == "main":
+        await break_main_registration()
+    else:
+        await break_special_registration()
+
+    await ctx.send(f"Broke registration: {target}")
+
+async def break_main_registration():
     constants.disabled_status = True
     message = await bot.get_channel(constants.REGISTRATION_CHANNEL_ID).fetch_message(constants.REG_MESSAGE_ID)
     await message.edit(view=RegistrationView2())
-    await save_as_csv(constants.registered_teams, 'registered_teams.csv',save_all_flag = True)
+    await save_as_csv(constants.registered_teams, 'registered_teams.csv', save_all_flag=True)
     await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(file=discord.File('registered_teams.csv'))
-
     for lobby_number, lobby_teams_dict in enumerate(constants.lobby_teams, 1):
-        # csv_file = f"lobby_{lobby_number}_teams.csv"
-        # await save_as_csv(lobby_teams_dict, csv_file)
-
         json_file_name = f"lobby_{lobby_number}_teams.json"
-        # Write the data dictionary to a JSON file
         with open(json_file_name, 'w') as f:
             json.dump(lobby_teams_dict, f, indent=1)
-
         team_names = list(lobby_teams_dict.keys())
-        user_ids = [lobby_teams_dict[team_name] for team_name in team_names]
         async with asyncio.TaskGroup() as taskhandler:
-            # await bot.get_channel(constants.MOD_CHANNEL_ID).send(file=discord.File(csv_file))
-            await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(file=discord.File(json_file_name))
+            taskhandler.create_task(
+                bot.get_channel(constants.UPDATES_CHANNEL_ID).send(file=discord.File(json_file_name))
+            )
             try:
-                idp_channel = discord.utils.get(bot.get_guild(constants.GUILD_ID).channels, name=f"group-{lobby_number}-idp")
-                await send_slots_list(team_names, lobby_number,idp_channel)
+                idp_channel = discord.utils.get(
+                    bot.get_guild(constants.GUILD_ID).channels,
+                    name=f"group-{lobby_number}-idp"
+                )
+                await send_slots_list(team_names, lobby_number, idp_channel)
             except Exception as e:
                 print(f"Got Exception when sending lobby csv files: {e}")
-                
-    await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"You can download the Google Sheets app to view the list of users and their registration timestamps of {datetime.datetime.today().strftime('%d %b')} from this CSV file (for transparency). If you cant find you name in these, you were later than all these 😢.",file=discord.File('timestamps.csv'))
+    await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(
+        f"You can download the Google Sheets app to view the list of users and their registration timestamps of {datetime.datetime.today().strftime('%d %b')} from this CSV file (for transparency). If you cant find you name in these, you were later than all these 😢.",
+        file=discord.File('timestamps.csv')
+    )
+    with open('lobby_details.json', 'w') as json_file:
+        json.dump(constants.temp_json_dict, json_file, indent=1)
 
-    with open('lobby_details.json','w') as json_file:
-        json.dump(constants.temp_json_dict,json_file,indent=1)
 
-    # Break RegistrationView3
+async def break_special_registration():
     try:
         constants.special_disabled_status = True
         special_message = await bot.get_channel(constants.SPECIAL_REGISTRATION_CHANNEL_ID).fetch_message(constants.SPECIAL_REG_MESSAGE_ID)
         await special_message.edit(view=RegistrationView3())
-        
-        # Save special registered teams
         if constants.special_registered_teams:
             await save_as_csv(constants.special_registered_teams, 'special_registered_teams.csv', save_all_flag=True)
             await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(file=discord.File('special_registered_teams.csv'))
-
-        for lobby_number, lobby_teams_dict in enumerate(constants.special_lobby_teams, 1):
-            json_file_name = f"alt_lobby_{lobby_number}_teams.json"
-            with open(json_file_name, 'w') as f:
-                json.dump(lobby_teams_dict, f, indent=1)
-
-            team_names = list(lobby_teams_dict.keys())
-            async with asyncio.TaskGroup() as taskhandler:
-                await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(file=discord.File(json_file_name))
-                try:
-                    idp_channel = discord.utils.get(bot.get_guild(constants.GUILD_ID).channels, name=f"t3-idp-{lobby_number}")
-                    await send_slots_list(team_names, lobby_number, idp_channel, use_alt_lobby=True)
-                except Exception as e:
-                    print(f"Got Exception when sending special lobby files: {e}")
-
-        with open('lobby_details2.json','w') as json_file:
-            json.dump(constants.temp_json_dict2,json_file,indent=1)
-    
+            for lobby_number, lobby_teams_dict in enumerate(constants.special_lobby_teams, 1):
+                json_file_name = f"alt_lobby_{lobby_number}_teams.json"
+                with open(json_file_name, 'w') as f:
+                    json.dump(lobby_teams_dict, f, indent=1)
+                team_names = list(lobby_teams_dict.keys())
+                async with asyncio.TaskGroup() as taskhandler:
+                    taskhandler.create_task(
+                        bot.get_channel(constants.UPDATES_CHANNEL_ID).send(file=discord.File(json_file_name))
+                    )
+                    try:
+                        idp_channel = discord.utils.get(
+                            bot.get_guild(constants.GUILD_ID).channels,
+                            name=f"t3-idp-{lobby_number}"
+                        )
+                        await send_slots_list(team_names, lobby_number, idp_channel, use_alt_lobby=True)
+                    except Exception as e:
+                        print(f"Got Exception when sending special lobby files: {e}")
+            with open('lobby_details2.json', 'w') as json_file:
+                json.dump(constants.temp_json_dict2, json_file, indent=1)
     except Exception as e:
         print(f"Error breaking special registration: {e}")
 
-    await ctx.send(f"Broke registration for both RegistrationView2 and RegistrationView3")
 
 @break_reg.error
 async def break_reg_error(ctx, error):
