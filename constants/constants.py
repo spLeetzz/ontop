@@ -28,8 +28,9 @@ GROUP_LOBBY_MAP = {
 }
 
 GROUP_LOBBY_MAP2 = {
-    "A": [1],
-    "B": [2]
+    "A": [1, 2],
+    "B": [3, 4],
+    "C": [5, 6]
 }
 
 group_locks = {
@@ -39,7 +40,8 @@ group_locks = {
 
 group_locks2 = {
     "A": asyncio.Lock(),
-    "B": asyncio.Lock()   
+    "B": asyncio.Lock(),
+    "C": asyncio.Lock()
 }
 
 # GROUP_LABELS = {
@@ -51,10 +53,12 @@ group_locks2 = {
 
 GROUP_LABELS2 = {
     "A": "3 PM",
-    "B": "7 PM"
+    "B": "7 PM",
+    "C": "9 PM"
 }
 
 # Other constants
+MAX_GROUP_REGISTRATIONS = 2  # max groups a team can register in (open registration)
 SLOTS_LIMIT = 320
 LOBBY_SIZE = 20
 REQUIRED_ROLE_NAME = "T3 verified"
@@ -67,7 +71,7 @@ REG_MESSAGE_ID = 1516682505456062496
 SCRIMS_INFO_MESSAGE_ID = 1354370354809929771
 FAQ_MESSAGE_ID = 1260069527538896997
 
-SPECIAL_SLOTS_LIMIT = 36
+SPECIAL_SLOTS_LIMIT = 108
 SPECIAL_LOBBY_SIZE = 18
 special_registered_teams = {}
 special_registered_set = set()

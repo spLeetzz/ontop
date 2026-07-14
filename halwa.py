@@ -521,9 +521,21 @@ class GroupButton(discord.ui.Button):
                 f"{user.mention} Someone from your team is not present in this server rn.",
                 ephemeral=True, delete_after=60
             )
+        # check: already registered in this specific group?
         if (team_name, self.group) in constants.registered_set:
             return await interaction.response.send_message(
                 f"Someone from your team booked a slot in Group {self.group}.",
+                ephemeral=True, delete_after=120
+            )
+
+        # check: max group registration limit (e.g. 2 groups max overall)
+        groups_registered = 0
+        for entry in constants.registered_set:
+            if entry[0] == team_name:
+                groups_registered += 1
+        if groups_registered >= constants.MAX_GROUP_REGISTRATIONS:
+            return await interaction.response.send_message(
+                f"Your team has already registered in {groups_registered} groups (max {constants.MAX_GROUP_REGISTRATIONS}).",
                 ephemeral=True, delete_after=120
             )
 
@@ -590,8 +602,11 @@ class GroupCaptchaModal(discord.ui.Modal):
         assigned_lobby = None
 
         async with constants.group_locks[self.group]:
-            # re-check after lock
+            # re-check after lock: same group
             if (self.team_name, self.group) in constants.registered_set:
+                self.already_registered = True
+            # re-check after lock: max group limit (prevents race conditions)
+            elif sum(1 for entry in constants.registered_set if entry[0] == self.team_name) >= constants.MAX_GROUP_REGISTRATIONS:
                 self.already_registered = True
             else:
                 for lobby in group_lobbies:
@@ -722,18 +737,18 @@ class GroupButton2(discord.ui.Button):
                 f"{user.mention} Someone from your team is not present in this server rn.",
                 ephemeral=True, delete_after=60
             )
-        # if (team_name, self.group) in constants.special_registered_set:
-        #     return await interaction.response.send_message(
-        #         f"Someone from your team booked a slot in Group {self.group}.",
-        #         ephemeral=True, delete_after=120
-        #     )
-
-        # disable multi group registration
-        if team_name in constants.special_registered_teams:
+        if (team_name, self.group) in constants.special_registered_set:
             return await interaction.response.send_message(
-                f"{user.mention} Someone from your team already booked a slot in another group.",
+                f"Someone from your team booked a slot in Group {self.group}.",
                 ephemeral=True, delete_after=120
             )
+
+        # # disable multi group registration
+        # if team_name in constants.special_registered_teams:
+        #     return await interaction.response.send_message(
+        #         f"{user.mention} Someone from your team already booked a slot in another group.",
+        #         ephemeral=True, delete_after=120
+        #     )
 
         # quick pre-check, any slot available in this group at all?
         group_lobbies = constants.GROUP_LOBBY_MAP2[self.group]
@@ -799,12 +814,12 @@ class GroupCaptchaModal2(discord.ui.Modal):
 
         async with constants.group_locks2[self.group]:
             # re-check after lock
-            # if (self.team_name, self.group) in constants.special_registered_set:
-            #     self.already_registered = True
-
-            # disable multi group registration
-            if self.team_name in constants.special_registered_teams:
+            if (self.team_name, self.group) in constants.special_registered_set:
                 self.already_registered = True
+
+            # # disable multi group registration
+            # if self.team_name in constants.special_registered_teams:
+            #     self.already_registered = True
             else:
                 for lobby in group_lobbies:
                     slots = available_slots2(lobby)
