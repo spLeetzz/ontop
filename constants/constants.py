@@ -46,21 +46,22 @@ group_locks2 = {
 
 # GROUP_LABELS = {
 #     "A": "2 PM",
-#     "B": "4 PM",
-#     "C": "7 PM",
-#     "D": "9 PM",
+#     "B": "3 PM",
+#     "C": "4 PM",
+#     "D": "7 PM",
+#     "E": "8 PM",
 # }
 
 GROUP_LABELS2 = {
-    "A": "3 PM",
-    "B": "7 PM",
-    "C": "9 PM"
+    "A": "2 PM",
+    "B": "4 PM",
+    "C": "7 PM"
 }
 
 # Other constants
 MAX_GROUP_REGISTRATIONS = 2  # max groups a team can register in (open registration)
 
-# Cancel slot deadlines (IST, 24hr format) — team can cancel until this time
+# Cancel slot deadlines (IST, 24hr format), team can cancel until this time
 CANCEL_DEADLINES = {
     "A": "13:30", "B": "14:30", "C": "15:30", "D": "18:00", "E": "19:00"
 }
