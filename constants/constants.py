@@ -59,6 +59,15 @@ GROUP_LABELS2 = {
 
 # Other constants
 MAX_GROUP_REGISTRATIONS = 2  # max groups a team can register in (open registration)
+
+# Cancel slot deadlines (IST, 24hr format) — team can cancel until this time
+CANCEL_DEADLINES = {
+    "A": "13:30", "B": "14:30", "C": "15:30", "D": "18:00", "E": "19:00"
+}
+CANCEL_DEADLINES_T3 = {
+    "A": "13:30", "B": "15:30", "C": "18:00"
+}
+
 SLOTS_LIMIT = 320
 LOBBY_SIZE = 20
 REQUIRED_ROLE_NAME = "T3 verified"
@@ -98,6 +107,7 @@ lobby_teams = [{} for _ in range(int(SLOTS_LIMIT // LOBBY_SIZE))]
 lobby_locks = [asyncio.Lock() for _ in range(int(SLOTS_LIMIT // LOBBY_SIZE))]
 running_processes_lock = asyncio.Lock()
 registration_lock = asyncio.Lock()
+cancel_slots_lock = asyncio.Lock()  # lock for cancel/claim slot operations
 cache_data_thread_lock = threading.Lock()
 ban_list_thread_lock = threading.Lock()
 blk_list_thread_lock = threading.Lock()

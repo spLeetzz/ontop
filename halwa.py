@@ -19,6 +19,27 @@ import json
 import psutil
 import sys
 
+class BatchedPrintLogger:
+    def __init__(self, filename, batch_size=50):
+        self.terminal = sys.stdout
+        self.filename = filename
+        self.buffer = []
+        self.batch_size = batch_size
+
+    def write(self, message):
+        self.terminal.write(message)
+        self.buffer.append(message)
+        if len(self.buffer) >= self.batch_size:
+            self.flush()
+
+    def flush(self):
+        if self.buffer:
+            with open(self.filename, "a", encoding="utf-8") as f:
+                f.write("".join(self.buffer))
+            self.buffer.clear()
+
+sys.stdout = BatchedPrintLogger("bot_logs.txt")
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 
@@ -1187,6 +1208,414 @@ class IdpChannelTasksView(discord.ui.View):
         super().__init__(timeout=None)
         self.add_item(TransferIDPButton())
         self.add_item(ModToolsButton())
+        self.add_item(CancelSlotButton())
+
+# ──────────────────────────────────────────────────────────────────
+# Cancel / Claim Slot System
+# ──────────────────────────────────────────────────────────────────
+
+def get_group_for_lobby(lobby_number, is_t3=False):
+    """Reverse-lookup: given a lobby number, find which group it belongs to."""
+    lobby_map = constants.GROUP_LOBBY_MAP2 if is_t3 else constants.GROUP_LOBBY_MAP
+    for group, lobbies in lobby_map.items():
+        if lobby_number in lobbies:
+            return group
+    return None
+
+def is_before_cancel_deadline(group, is_t3=False):
+    """Check if current time (IST) is before the cancel deadline for a group."""
+    deadlines = constants.CANCEL_DEADLINES_T3 if is_t3 else constants.CANCEL_DEADLINES
+    if group not in deadlines:
+        return False
+    deadline_str = deadlines[group]  # e.g. "13:30"
+    hour, minute = map(int, deadline_str.split(":"))
+    now = datetime.datetime.now(tz=constants.timezone)
+    deadline_time = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+    return now < deadline_time
+
+def load_cancelled_slots():
+    """Load cancelled_slots.json from disk. Returns dict."""
+    try:
+        with open('cancelled_slots.json', 'r') as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+def save_cancelled_slots(data):
+    """Save cancelled_slots.json to disk."""
+    with open('cancelled_slots.json', 'w') as f:
+        json.dump(data, f, indent=1)
+
+async def update_slot_list_after_cancel(lobby_number, is_t3):
+    """
+    Re-read the lobby JSON file and update the slot list embed in the IDP channel.
+    Uses lobby_details.json / lobby_details2.json to find the message to edit.
+    """
+    json_file_name = f"alt_lobby_{lobby_number}_teams.json" if is_t3 else f"lobby_{lobby_number}_teams.json"
+
+    try:
+        with open(json_file_name, 'r') as f:
+            data = json.load(f)
+    except FileNotFoundError:
+        print(f"{json_file_name} not found, can't update slot list.")
+        return
+
+    team_names = list(data.keys())
+    # find the IDP channel for this lobby
+    if is_t3:
+        idp_channel = discord.utils.get(bot.get_guild(constants.GUILD_ID).channels, name=f"t3-idp-{lobby_number}")
+    else:
+        idp_channel = discord.utils.get(bot.get_guild(constants.GUILD_ID).channels, name=f"group-{lobby_number}-idp")
+
+    if idp_channel:
+        await send_slots_list(team_names, lobby_number, idp_channel, edit_slots_list=True, use_alt_lobby=is_t3)
+
+
+class CancelSlotButton(discord.ui.Button):
+    """Button shown in IDP channels — lets a team cancel their slot."""
+    def __init__(self):
+        super().__init__(label='Cancel Slot', style=discord.ButtonStyle.danger, row=1)
+
+    async def callback(self, interaction: discord.Interaction):
+        user = interaction.user
+        channel_name = interaction.channel.name
+
+        # detect open vs t3 from channel name
+        is_t3 = channel_name.startswith('t3-idp-')
+        if is_t3:
+            lobby_number = int(channel_name.split('-')[-1])
+        else:
+            lobby_number = int(channel_name.split('-')[1])
+
+        # find which group this lobby belongs to
+        group = get_group_for_lobby(lobby_number, is_t3)
+        if not group:
+            return await interaction.response.send_message(
+                "Could not determine which group this lobby belongs to.", ephemeral=True, delete_after=15
+            )
+
+        # check deadline
+        if not is_before_cancel_deadline(group, is_t3):
+            deadlines = constants.CANCEL_DEADLINES_T3 if is_t3 else constants.CANCEL_DEADLINES
+            return await interaction.response.send_message(
+                f"Cancellation deadline for Group {group} ({deadlines[group]} IST) has passed.",
+                ephemeral=True, delete_after=30
+            )
+
+        # find the team in the lobby JSON
+        json_file_name = f"alt_lobby_{lobby_number}_teams.json" if is_t3 else f"lobby_{lobby_number}_teams.json"
+        try:
+            with open(json_file_name, 'r') as f:
+                lobby_data = json.load(f)
+        except FileNotFoundError:
+            return await interaction.response.send_message("Lobby data not found.", ephemeral=True, delete_after=15)
+
+        # find user's team in this lobby
+        team_name = None
+        for tn, uid in lobby_data.items():
+            if int(uid) == user.id:
+                team_name = tn
+                break
+
+        if not team_name:
+            return await interaction.response.send_message(
+                "You are not registered in this lobby.", ephemeral=True, delete_after=15
+            )
+
+        # show confirmation modal
+        await interaction.response.send_modal(
+            CancelConfirmModal(team_name, lobby_number, group, is_t3)
+        )
+
+
+class CancelConfirmModal(discord.ui.Modal):
+    """Confirmation modal — user must type their team name to confirm cancellation."""
+    def __init__(self, team_name, lobby_number, group, is_t3):
+        super().__init__(title="Confirm Slot Cancellation")
+        self.team_name = team_name
+        self.lobby_number = lobby_number
+        self.group = group
+        self.is_t3 = is_t3
+
+        self.confirm_input = discord.ui.TextInput(
+            label=f'Type "{team_name}" to confirm',
+            placeholder=team_name,
+            required=True
+        )
+        self.add_item(self.confirm_input)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        # validate confirmation text
+        if self.confirm_input.value.strip() != self.team_name:
+            return await interaction.response.send_message(
+                "Team name didn't match. Cancellation aborted.", ephemeral=True, delete_after=15
+            )
+
+        await interaction.response.defer(ephemeral=True, thinking=True)
+
+        async with constants.cancel_slots_lock:
+            # remove team from lobby JSON file
+            json_file_name = f"alt_lobby_{self.lobby_number}_teams.json" if self.is_t3 else f"lobby_{self.lobby_number}_teams.json"
+            try:
+                with open(json_file_name, 'r') as f:
+                    lobby_data = json.load(f)
+            except FileNotFoundError:
+                return await interaction.followup.send("Lobby data not found.", ephemeral=True)
+
+            if self.team_name not in lobby_data:
+                return await interaction.followup.send("Your team was not found in this lobby.", ephemeral=True)
+
+            # replace the team entry with a CANCELLED placeholder at the same position
+            # this keeps the dict the same size so no other teams shift position
+            cancel_key = "CANCELLED"
+            counter = 1
+            while cancel_key in lobby_data:
+                counter += 1
+                cancel_key = f"CANCELLED ({counter})"
+
+            items = list(lobby_data.items())
+            position = next(i for i, (k, v) in enumerate(items) if k == self.team_name)
+            items[position] = (cancel_key, "cancelled")
+            lobby_data = dict(items)
+
+            with open(json_file_name, 'w') as f:
+                json.dump(lobby_data, f, indent=1)
+
+            # remove the IDP role from the user
+            if self.is_t3:
+                role = discord.utils.get(bot.get_guild(constants.GUILD_ID).roles, name=f"T3 G{self.lobby_number} IDP")
+            else:
+                role = discord.utils.get(bot.get_guild(constants.GUILD_ID).roles, name=f"Group {self.lobby_number} IDP")
+
+            if role:
+                try:
+                    await interaction.user.remove_roles(role)
+                except Exception as e:
+                    print(f"Error removing IDP role: {e}")
+
+            # update the slot list embed in the IDP channel
+            await update_slot_list_after_cancel(self.lobby_number, self.is_t3)
+
+            # build embed for the claim message in registration channel
+            reg_type = "T3" if self.is_t3 else "Open"
+            claim_embed = discord.Embed(
+                title="🔔 Slot Available!",
+                description=(
+                    f"**{self.team_name}** cancelled their slot.\n\n"
+                    f"**Type:** {reg_type} Registration\n"
+                    f"**Group:** {self.group}\n"
+                    f"**Lobby:** {self.lobby_number}\n\n"
+                    f"Click the button below to claim this slot."
+                ),
+                color=0x2ecc71
+            )
+            claim_embed.set_footer(text=f"Cancelled by {interaction.user.display_name}")
+
+            # send claim message to the appropriate registration channel
+            reg_channel_id = constants.SPECIAL_REGISTRATION_CHANNEL_ID if self.is_t3 else constants.REGISTRATION_CHANNEL_ID
+            reg_channel = bot.get_channel(reg_channel_id)
+
+            claim_view = ClaimSlotView(self.lobby_number, self.group, self.is_t3)
+            claim_message = await reg_channel.send(embed=claim_embed, view=claim_view)
+
+            # save to cancelled_slots.json for restart persistence
+            cancelled_data = load_cancelled_slots()
+            slot_key = f"{self.lobby_number}_{self.group}_{int(datetime.datetime.now(tz=constants.timezone).timestamp())}"
+            cancelled_data[slot_key] = {
+                "team_name": self.team_name,
+                "lobby": self.lobby_number,
+                "group": self.group,
+                "type": "t3" if self.is_t3 else "open",
+                "message_id": claim_message.id,
+                "channel_id": reg_channel_id,
+                "claimed": False,
+                "cancel_key": cancel_key
+            }
+            save_cancelled_slots(cancelled_data)
+
+        await interaction.followup.send(
+            f"Your slot in Group {self.group}, Lobby {self.lobby_number} has been cancelled.\n"
+            f"A claim message has been posted in the registration channel.",
+            ephemeral=True
+        )
+
+    async def on_error(self, interaction: discord.Interaction, error: Exception):
+        await interaction.response.send_message(
+            "Something went wrong during cancellation. Please try again.",
+            ephemeral=True, delete_after=30
+        )
+        print(f"Error in CancelConfirmModal: {error}")
+
+
+class ClaimSlotView(discord.ui.View):
+    """Persistent view with a Claim button — attached to the claim message in registration channel."""
+    def __init__(self, lobby_number, group, is_t3):
+        super().__init__(timeout=None)
+        self.add_item(ClaimSlotButton(lobby_number, group, is_t3))
+
+
+class ClaimSlotButton(discord.ui.Button):
+    """Button to claim a cancelled slot. Uses custom_id for restart persistence."""
+    def __init__(self, lobby_number, group, is_t3):
+        reg_type = "t3" if is_t3 else "open"
+        custom_id = f"claim_{reg_type}_{group}_{lobby_number}_{int(datetime.datetime.now(tz=constants.timezone).timestamp())}"
+        super().__init__(
+            label=f'Claim Slot — Group {group}, Lobby {lobby_number}',
+            style=discord.ButtonStyle.green,
+            custom_id=custom_id
+        )
+        self.lobby_number = lobby_number
+        self.group = group
+        self.is_t3 = is_t3
+
+    async def callback(self, interaction: discord.Interaction):
+        user = interaction.user
+
+        # validate: team exists, not banned, etc.
+        team_name = await validate_registration(user)
+        if not team_name:
+            return await interaction.response.send_message(
+                f"You are not a part of any team right now, please enlist your team from <#{constants.ENROLLMENT_CHANNEL_ID}>.",
+                ephemeral=True, delete_after=60
+            )
+        if team_name in constants.banned_team_list:
+            return await interaction.response.send_message(
+                f"{user.mention} Someone from your team is banned at the moment.",
+                ephemeral=True, delete_after=60
+            )
+        if team_name in constants.cd_team_list:
+            return await interaction.response.send_message(
+                f"{user.mention} Someone from your team is on cooldown.",
+                ephemeral=True, delete_after=60
+            )
+        if team_name == 'left_server':
+            return await interaction.response.send_message(
+                f"{user.mention} Someone from your team is not present in this server.",
+                ephemeral=True, delete_after=60
+            )
+
+        # check deadline
+        if not is_before_cancel_deadline(self.group, self.is_t3):
+            deadlines = constants.CANCEL_DEADLINES_T3 if self.is_t3 else constants.CANCEL_DEADLINES
+            return await interaction.response.send_message(
+                f"Claim deadline for Group {self.group} ({deadlines[self.group]} IST) has passed.",
+                ephemeral=True, delete_after=30
+            )
+
+        # show confirmation modal
+        await interaction.response.send_modal(
+            ClaimConfirmModal(self.lobby_number, self.group, self.is_t3, team_name, interaction.message)
+        )
+
+
+class ClaimConfirmModal(discord.ui.Modal):
+    """Simple confirmation modal for claiming a slot."""
+    def __init__(self, lobby_number, group, is_t3, team_name, claim_message):
+        super().__init__(title="Confirm Slot Claim")
+        self.lobby_number = lobby_number
+        self.group = group
+        self.is_t3 = is_t3
+        self.team_name = team_name
+        self.claim_message = claim_message
+
+        self.confirm_input = discord.ui.TextInput(
+            label=f'Type "confirm" to claim this slot',
+            placeholder="confirm",
+            required=True
+        )
+        self.add_item(self.confirm_input)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        if self.confirm_input.value.strip().lower() != "confirm":
+            return await interaction.response.send_message(
+                "You didn't type 'confirm'. Claim aborted.", ephemeral=True, delete_after=15
+            )
+
+        await interaction.response.defer(ephemeral=True, thinking=True)
+
+        async with constants.cancel_slots_lock:
+            # check if slot is still available (not already claimed)
+            cancelled_data = load_cancelled_slots()
+            slot_entry = None
+            slot_key = None
+
+            for key, entry in cancelled_data.items():
+                if (entry["lobby"] == self.lobby_number
+                    and entry["group"] == self.group
+                    and entry["type"] == ("t3" if self.is_t3 else "open")
+                    and entry["message_id"] == self.claim_message.id
+                    and not entry["claimed"]):
+                    slot_entry = entry
+                    slot_key = key
+                    break
+
+            if not slot_entry:
+                return await interaction.followup.send(
+                    "This slot has already been claimed by someone else.", ephemeral=True
+                )
+
+            # add team to the lobby JSON file
+            json_file_name = f"alt_lobby_{self.lobby_number}_teams.json" if self.is_t3 else f"lobby_{self.lobby_number}_teams.json"
+            try:
+                with open(json_file_name, 'r') as f:
+                    lobby_data = json.load(f)
+            except FileNotFoundError:
+                return await interaction.followup.send("Lobby data not found.", ephemeral=True)
+
+            # replace the CANCELLED placeholder with the claiming team at the same position
+            cancel_key = slot_entry.get("cancel_key")
+            if cancel_key and cancel_key in lobby_data:
+                items = list(lobby_data.items())
+                position = next(i for i, (k, v) in enumerate(items) if k == cancel_key)
+                items[position] = (self.team_name, interaction.user.id)
+                lobby_data = dict(items)
+            else:
+                # fallback: just append if cancel_key not found
+                lobby_data[self.team_name] = interaction.user.id
+
+            with open(json_file_name, 'w') as f:
+                json.dump(lobby_data, f, indent=1)
+
+            # assign IDP role
+            if self.is_t3:
+                role = discord.utils.get(bot.get_guild(constants.GUILD_ID).roles, name=f"T3 G{self.lobby_number} IDP")
+            else:
+                role = discord.utils.get(bot.get_guild(constants.GUILD_ID).roles, name=f"Group {self.lobby_number} IDP")
+
+            if role:
+                try:
+                    await interaction.user.add_roles(role)
+                except Exception as e:
+                    print(f"Error assigning IDP role: {e}")
+
+            # update the slot list embed in the IDP channel
+            await update_slot_list_after_cancel(self.lobby_number, self.is_t3)
+
+            # mark as claimed in cancelled_slots.json
+            cancelled_data[slot_key]["claimed"] = True
+            cancelled_data[slot_key]["claimed_by"] = self.team_name
+            save_cancelled_slots(cancelled_data)
+
+            # delete the claim message since slot is now filled
+            try:
+                await self.claim_message.delete()
+            except Exception as e:
+                print(f"Error deleting claim message: {e}")
+
+        await interaction.followup.send(
+            f'Slot claimed! You are now in Group {self.group}, Lobby {self.lobby_number}.\n'
+            f'Check your IDP channel for the slot list.',
+            ephemeral=True
+        )
+
+    async def on_error(self, interaction: discord.Interaction, error: Exception):
+        await interaction.response.send_message(
+            "Something went wrong during claiming. Please try again.",
+            ephemeral=True, delete_after=30
+        )
+        print(f"Error in ClaimConfirmModal: {error}")
+
+# ──────────────────────────────────────────────────────────────────
 
 class PlayerSelectView(discord.ui.View):
     def __init__(self,row,role):
@@ -1444,6 +1873,32 @@ async def on_ready():
                     print(f"Got Exception {e} when dealing with lobby_details2 json file")
     except FileNotFoundError:
         print("lobby_details.json not found, CRITICAL PROBLEM BUT skipping...")
+
+    # Re-attach ClaimSlotView to unclaimed cancel messages after restart
+    try:
+        cancelled_data = load_cancelled_slots()
+        for key, entry in cancelled_data.items():
+            if entry.get("claimed"):
+                continue  # skip already claimed slots
+
+            is_t3 = entry["type"] == "t3"
+            group = entry["group"]
+
+            # skip if deadline has passed
+            if not is_before_cancel_deadline(group, is_t3):
+                continue
+
+            try:
+                channel = bot.get_channel(entry["channel_id"])
+                if channel:
+                    message = await channel.fetch_message(entry["message_id"])
+                    claim_view = ClaimSlotView(entry["lobby"], group, is_t3)
+                    await message.edit(view=claim_view)
+                    print(f"Re-attached claim view for {key}")
+            except Exception as e:
+                print(f"Could not re-attach claim view for {key}: {e}")
+    except Exception as e:
+        print(f"Error loading cancelled_slots.json on startup: {e}")
 
     start_auto.start()
     clear_lb_auto.start()
@@ -2840,12 +3295,19 @@ async def enrollTeam(user,interaction):
                 raise ValueError("Team name cannot be empty.")
             
             # Check if the team name is banned or on cooldown
-            if team_name.lower() == "cooldown" or team_name.lower() == "banned" or team_name.lower() == "left_server":
+            if team_name.lower() in ["cooldown", "banned", "left_server"]:
                 await thread.send(f"{user.mention} This team name is not allowed. Please choose a different team name.")
+                continue
+
+            # Check for simple mentions or newlines
+            if "<@" in team_name or "@" in team_name or "\n" in team_name:
+                await thread.send(f"{user.mention} Team names cannot contain mentions or multiple lines.")
+                continue
 
             # Check if the team name has more than sufficient char
-            if int(len(team_name)) > 23:
+            if int(len(team_name)) > 25:
                 await thread.send(f"{user.mention} Too long team name, Please choose a different team name.")
+                continue
 
             # Check if the team name already exists
             if not await is_team_name_unique(team_name):
@@ -2859,14 +3321,17 @@ async def enrollTeam(user,interaction):
             if i == 1:
                 embed = discord.Embed(description="All players' in-game names (IGN) must include a team acronym as prefix/suffix (SAME NAME TAG). Players without this will not be allowed in the lobby.", color=0x229db7)  
                 player_ign = await get_user_response_in_thread(user, thread, f"Please enter Player {i}'s IGN:",embed=embed)
-                player_igns.append(player_ign)
-                continue
-            
-            player_ign = await get_user_response_in_thread(user, thread, f"Please enter Player {i}'s IGN:")
-            player_igns.append(player_ign)
+            else:
+                player_ign = await get_user_response_in_thread(user, thread, f"Please enter Player {i}'s IGN:")
 
             if not player_ign:
                 raise ValueError(f"Player {i}'s IGN cannot be empty.")
+            if "\n" in player_ign:
+                raise ValueError(f"Player {i}'s IGN cannot contain multiple lines.")
+            if "<@" in player_ign or "@" in player_ign:
+                raise ValueError(f"Player {i}'s IGN cannot contain mentions.")
+            
+            player_igns.append(player_ign)
 
         # Ask if there is a fifth player
         fifth_player_response = await ask_yes_no_question_in_thread(user, thread, "Do you have a fifth player?")
@@ -2874,6 +3339,10 @@ async def enrollTeam(user,interaction):
             player5_ign = await get_user_response_in_thread(user, thread, "Please enter Player 5's IGN:")
             if not player5_ign:
                 raise ValueError("Player 5's IGN cannot be empty.")
+            if "\n" in player5_ign:
+                raise ValueError("Player 5's IGN cannot contain multiple lines.")
+            if "<@" in player5_ign or "@" in player5_ign:
+                raise ValueError("Player 5's IGN cannot contain mentions.")
             player_igns.append(player5_ign)
 
         # Write registration details to Google Sheets
@@ -3665,11 +4134,55 @@ async def add_team_slotlist(team_name,member,channel, use_alt_lobby=None):
     json_file_name = f"alt_lobby_{channel_number}_teams.json" if use_alt_lobby else f"lobby_{channel_number}_teams.json"
 
     with open(json_file_name, 'r+') as f:
-        data = json.load(f)   # Read the existing JSON data into a dictionary
-        data.update(new_team)    # Add the new team to the dictionary
-        f.seek(0)             # Move the file pointer to the beginning of the file
-        json.dump(data, f, indent=1)   # Write the updated dictionary back to the file
-        f.truncate()          # Ensure the file is truncated to the new length
+        data = json.load(f)
+
+        # check if this lobby has any cancelled slots, fill the first one instead of appending
+        cancelled_position = None
+        cancelled_key_found = None
+        for i, (k, v) in enumerate(data.items()):
+            if v == "cancelled":
+                cancelled_position = i
+                cancelled_key_found = k
+                break
+
+        if cancelled_position is not None:
+            # replace the cancelled placeholder with the new team at the same position
+            items = list(data.items())
+            items[cancelled_position] = (team_name, member.id)
+            data = dict(items)
+        else:
+            # no cancelled slots, append to end as usual
+            data.update(new_team)
+
+        f.seek(0)
+        json.dump(data, f, indent=1)
+        f.truncate()
+
+    # if we filled a cancelled slot, mark it as claimed and delete the claim message
+    if cancelled_key_found:
+        async with constants.cancel_slots_lock:
+            try:
+                cancelled_data = load_cancelled_slots()
+                for key, entry in cancelled_data.items():
+                    if (entry.get("cancel_key") == cancelled_key_found
+                        and entry["lobby"] == channel_number
+                        and not entry.get("claimed")):
+                        # mark as claimed
+                        entry["claimed"] = True
+                        entry["claimed_by"] = team_name
+                        save_cancelled_slots(cancelled_data)
+
+                        # delete the claim message since slot is now filled
+                        try:
+                            claim_channel = bot.get_channel(entry["channel_id"])
+                            if claim_channel:
+                                claim_msg = await claim_channel.fetch_message(entry["message_id"])
+                                await claim_msg.delete()
+                        except Exception as e:
+                            print(f"Could not delete claim message: {e}")
+                        break
+            except Exception as e:
+                print(f"Error updating cancelled_slots.json after mod add: {e}")
 
     team_names = list(data.keys())
     async with asyncio.TaskGroup() as taskhandler:

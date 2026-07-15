@@ -4,3 +4,4 @@
 *.json
 .env/
 .env
+bot_logs.txt
