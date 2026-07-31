@@ -758,18 +758,23 @@ class GroupButton2(discord.ui.Button):
                 f"{user.mention} Someone from your team is not present in this server rn.",
                 ephemeral=True, delete_after=60
             )
+        if any(role.name.startswith("Amateur") for role in user.roles):
+            return await interaction.response.send_message(
+                f"{user.mention} You can't register here as you have an Amateur role.",
+                ephemeral=True, delete_after=60
+            )
         if (team_name, self.group) in constants.special_registered_set:
             return await interaction.response.send_message(
                 f"Someone from your team booked a slot in Group {self.group}.",
                 ephemeral=True, delete_after=120
             )
 
-        # # disable multi group registration
-        # if team_name in constants.special_registered_teams:
-        #     return await interaction.response.send_message(
-        #         f"{user.mention} Someone from your team already booked a slot in another group.",
-        #         ephemeral=True, delete_after=120
-        #     )
+        # disable multi group registration
+        if team_name in constants.special_registered_teams:
+            return await interaction.response.send_message(
+                f"{user.mention} Someone from your team already booked a slot in another group.",
+                ephemeral=True, delete_after=120
+            )
 
         # quick pre-check, any slot available in this group at all?
         group_lobbies = constants.GROUP_LOBBY_MAP2[self.group]
@@ -838,9 +843,9 @@ class GroupCaptchaModal2(discord.ui.Modal):
             if (self.team_name, self.group) in constants.special_registered_set:
                 self.already_registered = True
 
-            # # disable multi group registration
-            # if self.team_name in constants.special_registered_teams:
-            #     self.already_registered = True
+            # disable multi group registration
+            elif self.team_name in constants.special_registered_teams:
+                self.already_registered = True
             else:
                 for lobby in group_lobbies:
                     slots = available_slots2(lobby)

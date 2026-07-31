@@ -22,20 +22,16 @@ STAFF_CHANNEL_ID = 1522643481036718131
 GROUP_LOBBY_MAP = {
     "A": [1, 2, 3],
     "B": [4, 5, 6],
-    "C": [7, 8, 9],
-    "D": [10, 11, 12, 13],
-    "E": [14, 15, 16],
 }
 
 GROUP_LOBBY_MAP2 = {
-    "A": [1, 2],
-    "B": [3, 4],
-    "C": [5, 6]
+    "A": [1],
+    "B": [2],
+    "C": [3]
 }
 
 group_locks = {
-    "A": asyncio.Lock(), "B": asyncio.Lock(), "C": asyncio.Lock(),
-    "D": asyncio.Lock(), "E": asyncio.Lock()
+    "A": asyncio.Lock(), "B": asyncio.Lock(),
 }
 
 group_locks2 = {
@@ -63,13 +59,13 @@ MAX_GROUP_REGISTRATIONS = 2  # max groups a team can register in (open registrat
 
 # Cancel slot deadlines (IST, 24hr format), team can cancel until this time
 CANCEL_DEADLINES = {
-    "A": "13:30", "B": "14:30", "C": "15:30", "D": "18:00", "E": "19:00"
+    "A": "13:30", "B": "14:30",
 }
 CANCEL_DEADLINES_T3 = {
     "A": "13:30", "B": "15:30", "C": "18:00"
 }
 
-SLOTS_LIMIT = 320
+SLOTS_LIMIT = 120
 LOBBY_SIZE = 20
 REQUIRED_ROLE_NAME = "T3 verified"
 GUILD_ID = 1187405344226426930
@@ -81,7 +77,7 @@ REG_MESSAGE_ID = 1516682505456062496
 SCRIMS_INFO_MESSAGE_ID = 1354370354809929771
 FAQ_MESSAGE_ID = 1260069527538896997
 
-SPECIAL_SLOTS_LIMIT = 108
+SPECIAL_SLOTS_LIMIT = 54
 SPECIAL_LOBBY_SIZE = 18
 special_registered_teams = {}
 special_registered_set = set()
