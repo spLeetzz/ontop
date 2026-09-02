@@ -59,7 +59,7 @@ MAX_GROUP_REGISTRATIONS = 2  # max groups a team can register in (open registrat
 
 # Cancel slot deadlines (IST, 24hr format), team can cancel until this time
 CANCEL_DEADLINES = {
-    "A": "13:30", "B": "14:30",
+    "A": "15:30", "B": "17:30",
 }
 CANCEL_DEADLINES_T3 = {
     "A": "13:30", "B": "15:30", "C": "18:00"
