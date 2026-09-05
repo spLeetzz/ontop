@@ -12,7 +12,9 @@ import time
 import os
 import threading
 import csv
+import io
 import random
+import re
 from string import ascii_lowercase
 from constants import constants
 import json
@@ -2641,6 +2643,395 @@ async def add_team(ctx: commands.Context, team_name: str,member: discord.Member,
 async def add_team_error(ctx: commands.Context, error: commands.CommandError):
     if isinstance(error, commands.MissingPermissions):
         await ctx.send("You don't have the required permissions to use this command.")
+
+# ──────────────────────────────────────────────────────────────────
+# Team registration report (OPEN lobby vs TIER3) from UPDATES channel
+# ──────────────────────────────────────────────────────────────────
+REPORT_MAX_DAYS = 180
+REPORT_MIN_LOBBY_SIZE = 15
+
+def _report_clean_team_name(name):
+    if name is None:
+        return ""
+    cleaned = re.sub(r"\s+", " ", str(name)).strip()
+    return cleaned
+
+def _report_is_garbage_team(name):
+    if not name:
+        return True
+    up = name.strip().upper()
+    if not up:
+        return True
+    if up.startswith("CANCELLED"):
+        return True
+    if up in ("__", "EMPTY", "RESERVED", "-"):
+        return True
+    return False
+
+def _report_lobby_file_info(filename):
+    fname = str(filename).strip().lower()
+    m = re.match(r"^alt_lobby_(\d+)_teams\.json$", fname)
+    if m:
+        return ("TIER3", int(m.group(1)))
+    m = re.match(r"^lobby_(\d+)_teams\.json$", fname)
+    if m:
+        return ("OPEN", int(m.group(1)))
+    return None
+
+def _report_group_for(lobby_number, reg_type):
+    lobby_map = constants.GROUP_LOBBY_MAP2 if reg_type == "TIER3" else constants.GROUP_LOBBY_MAP
+    try:
+        for group, lobbies in lobby_map.items():
+            if int(lobby_number) in list(lobbies):
+                return str(group)
+    except Exception:
+        pass
+    return ""
+
+def _report_parse_lobby_json(raw_bytes, include_cancelled=False):
+    try:
+        text = raw_bytes.decode("utf-8", errors="ignore")
+        data = json.loads(text)
+    except Exception:
+        return []
+    if not isinstance(data, dict):
+        return []
+    entries = []
+    for k, v in data.items():
+        team = _report_clean_team_name(k)
+        booker = "" if v is None else str(v).strip()
+        is_cancelled_slot = team.strip().upper().startswith("CANCELLED") or booker.lower() == "cancelled"
+        if is_cancelled_slot:
+            if not include_cancelled:
+                continue
+            if not team or team.strip().upper().startswith("CANCELLED"):
+                team = team if team else "CANCELLED"
+            booker = ""
+            entries.append((team, booker))
+            continue
+        if _report_is_garbage_team(team):
+            continue
+        if booker and not booker.isdigit():
+            booker = ""
+        entries.append((team, booker))
+    return entries
+
+def _report_parse_timestamps(raw_bytes):
+    try:
+        text = raw_bytes.decode("utf-8", errors="ignore")
+    except Exception:
+        return []
+    if not text.strip():
+        return []
+    entries = []
+    try:
+        for row in csv.reader(io.StringIO(text)):
+            if len(row) < 4:
+                continue
+            username = str(row[0]).strip()
+            ts_raw = str(row[1]).strip()
+            lobby_raw = str(row[2]).strip()
+            status = str(row[3]).strip().upper()
+            if not username or not ts_raw:
+                continue
+            if status not in ("BOOKED", "LATE"):
+                continue
+            m = re.search(r"(\d+)", lobby_raw)
+            lobby_no = int(m.group(1)) if m else None
+            time_only = ""
+            mt = re.search(r"(\d{1,2}:\d{2}(?::\d{2})?)", ts_raw)
+            if mt:
+                time_only = mt.group(1)
+                if len(time_only) == 5:
+                    time_only += ":00"
+            entries.append({
+                "username": username,
+                "username_lower": username.lower(),
+                "timestamp_raw": ts_raw,
+                "time_only": time_only,
+                "lobby": lobby_no,
+                "status": status,
+            })
+    except Exception:
+        pass
+    return entries
+
+@bot.hybrid_command(name="report", description="Report of registered teams for the last N days. Max 6 months (180 days).")
+@app_commands.describe(days="Last N days to include, ending today (IST). 1-180.", ignore_cancelled="When true, skip CANCELLED slots and lobbies with fewer than 15 teams.")
+@commands.has_any_role(*constants.roles_for_purge_perm)
+async def report(ctx: commands.Context, days: int, ignore_cancelled: bool = True):
+    try:
+        await ctx.defer()
+    except Exception:
+        pass
+    try:
+        try:
+            days = int(days)
+        except (TypeError, ValueError):
+            await ctx.send("Days must be a number, e.g. `/report days:7`.")
+            return
+        if not 1 <= days <= REPORT_MAX_DAYS:
+            await ctx.send(f"Days must be 1-{REPORT_MAX_DAYS} (max 6 months).")
+            return
+        today_ist = datetime.datetime.now(tz=constants.timezone).date()
+        start_obj = today_ist - datetime.timedelta(days=days - 1)
+        try:
+            after_ist = constants.timezone.localize(datetime.datetime.combine(start_obj, datetime.time.min))
+        except Exception:
+            after_ist = datetime.datetime.combine(start_obj, datetime.time.min).replace(tzinfo=constants.timezone)
+        after_utc = after_ist.astimezone(datetime.timezone.utc)
+
+        channel = bot.get_channel(constants.UPDATES_CHANNEL_ID)
+        if channel is None:
+            try:
+                channel = await bot.fetch_channel(constants.UPDATES_CHANNEL_ID)
+            except Exception:
+                channel = None
+        if channel is None:
+            await ctx.send("Could not access the updates channel.")
+            return
+
+        progress_msg = None
+        try:
+            progress_msg = await ctx.send(f"Scanning <#{constants.UPDATES_CHANNEL_ID}> `{start_obj.isoformat()}` to `{today_ist.isoformat()}` ... :eyes:")
+        except Exception:
+            progress_msg = None
+
+        prog_state = {"scanned": 0}
+        prog_stop = asyncio.Event()
+
+        async def _report_progress_tick():
+            frames = ["...", "....", ".....", "......"]
+            i = 0
+            while not prog_stop.is_set():
+                if progress_msg is not None:
+                    try:
+                        await progress_msg.edit(content=f"Scanning <#{constants.UPDATES_CHANNEL_ID}> `{start_obj.isoformat()}` to `{today_ist.isoformat()}`{frames[i % len(frames)]} :eyes: (checked {prog_state['scanned']} msgs)")
+                    except Exception:
+                        pass
+                i += 1
+                try:
+                    await asyncio.wait_for(prog_stop.wait(), timeout=10)
+                except asyncio.TimeoutError:
+                    continue
+
+        async def _report_progress_stop(final_text=None):
+            try:
+                prog_stop.set()
+            except Exception:
+                pass
+            try:
+                await progress_task
+            except Exception:
+                pass
+            if progress_msg is not None and final_text is not None:
+                try:
+                    await progress_msg.edit(content=final_text)
+                except Exception:
+                    pass
+
+        progress_task = asyncio.create_task(_report_progress_tick())
+
+        records = []
+        timestamp_pools = []
+        scanned = 0
+        try:
+            async for msg in channel.history(after=after_utc, oldest_first=True, limit=None):
+                scanned += 1
+                prog_state["scanned"] = scanned
+                if not msg.attachments:
+                    continue
+                try:
+                    msg_date_ist = msg.created_at.astimezone(constants.timezone).date()
+                except Exception:
+                    continue
+                if msg_date_ist < start_obj or msg_date_ist > today_ist:
+                    continue
+                for att in msg.attachments:
+                    info = _report_lobby_file_info(att.filename)
+                    try:
+                        if info is not None:
+                            reg_type, lobby_no = info
+                            raw = await att.read()
+                            entries = _report_parse_lobby_json(raw, include_cancelled=not ignore_cancelled)
+                            group = _report_group_for(lobby_no, reg_type)
+                            for idx, (team, booker) in enumerate(entries, start=1):
+                                records.append({
+                                    "date": msg_date_ist.isoformat(),
+                                    "type": reg_type,
+                                    "team_name": team,
+                                    "team_lower": team.lower(),
+                                    "group": group,
+                                    "lobby": lobby_no,
+                                    "slot_no": idx,
+                                    "booked_by_id": booker,
+                                })
+                        elif att.filename.strip().lower() == "timestamps.csv":
+                            raw = await att.read()
+                            ts_entries = _report_parse_timestamps(raw)
+                            if ts_entries:
+                                timestamp_pools.append({"at": msg.created_at, "date": msg_date_ist, "entries": ts_entries})
+                    except Exception as e:
+                        print(f"Report: skipped attachment {att.filename}: {e}")
+                        continue
+        except Exception as e:
+            await _report_progress_stop(f"Scan failed :eyes: {e}")
+            await ctx.send(f"Failed while scanning history: {e}")
+            return
+
+        if not records:
+            await _report_progress_stop(f"Scan done, no data :eyes: (checked {scanned} msgs)")
+            await ctx.send(f"No registration data found in <#{constants.UPDATES_CHANNEL_ID}> from `{start_obj.isoformat()}` to `{today_ist.isoformat()}` (scanned {scanned} messages).")
+            return
+
+        guild = bot.get_guild(constants.GUILD_ID)
+
+        seen = set()
+        deduped = []
+        for rec in records:
+            key = (rec["date"], rec["type"], rec["team_lower"], int(rec["lobby"]))
+            if key in seen:
+                continue
+            seen.add(key)
+            deduped.append(rec)
+
+        dropped_groups = 0
+        dropped_rows = 0
+        if ignore_cancelled:
+            from collections import Counter
+            lobby_counts = Counter((r["date"], r["type"], int(r["lobby"])) for r in deduped)
+            kept = []
+            for r in deduped:
+                if lobby_counts[(r["date"], r["type"], int(r["lobby"]))] < REPORT_MIN_LOBBY_SIZE:
+                    dropped_rows += 1
+                    continue
+                kept.append(r)
+            dropped_groups = sum(1 for k, c in lobby_counts.items() if c < REPORT_MIN_LOBBY_SIZE)
+            deduped = kept
+            if not deduped:
+                await _report_progress_stop("Scan done, all rows filtered :eyes:")
+                await ctx.send(f"No rows left after filters (dropped {dropped_rows} rows in {dropped_groups} lobbies with fewer than {REPORT_MIN_LOBBY_SIZE} teams). Try `/report` with `ignore_cancelled:False`.")
+                return
+
+        open_rows = []
+        t3_rows = []
+        for rec in deduped:
+            booking_time = ""
+            try:
+                booker_id = str(rec.get("booked_by_id", "")).strip()
+                member_name = ""
+                if booker_id.isdigit() and guild is not None:
+                    m = guild.get_member(int(booker_id))
+                    if m is not None:
+                        try:
+                            member_name = str(m.name).strip().lower()
+                        except Exception:
+                            member_name = ""
+                        if not member_name:
+                            try:
+                                member_name = str(m.display_name).strip().lower()
+                            except Exception:
+                                member_name = ""
+                for pool in timestamp_pools:
+                    if pool["date"].isoformat() != rec["date"]:
+                        continue
+                    for e in pool["entries"]:
+                        if e.get("status") != "BOOKED":
+                            continue
+                        if e.get("lobby") is not None and int(e["lobby"]) != int(rec["lobby"]):
+                            continue
+                        if member_name and e.get("username_lower") == member_name and e.get("time_only"):
+                            booking_time = e["time_only"]
+                            break
+                    if booking_time:
+                        break
+            except Exception:
+                booking_time = ""
+
+            row = [
+                rec["date"],
+                rec["team_name"],
+                rec["group"],
+                int(rec["lobby"]),
+                int(rec["slot_no"]),
+                rec["booked_by_id"],
+                booking_time,
+            ]
+            if rec["type"] == "OPEN":
+                open_rows.append(row)
+            else:
+                t3_rows.append(row)
+
+        open_rows.sort(key=lambda r: (r[0], int(r[3]), int(r[4])))
+        t3_rows.sort(key=lambda r: (r[0], int(r[3]), int(r[4])))
+
+        header = ["date", "team_name", "group", "lobby", "slot_no", "captain_discord_id",
+                  "registration_time"]
+        tag = f"{start_obj.isoformat()}_to_{today_ist.isoformat()}"
+        open_file = f"report_open_{tag}.csv"
+        t3_file = f"report_t3_{tag}.csv"
+        try:
+            with open(open_file, "w", newline="", encoding="utf-8") as f:
+                w = csv.writer(f)
+                w.writerow(header)
+                w.writerows(open_rows)
+            with open(t3_file, "w", newline="", encoding="utf-8") as f:
+                w = csv.writer(f)
+                w.writerow(header)
+                w.writerows(t3_rows)
+        except Exception as e:
+            await _report_progress_stop("Report failed :eyes:")
+            await ctx.send(f"Could not write report files: {e}")
+            return
+
+        open_unique = len({str(r[1]).lower() for r in open_rows})
+        t3_unique = len({str(r[1]).lower() for r in t3_rows})
+        days_hit = sorted({r["date"] for r in deduped})
+        filt_note = f"Ignored CANCELLED + dropped {dropped_rows} rows in {dropped_groups} lobbies < {REPORT_MIN_LOBBY_SIZE} teams." if ignore_cancelled else "Filters off: CANCELLED kept, small lobbies kept."
+        summary = (f"Report last {days} days: `{start_obj.isoformat()}` to `{today_ist.isoformat()}`\n"
+                   f"OPEN sheet: {len(open_rows)} rows, {open_unique} unique | "
+                   f"T3 sheet: {len(t3_rows)} rows, {t3_unique} unique | Days: {len(days_hit)}\n"
+                   f"{filt_note}\n"
+                   f"Source: <#{constants.UPDATES_CHANNEL_ID}> lobby JSONs "
+                   f"(OPEN = Groups A-B, Lobbies 1-6; T3 = Groups A-C, Lobbies 1-3).")
+        try:
+            to_send = []
+            if open_rows:
+                to_send.append(discord.File(open_file))
+            if t3_rows:
+                to_send.append(discord.File(t3_file))
+            if not to_send:
+                await _report_progress_stop("Report done, no rows :eyes:")
+                await ctx.send(content=summary + "\nNo rows in either sheet.")
+                return
+            await _report_progress_stop(f"Report done :eyes: (checked {scanned} msgs)")
+            if len(to_send) == 1:
+                await ctx.send(content=summary, file=to_send[0])
+            else:
+                await ctx.send(content=summary, files=to_send)
+        except Exception as e:
+            await _report_progress_stop("Report failed :eyes:")
+            await ctx.send(f"Report ready (OPEN {len(open_rows)}, T3 {len(t3_rows)}) but file send failed: {e}")
+    except Exception as e:
+        print(f"Error in report command: {e}")
+        try:
+            prog_stop.set()
+        except Exception:
+            pass
+        try:
+            await ctx.send(f"Report failed: {e}")
+        except Exception:
+            pass
+
+@report.error
+async def report_error(ctx: commands.Context, error: commands.CommandError):
+    try:
+        if isinstance(error, commands.MissingAnyRole) or isinstance(error, commands.MissingRole):
+            await ctx.send("You don't have the required permissions to use this command.")
+        else:
+            await ctx.send(f"An error occurred: {error}")
+    except Exception:
+        pass
 
 @bot.tree.command(name="upload_results", description="Share all t3 results.")
 @app_commands.checks.has_any_role(*constants.roles_for_purge_perm)
