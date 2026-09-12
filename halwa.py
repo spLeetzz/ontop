@@ -640,7 +640,12 @@ class GroupCaptchaModal(discord.ui.Modal):
                 if not assigned_lobby:
                     self.slots_available = False
                 else:
-                    constants.registered_teams[self.team_name] = await isAlreadyEnrolled(user_id, used2returnrow=True)
+                    row = await isAlreadyEnrolled(user_id, used2returnrow=True)
+                    if not row:
+                        return await interaction.followup.send(
+                            "Your team was changed (deleted/updated) while you were solving the captcha, so this booking was not saved. Please book again.", ephemeral=True
+                        )
+                    constants.registered_teams[self.team_name] = row
                     constants.registered_set.add((self.team_name, self.group))
                     constants.lobby_teams[assigned_lobby - 1][self.team_name] = user_id
 
@@ -857,7 +862,12 @@ class GroupCaptchaModal2(discord.ui.Modal):
                 if not assigned_lobby:
                     self.slots_available = False
                 else:
-                    constants.special_registered_teams[self.team_name] = await isAlreadyEnrolled(user_id, used2returnrow=True)
+                    row = await isAlreadyEnrolled(user_id, used2returnrow=True)
+                    if not row:
+                        return await interaction.followup.send(
+                            "Your team was changed (deleted/updated) while you were solving the captcha, so this booking was not saved. Please book again.", ephemeral=True
+                        )
+                    constants.special_registered_teams[self.team_name] = row
                     constants.special_registered_set.add((self.team_name, self.group))
                     constants.special_lobby_teams[assigned_lobby - 1][self.team_name] = user_id
 
@@ -2605,6 +2615,92 @@ async def inrole(ctx: commands.Context, role: discord.Role):
 
 @inrole.error
 async def inrole_error(ctx: commands.Context, error: commands.CommandError):
+    if isinstance(error, commands.MissingPermissions):
+        await ctx.send("You don't have the required permissions to use this command.")
+    elif isinstance(error, commands.ChannelNotFound):
+        await ctx.send("The specified channel was not found.")
+    else:
+        await ctx.send(f"An error occurred: {error}")
+
+@bot.hybrid_command(name="inrole_csv", description="Export role members with team names and IGNs to a CSV file.")
+@commands.has_any_role(*constants.roles_for_bot_access)
+async def inrole_csv(ctx: commands.Context, role: discord.Role):
+    try:
+        await ctx.defer()
+    except Exception:
+        pass
+    try:
+        members = list(role.members)
+        if not members:
+            await ctx.send(f"No members found in {role.name}.")
+            return
+
+        # Single pass over the sheet cache: discord id -> (team name, igns).
+        # Only the member's own dc id is exported; teammates' ids are skipped.
+        id_lookup = {}
+        try:
+            rows = constants.cached_data or []
+            for row in rows:
+                try:
+                    if not row or len(row) < 2:
+                        continue
+                    team = _report_clean_team_name(row[1])
+                    if _report_is_garbage_team(team):
+                        continue
+                    if team.lower() in ("team_name", "team name", "team", "teamname"):
+                        continue
+                    igns = [str(x).strip() if x is not None else "" for x in row[3::2]]
+                    igns = (igns + [""] * 5)[:5]
+                    for dc_id in row[2::2]:
+                        dc_id = str(dc_id).strip() if dc_id is not None else ""
+                        if dc_id and dc_id not in id_lookup:
+                            id_lookup[dc_id] = (team, igns)
+                except Exception:
+                    continue
+        except Exception:
+            pass
+
+        out_rows = []
+        for member in members:
+            try:
+                username = str(member.name)
+            except Exception:
+                username = str(member)
+            hit = id_lookup.get(str(member.id))
+            if hit:
+                team, igns = hit
+                out_rows.append([username, str(member.id), team] + list(igns))
+            else:
+                out_rows.append([username, str(member.id), "", "", "", "", "", ""])
+
+        out_rows.sort(key=lambda r: (r[2].lower(), r[0].lower()))
+        safe_role = re.sub(r"[^A-Za-z0-9_-]+", "_", role.name).strip("_") or "role"
+        filename = f"inrole_{safe_role}_{datetime.datetime.now(tz=constants.timezone).strftime('%Y-%m-%d')}.csv"
+        try:
+            with open(filename, "w", newline="", encoding="utf-8") as f:
+                w = csv.writer(f)
+                w.writerow(["dc_username", "dc_id", "team_name",
+                            "player1_ign", "player2_ign", "player3_ign",
+                            "player4_ign", "player5_ign"])
+                w.writerows(out_rows)
+        except Exception as e:
+            await ctx.send(f"Could not write CSV file: {e}")
+            return
+
+        with_note = sum(1 for r in out_rows if r[2])
+        await ctx.send(content=f"{role.name}: {len(out_rows)} members, {with_note} matched to a team.",
+                       file=discord.File(filename))
+    except discord.HTTPException as e:
+        await ctx.send(f"An error occurred while sending the message: {e}")
+    except Exception as e:
+        print(f"Error in inrole_csv command: {e}")
+        try:
+            await ctx.send(f"An error occurred: {e}")
+        except Exception:
+            pass
+
+@inrole_csv.error
+async def inrole_csv_error(ctx: commands.Context, error: commands.CommandError):
     if isinstance(error, commands.MissingPermissions):
         await ctx.send("You don't have the required permissions to use this command.")
     elif isinstance(error, commands.ChannelNotFound):
@@ -4389,7 +4485,7 @@ async def save_as_csv(teams_dict, csv_file, save_all_flag=False):
 
             # Extract User IDs and team names from the dictionary
             team_names = [key for key in teams_dict.keys()]
-            user_ids = [','.join(teams_dict[team_name]) for team_name in team_names]
+            user_ids = [','.join(v) if isinstance(v, (list, tuple)) else '' for v in (teams_dict[team_name] for team_name in team_names)]
 
             # Write team names and corresponding user IDs to the CSV
             for team_name, user_id in zip(team_names, user_ids):
