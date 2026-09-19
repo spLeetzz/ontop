@@ -734,7 +734,7 @@ class GroupButton2(discord.ui.Button):
     def __init__(self, group):
 
         super().__init__(
-            label=f"Group {group}",
+            label=f"Grp {group} - {constants.GROUP_LABELS2[group]}",
             style=discord.ButtonStyle.green,
             disabled=constants.special_disabled_status,
         )
