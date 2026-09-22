@@ -20,13 +20,13 @@ RESULTS_CHANNEL_ID = 1188850520803262565
 STAFF_CHANNEL_ID = 1522643481036718131
 
 GROUP_LOBBY_MAP = {
-    "A": [1, 2, 3],
-    "B": [4, 5, 6],
+    "A": [1, 2, 3, 4, 5],
+    "B": [6, 7, 8, 9, 10],
 }
 
 GROUP_LOBBY_MAP2 = {
-    "A": [1],
-    "B": [2],
+    "A": [1, 2],
+    "B": [3, 4],
 }
 
 group_locks = {
@@ -38,16 +38,13 @@ group_locks2 = {
     "B": asyncio.Lock(),
 }
 
-# GROUP_LABELS = {
-#     "A": "2 PM",
-#     "B": "3 PM",
-#     "C": "4 PM",
-#     "D": "7 PM",
-#     "E": "8 PM",
-# }
+GROUP_LABELS = {
+    "A": "3PM",
+    "B": "7PM",
+}
 
 GROUP_LABELS2 = {
-    "A": "4PM",
+    "A": "3PM",
     "B": "7PM"
 }
 
@@ -56,13 +53,13 @@ MAX_GROUP_REGISTRATIONS = 2  # max groups a team can register in (open registrat
 
 # Cancel slot deadlines (IST, 24hr format), team can cancel until this time
 CANCEL_DEADLINES = {
-    "A": "15:30", "B": "17:30",
+    "A": "14:30", "B": "18:30",
 }
 CANCEL_DEADLINES_T3 = {
-    "A": "15:30", "B": "18:00"
+    "A": "14:30", "B": "18:30"
 }
 
-SLOTS_LIMIT = 120
+SLOTS_LIMIT = 200
 LOBBY_SIZE = 20
 REQUIRED_ROLE_NAME = "T3 verified"
 GUILD_ID = 1187405344226426930
@@ -74,7 +71,7 @@ REG_MESSAGE_ID = 1516682505456062496
 SCRIMS_INFO_MESSAGE_ID = 1354370354809929771
 FAQ_MESSAGE_ID = 1260069527538896997
 
-SPECIAL_SLOTS_LIMIT = 36
+SPECIAL_SLOTS_LIMIT = 72
 SPECIAL_LOBBY_SIZE = 18
 special_registered_teams = {}
 special_registered_set = set()
@@ -117,7 +114,7 @@ captcha_question_variables = []
 banned_team_list = []
 blk_users_list = []
 cd_team_list = []
-days_to_run = {0, 1, 2, 3, 4, 5}  # 1: Tuesday
+days_to_run = {1, 2, 3, 4, 5}  # Tue-Sat only (no Sun/Mon)
 sheet = None
 ban_sheet = None
 blacklist_sheet = None
@@ -134,36 +131,66 @@ channel_names = [f"group-{x}-idp" for x in range(1,int(SLOTS_LIMIT // LOBBY_SIZE
 inner_loop_counter = 0
 match_schedule = {
     1: {
-        1: {"idt": "4:00 PM", "st": "4:05 PM"},
-        2: {"idt": "4:40 PM", "st": "4:47 PM"}
+        1: {"idt": "3:00 PM", "st": "3:07 PM", "map": "ERANGEL"},
+        2: {"idt": "3:40 PM", "st": "3:47 PM", "map": "RONDO"}
     },
     2: {
-        1: {"idt": "4:10 PM", "st": "4:15 PM"},
-        2: {"idt": "4:50 PM", "st": "4:57 PM"}
+        1: {"idt": "3:10 PM", "st": "3:17 PM", "map": "ERANGEL"},
+        2: {"idt": "3:50 PM", "st": "3:57 PM", "map": "RONDO"}
     },
     3: {
-        1: {"idt": "4:20 PM", "st": "4:25 PM"},
-        2: {"idt": "5:00 PM", "st": "5:07 PM"}
+        1: {"idt": "3:20 PM", "st": "3:27 PM", "map": "ERANGEL"},
+        2: {"idt": "4:00 PM", "st": "4:07 PM", "map": "RONDO"}
     },
     4: {
-        1: {"idt": "4:30 PM", "st": "4:35 PM"},
-        2: {"idt": "5:10 PM", "st": "5:17 PM"}
+        1: {"idt": "3:30 PM", "st": "3:37 PM", "map": "ERANGEL"},
+        2: {"idt": "4:10 PM", "st": "4:17 PM", "map": "RONDO"}
     },
     5: {
-        1: {"idt": "6:00 PM", "st": "6:05 PM"},
-        2: {"idt": "6:40 PM", "st": "6:47 PM"}
+        1: {"idt": "4:20 PM", "st": "4:27 PM", "map": "ERANGEL"},
+        2: {"idt": "5:00 PM", "st": "5:07 PM", "map": "RONDO"}
     },
     6: {
-        1: {"idt": "6:10 PM", "st": "6:15 PM"},
-        2: {"idt": "6:50 PM", "st": "6:57 PM"}
+        1: {"idt": "7:00 PM", "st": "7:07 PM", "map": "ERANGEL"},
+        2: {"idt": "7:40 PM", "st": "7:47 PM", "map": "RONDO"}
     },
     7: {
-        1: {"idt": "6:20 PM", "st": "6:25 PM"},
-        2: {"idt": "7:00 PM", "st": "7:07 PM"}
+        1: {"idt": "7:10 PM", "st": "7:17 PM", "map": "ERANGEL"},
+        2: {"idt": "7:50 PM", "st": "7:57 PM", "map": "RONDO"}
     },
     8: {
-        1: {"idt": "6:30 PM", "st": "6:35 PM"},
-        2: {"idt": "7:10 PM", "st": "7:17 PM"}
+        1: {"idt": "7:20 PM", "st": "7:27 PM", "map": "ERANGEL"},
+        2: {"idt": "8:00 PM", "st": "8:07 PM", "map": "RONDO"}
+    },
+    9: {
+        1: {"idt": "7:30 PM", "st": "7:37 PM", "map": "ERANGEL"},
+        2: {"idt": "8:10 PM", "st": "8:17 PM", "map": "RONDO"}
+    },
+    10: {
+        1: {"idt": "8:20 PM", "st": "8:27 PM", "map": "ERANGEL"},
+        2: {"idt": "9:00 PM", "st": "9:07 PM", "map": "RONDO"}
+    }
+}
+match_schedule_t3 = {
+    1: {
+        1: {"idt": "3:00 PM", "st": "3:07 PM", "map": "RONDO"},
+        2: {"idt": "3:40 PM", "st": "3:47 PM", "map": "ERANGEL"},
+        3: {"idt": "4:20 PM", "st": "4:27 PM", "map": "MIRAMAR"}
+    },
+    2: {
+        1: {"idt": "3:10 PM", "st": "3:17 PM", "map": "RONDO"},
+        2: {"idt": "3:50 PM", "st": "3:57 PM", "map": "ERANGEL"},
+        3: {"idt": "4:30 PM", "st": "4:37 PM", "map": "MIRAMAR"}
+    },
+    3: {
+        1: {"idt": "7:00 PM", "st": "7:07 PM", "map": "RONDO"},
+        2: {"idt": "7:40 PM", "st": "7:47 PM", "map": "ERANGEL"},
+        3: {"idt": "8:20 PM", "st": "8:27 PM", "map": "MIRAMAR"}
+    },
+    4: {
+        1: {"idt": "7:10 PM", "st": "7:17 PM", "map": "RONDO"},
+        2: {"idt": "7:50 PM", "st": "7:57 PM", "map": "ERANGEL"},
+        3: {"idt": "8:30 PM", "st": "8:37 PM", "map": "MIRAMAR"}
     }
 }
 
