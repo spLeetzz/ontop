@@ -3628,13 +3628,6 @@ async def start_auto():
             f"{constants.captcha_question_variables[3]} + "
             f"{constants.captcha_question_variables[4]}"
         )
-        for _ch_id in (constants.REGISTRATION_CHANNEL_ID, constants.SPECIAL_REGISTRATION_CHANNEL_ID):
-            try:
-                await bot.get_channel(_ch_id).send(
-                    'REG STARTED. Register now.'
-                )
-            except Exception as e:
-                print('reg-started notice failed:', e)
 
 async def _channel_has_recent_msg(channel_name, hours=24):
     """True if channel has any message in last N hours. False on missing/error."""
