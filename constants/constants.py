@@ -20,13 +20,13 @@ RESULTS_CHANNEL_ID = 1188850520803262565
 STAFF_CHANNEL_ID = 1522643481036718131
 
 GROUP_LOBBY_MAP = {
-    "A": [1, 2, 3, 4, 5],
-    "B": [6, 7, 8, 9, 10],
+    "A": [1, 2, 3, 4],
+    "B": [5, 6, 7, 8],
 }
 
 GROUP_LOBBY_MAP2 = {
-    "A": [1, 2],
-    "B": [3, 4],
+    "A": [1],
+    "B": [2],
 }
 
 group_locks = {
@@ -49,7 +49,8 @@ GROUP_LABELS2 = {
 }
 
 # Other constants
-MAX_GROUP_REGISTRATIONS = 2  # max groups a team can register in (open registration)
+MAX_GROUP_REGISTRATIONS = 1  # max groups a team can register in (open registration) = 1 lobby max per day
+MAX_T3_GROUP_REGISTRATIONS = 1  # max groups a team can register in (T3 registration) = 1 lobby max per day
 
 # Cancel slot deadlines (IST, 24hr format), team can cancel until this time
 CANCEL_DEADLINES = {
@@ -59,7 +60,7 @@ CANCEL_DEADLINES_T3 = {
     "A": "14:30", "B": "18:30"
 }
 
-SLOTS_LIMIT = 200
+SLOTS_LIMIT = 160
 LOBBY_SIZE = 20
 REQUIRED_ROLE_NAME = "T3 verified"
 GUILD_ID = 1187405344226426930
@@ -71,7 +72,7 @@ REG_MESSAGE_ID = 1516682505456062496
 SCRIMS_INFO_MESSAGE_ID = 1354370354809929771
 FAQ_MESSAGE_ID = 1260069527538896997
 
-SPECIAL_SLOTS_LIMIT = 72
+SPECIAL_SLOTS_LIMIT = 36
 SPECIAL_LOBBY_SIZE = 18
 special_registered_teams = {}
 special_registered_set = set()
@@ -147,28 +148,20 @@ match_schedule = {
         2: {"idt": "4:10 PM", "st": "4:17 PM", "map": "RONDO"}
     },
     5: {
-        1: {"idt": "4:20 PM", "st": "4:27 PM", "map": "ERANGEL"},
-        2: {"idt": "5:00 PM", "st": "5:07 PM", "map": "RONDO"}
-    },
-    6: {
         1: {"idt": "7:00 PM", "st": "7:07 PM", "map": "ERANGEL"},
         2: {"idt": "7:40 PM", "st": "7:47 PM", "map": "RONDO"}
     },
-    7: {
+    6: {
         1: {"idt": "7:10 PM", "st": "7:17 PM", "map": "ERANGEL"},
         2: {"idt": "7:50 PM", "st": "7:57 PM", "map": "RONDO"}
     },
-    8: {
+    7: {
         1: {"idt": "7:20 PM", "st": "7:27 PM", "map": "ERANGEL"},
         2: {"idt": "8:00 PM", "st": "8:07 PM", "map": "RONDO"}
     },
-    9: {
+    8: {
         1: {"idt": "7:30 PM", "st": "7:37 PM", "map": "ERANGEL"},
         2: {"idt": "8:10 PM", "st": "8:17 PM", "map": "RONDO"}
-    },
-    10: {
-        1: {"idt": "8:20 PM", "st": "8:27 PM", "map": "ERANGEL"},
-        2: {"idt": "9:00 PM", "st": "9:07 PM", "map": "RONDO"}
     }
 }
 match_schedule_t3 = {
@@ -178,19 +171,9 @@ match_schedule_t3 = {
         3: {"idt": "4:20 PM", "st": "4:27 PM", "map": "MIRAMAR"}
     },
     2: {
-        1: {"idt": "3:10 PM", "st": "3:17 PM", "map": "RONDO"},
-        2: {"idt": "3:50 PM", "st": "3:57 PM", "map": "ERANGEL"},
-        3: {"idt": "4:30 PM", "st": "4:37 PM", "map": "MIRAMAR"}
-    },
-    3: {
         1: {"idt": "7:00 PM", "st": "7:07 PM", "map": "RONDO"},
         2: {"idt": "7:40 PM", "st": "7:47 PM", "map": "ERANGEL"},
         3: {"idt": "8:20 PM", "st": "8:27 PM", "map": "MIRAMAR"}
-    },
-    4: {
-        1: {"idt": "7:10 PM", "st": "7:17 PM", "map": "RONDO"},
-        2: {"idt": "7:50 PM", "st": "7:57 PM", "map": "ERANGEL"},
-        3: {"idt": "8:30 PM", "st": "8:37 PM", "map": "MIRAMAR"}
     }
 }
 

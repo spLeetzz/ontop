@@ -172,7 +172,8 @@ def reg_base_description(is_t3=False):
 1. Make sure that you have completed the enrollment of your team from this channel <#{enroll}>
 2. Please book a slot only if you wanna participate in the scrims, there wont be any slot cancellation/reassignment later on.
 3. Fastest ones to register in any lobby will be allocated with the slots.
-4. You need to pass in a simple Captcha test for registration, have a look at it anytime with 'TRIAL REG' button.'''
+4. You need to pass in a simple Captcha test for registration, have a look at it anytime with 'TRIAL REG' button.
+5. One team can play only 1 lobby per day.'''
     return f'''*Hey Wanderer, can I lurk on you :>*
 
 **OPENS AT 12 PM**
@@ -180,7 +181,8 @@ def reg_base_description(is_t3=False):
 1. Make sure that you have completed the enrollment of your team from this channel <#{enroll}>
 2. Please book a slot only if you wanna participate in the scrims, there wont be any slot cancellation/reassignment later on.
 3. Fastest ones to register in any lobby will be allocated with the slots.
-4. You need to pass in a simple Captcha test for registration, have a look at it anytime with 'TRIAL REG' button.'''
+4. You need to pass in a simple Captcha test for registration, have a look at it anytime with 'TRIAL REG' button.
+5. One team can play only 1 lobby per day.'''
 
 def reg_slot_lines(is_t3=False):
     if is_t3:
@@ -883,6 +885,17 @@ class GroupButton2(discord.ui.Button):
                 ephemeral=True, delete_after=120
             )
 
+        # check: max group registration limit (1 lobby max per day)
+        t3_groups_registered = 0
+        for entry in constants.special_registered_set:
+            if entry[0] == team_name:
+                t3_groups_registered += 1
+        if t3_groups_registered >= constants.MAX_T3_GROUP_REGISTRATIONS:
+            return await interaction.response.send_message(
+                f"Your team has already registered in {t3_groups_registered} group(s) (max {constants.MAX_T3_GROUP_REGISTRATIONS}, 1 lobby max per day).",
+                ephemeral=True, delete_after=120
+            )
+
         # quick pre-check, any slot available in this group at all?
         group_lobbies = constants.GROUP_LOBBY_MAP2[self.group]
         has_slot = False
@@ -948,6 +961,9 @@ class GroupCaptchaModal2(discord.ui.Modal):
         async with constants.group_locks2[self.group]:
             # re-check after lock
             if (self.team_name, self.group) in constants.special_registered_set:
+                self.already_registered = True
+            # re-check after lock: max group limit (prevents race conditions)
+            elif sum(1 for entry in constants.special_registered_set if entry[0] == self.team_name) >= constants.MAX_T3_GROUP_REGISTRATIONS:
                 self.already_registered = True
 
             else:
@@ -1905,6 +1921,18 @@ class ClaimConfirmModal(discord.ui.Modal):
                 return await interaction.followup.send(
                     "This slot has already been claimed by someone else.", ephemeral=True
                 )
+
+            # enforce 1 lobby max per day: team already playing elsewhere can't claim
+            if self.is_t3:
+                if any(entry[0] == self.team_name for entry in constants.special_registered_set):
+                    return await interaction.followup.send(
+                        "Your team is already registered in another lobby (1 lobby max per day).", ephemeral=True
+                    )
+            else:
+                if any(entry[0] == self.team_name for entry in constants.registered_set):
+                    return await interaction.followup.send(
+                        "Your team is already registered in another lobby (1 lobby max per day).", ephemeral=True
+                    )
 
             # add team to the lobby JSON file
             json_file_name = f"alt_lobby_{self.lobby_number}_teams.json" if self.is_t3 else f"lobby_{self.lobby_number}_teams.json"
