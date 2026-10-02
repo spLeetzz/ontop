@@ -182,7 +182,7 @@ def reg_base_description(is_t3=False):
 2. Please book a slot only if you wanna participate in the scrims, there wont be any slot cancellation/reassignment later on.
 3. Fastest ones to register in any lobby will be allocated with the slots.
 4. You need to pass in a simple Captcha test for registration, have a look at it anytime with 'TRIAL REG' button.
-5. One team can play only 1 lobby per day.'''
+5. One team can play only 1 lobby per group, so a team can register in both groups.'''
 
 def reg_slot_lines(is_t3=False):
     if is_t3:
