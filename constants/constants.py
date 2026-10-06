@@ -85,7 +85,7 @@ special_lobby_locks = [asyncio.Lock() for _ in range(int(SPECIAL_SLOTS_LIMIT // 
 special_registration_lock = asyncio.Lock()
 
 SPECIAL_REGISTRATION_CHANNEL_ID = 1513409916352594054
-SPECIAL_REG_MESSAGE_ID = 1516682502255677462
+SPECIAL_REG_MESSAGE_ID = 1556880463929282713
 
 special_disabled_status = True
 
