@@ -173,7 +173,7 @@ def reg_base_description(is_t3=False):
 2. Please book a slot only if you wanna participate in the scrims, there wont be any slot cancellation/reassignment later on.
 3. Fastest ones to register in any lobby will be allocated with the slots.
 4. You need to pass in a simple Captcha test for registration, have a look at it anytime with 'TRIAL REG' button.
-5. One team can play only 1 lobby per day.'''
+5. One team can play up to 2 lobbies per day.'''
     return f'''*Hey Wanderer, can I lurk on you :>*
 
 **OPENS AT 12 PM**
@@ -885,14 +885,14 @@ class GroupButton2(discord.ui.Button):
                 ephemeral=True, delete_after=120
             )
 
-        # check: max group registration limit (1 lobby max per day)
+        # check: max group registration limit (2 lobbies max per day)
         t3_groups_registered = 0
         for entry in constants.special_registered_set:
             if entry[0] == team_name:
                 t3_groups_registered += 1
         if t3_groups_registered >= constants.MAX_T3_GROUP_REGISTRATIONS:
             return await interaction.response.send_message(
-                f"Your team has already registered in {t3_groups_registered} group(s) (max {constants.MAX_T3_GROUP_REGISTRATIONS}, 1 lobby max per day).",
+                f"Your team has already registered in {t3_groups_registered} group(s) (max {constants.MAX_T3_GROUP_REGISTRATIONS}, 2 lobbies max per day).",
                 ephemeral=True, delete_after=120
             )
 
@@ -1930,11 +1930,15 @@ class ClaimConfirmModal(discord.ui.Modal):
                     "This slot has already been claimed by someone else.", ephemeral=True
                 )
 
-            # enforce 1 lobby max per day: team already playing elsewhere can't claim
+            # enforce 2 lobbies max per day: team at the limit can't claim more
             if self.is_t3:
-                if any(entry[0] == self.team_name for entry in constants.special_registered_set):
+                if (self.team_name, self.group) in constants.special_registered_set:
                     return await interaction.followup.send(
-                        "Your team is already registered in another lobby (1 lobby max per day).", ephemeral=True
+                        "Your team is already registered in this group.", ephemeral=True
+                    )
+                if sum(1 for entry in constants.special_registered_set if entry[0] == self.team_name) >= constants.MAX_T3_GROUP_REGISTRATIONS:
+                    return await interaction.followup.send(
+                        "Your team is already registered in 2 lobbies (2 lobbies max per day).", ephemeral=True
                     )
             else:
                 if any(entry[0] == self.team_name for entry in constants.registered_set):
