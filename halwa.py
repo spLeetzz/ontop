@@ -1255,8 +1255,12 @@ class TeamInfoButton(discord.ui.Button):
                 
                 temp_dict =  None
 
-                with open(json_file_name, 'r') as f:
-                    temp_dict = json.load(f)
+                try:
+                    with open(json_file_name, 'r') as f:
+                        temp_dict = json.load(f)
+                except FileNotFoundError:
+                    await bot.get_channel(constants.UPDATES_CHANNEL_ID).send("No teams registered in this lobby yet.")
+                    return
 
                 message = ""
 
@@ -1294,8 +1298,12 @@ class CopyTeamNamesButton(discord.ui.Button):
                 
                 temp_dict =  None
 
-                with open(json_file_name, 'r') as f:
-                    temp_dict = json.load(f)
+                try:
+                    with open(json_file_name, 'r') as f:
+                        temp_dict = json.load(f)
+                except FileNotFoundError:
+                    await bot.get_channel(constants.UPDATES_CHANNEL_ID).send("No teams registered in this lobby yet.")
+                    return
 
                 message = ""
 
@@ -2732,52 +2740,51 @@ async def blacklist_user_error(interaction: discord.Interaction, error):
     else:
         await interaction.response.send_message(f"An error occurred: {error}")
 
-# @bot.hybrid_command(name="clear_amateur", description="**Clear Amateur lobby Channels and role**")
-# @commands.has_any_role(*constants.roles_for_purge_perm)
-# async def clear_amateur(ctx):
-#     await ctx.send("kr rha thoda wait krna ..")
+@bot.hybrid_command(name="clear_amateur", description="**Clear Amateur lobby Channels and role**")
+@commands.has_any_role(*constants.roles_for_purge_perm)
+async def clear_amateur(ctx):
+    await ctx.send("kr rha thoda wait krna ..")
 
-#     role_names = ["Amateur IDP 1", "Amateur IDP 2"]
-#     channel_names = [
-#         "amateur-updates",
-#         "amateur-slotlist",
-#         "amateur-idp-1",
-#         "amateur-idp-2",
-#         "amateur-queries",
-#     ]
+    role_names = ["Amateur G1 IDP", "Amateur G2 IDP", "Amateur G3 IDP"]
+    channel_names = [
+        "amateur-g1-idp",
+        "amateur-g2-idp",
+        "amateur-g3-idp",
+    ]
 
-#     try:
-#         # Remove roles from members
-#         for role_name in role_names:
-#             role = discord.utils.get(ctx.guild.roles, name=role_name)
-#             if role:
-#                 for member in role.members:
-#                     await member.remove_roles(role)
-#                     print(f"Removed {role_name} role from {member}")
+    try:
+        # Remove roles from members
+        for role_name in role_names:
+            role = discord.utils.get(ctx.guild.roles, name=role_name)
+            if role:
+                for member in role.members:
+                    await member.remove_roles(role)
+                    print(f"Removed {role_name} role from {member}")
 
-#         # Purge messages from channels
-#         for channel_name in channel_names:
-#             channel = discord.utils.get(ctx.guild.channels, name=channel_name)
-#             if channel:
-#                 await channel.purge(limit=500, reason=f"amateur clearup by {ctx}", before=ctx.interaction.created_at)
-#                 print(f"Purged messages from {channel_name}")
+        # Purge messages from channels
+        before = ctx.interaction.created_at if ctx.interaction else ctx.message.created_at
+        for channel_name in channel_names:
+            channel = discord.utils.get(ctx.guild.channels, name=channel_name)
+            if channel:
+                await channel.purge(limit=500, reason=f"amateur clearup by {ctx}", before=before)
+                print(f"Purged messages from {channel_name}")
 
-#         await ctx.send("Amateur Lobby channels (last 24 hrs) and roles are cleared now.")
+        await ctx.send("Amateur Lobby channels (last 24 hrs) and roles are cleared now.")
 
-#     except discord.Forbidden:
-#         await ctx.send("I do not have permission to manage roles or channels.")
-#     except discord.HTTPException as e:
-#         await ctx.send(f"An HTTP error occurred: {e}")    
-#     except Exception as e:
-#         await ctx.send(f"An error occurred: {e}")
+    except discord.Forbidden:
+        await ctx.send("I do not have permission to manage roles or channels.")
+    except discord.HTTPException as e:
+        await ctx.send(f"An HTTP error occurred: {e}")
+    except Exception as e:
+        await ctx.send(f"An error occurred: {e}")
 
-# @clear_amateur.error
-# async def clear_amateur(ctx, error):
-#     if isinstance(error, commands.MissingPermissions):
-#         missing_perms = ', '.join(error.missing_permissions)
-#         await ctx.send(f"You don't have the required permissions to use this command: {missing_perms}")
-#     else:
-#         await ctx.send(f"An error occurred: {error}")
+@clear_amateur.error
+async def clear_amateur_error(ctx, error):
+    if isinstance(error, commands.MissingPermissions):
+        missing_perms = ', '.join(error.missing_permissions)
+        await ctx.send(f"You don't have the required permissions to use this command: {missing_perms}")
+    else:
+        await ctx.send(f"An error occurred: {error}")
 
 @bot.hybrid_command(name="rr", description="Fetch random users who reacted to a message")
 @commands.has_any_role(*constants.roles_for_bot_access)
@@ -5208,30 +5215,32 @@ async def add_team_slotlist(team_name,member,channel, use_alt_lobby=None):
     # Use different JSON files for different registration views to avoid collision
     json_file_name = f"alt_lobby_{channel_number}_teams.json" if use_alt_lobby else f"lobby_{channel_number}_teams.json"
 
-    with open(json_file_name, 'r+') as f:
-        data = json.load(f)
+    try:
+        with open(json_file_name, 'r') as f:
+            data = json.load(f)
+    except FileNotFoundError:
+        data = {}
 
-        # check if this lobby has any cancelled slots, fill the first one instead of appending
-        cancelled_position = None
-        cancelled_key_found = None
-        for i, (k, v) in enumerate(data.items()):
-            if v == "cancelled":
-                cancelled_position = i
-                cancelled_key_found = k
-                break
+    # check if this lobby has any cancelled slots, fill the first one instead of appending
+    cancelled_position = None
+    cancelled_key_found = None
+    for i, (k, v) in enumerate(data.items()):
+        if v == "cancelled":
+            cancelled_position = i
+            cancelled_key_found = k
+            break
 
-        if cancelled_position is not None:
-            # replace the cancelled placeholder with the new team at the same position
-            items = list(data.items())
-            items[cancelled_position] = (team_name, member.id)
-            data = dict(items)
-        else:
-            # no cancelled slots, append to end as usual
-            data.update(new_team)
+    if cancelled_position is not None:
+        # replace the cancelled placeholder with the new team at the same position
+        items = list(data.items())
+        items[cancelled_position] = (team_name, member.id)
+        data = dict(items)
+    else:
+        # no cancelled slots, append to end as usual
+        data.update(new_team)
 
-        f.seek(0)
+    with open(json_file_name, 'w') as f:
         json.dump(data, f, indent=1)
-        f.truncate()
 
     # if we filled a cancelled slot, mark it as claimed and delete the claim message
     if cancelled_key_found:

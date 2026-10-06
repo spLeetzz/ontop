@@ -27,6 +27,7 @@ GROUP_LOBBY_MAP = {
 GROUP_LOBBY_MAP2 = {
     "A": [1],
     "B": [2],
+    "C": [3],
 }
 
 group_locks = {
@@ -36,6 +37,7 @@ group_locks = {
 group_locks2 = {
     "A": asyncio.Lock(),
     "B": asyncio.Lock(),
+    "C": asyncio.Lock(),
 }
 
 GROUP_LABELS = {
@@ -45,7 +47,8 @@ GROUP_LABELS = {
 
 GROUP_LABELS2 = {
     "A": "3PM",
-    "B": "7PM"
+    "B": "7PM",
+    "C": "9PM"
 }
 
 # Other constants
@@ -57,7 +60,7 @@ CANCEL_DEADLINES = {
     "A": "14:30", "B": "18:30",
 }
 CANCEL_DEADLINES_T3 = {
-    "A": "14:30", "B": "18:30"
+    "A": "14:30", "B": "18:30", "C": "20:30"
 }
 
 SLOTS_LIMIT = 160
@@ -72,7 +75,7 @@ REG_MESSAGE_ID = 1516682505456062496
 SCRIMS_INFO_MESSAGE_ID = 1354370354809929771
 FAQ_MESSAGE_ID = 1260069527538896997
 
-SPECIAL_SLOTS_LIMIT = 36
+SPECIAL_SLOTS_LIMIT = 54
 SPECIAL_LOBBY_SIZE = 18
 special_registered_teams = {}
 special_registered_set = set()
@@ -174,6 +177,11 @@ match_schedule_t3 = {
         1: {"idt": "7:00 PM", "st": "7:07 PM", "map": "RONDO"},
         2: {"idt": "7:40 PM", "st": "7:47 PM", "map": "ERANGEL"},
         3: {"idt": "8:20 PM", "st": "8:27 PM", "map": "MIRAMAR"}
+    },
+    3: {
+        1: {"idt": "9:00 PM", "st": "9:07 PM", "map": "RONDO"},
+        2: {"idt": "9:40 PM", "st": "9:47 PM", "map": "ERANGEL"},
+        3: {"idt": "10:20 PM", "st": "10:27 PM", "map": "MIRAMAR"}
     }
 }
 
