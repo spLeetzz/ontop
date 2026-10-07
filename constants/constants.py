@@ -53,7 +53,7 @@ GROUP_LABELS2 = {
 
 # Other constants
 MAX_GROUP_REGISTRATIONS = 2  # max groups a team can register in (open registration) = 1 lobby per group
-MAX_T3_GROUP_REGISTRATIONS = 2  # max groups a team can register in (T3 registration) = 2 lobbies max per day
+MAX_T3_GROUP_REGISTRATIONS = 1  # max groups a team can register in (T3 registration) = 1 lobby max per day
 
 # Cancel slot deadlines (IST, 24hr format), team can cancel until this time
 CANCEL_DEADLINES = {
