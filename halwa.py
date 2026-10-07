@@ -1672,9 +1672,12 @@ class CancelSlotButton(discord.ui.Button):
         # find user's team in this lobby
         team_name = None
         for tn, uid in lobby_data.items():
-            if int(uid) == user.id:
-                team_name = tn
-                break
+            try:
+                if int(uid) == user.id:
+                    team_name = tn
+                    break
+            except (ValueError, TypeError):
+                continue  # skip CANCELLED placeholders ("cancelled")
 
         if not team_name:
             return await interaction.response.send_message(
