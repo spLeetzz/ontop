@@ -3615,7 +3615,14 @@ async def upload_results_error(interaction: discord.Interaction, error):
             f"You don't have the required permissions to use this command: {missing_perms}"
         )
 
-local_tz = datetime.datetime.now().astimezone().tzinfo
+# Pin to IST explicitly. Reading the system timezone made every scheduled task
+# drift by 5:30 whenever the host/container ran in UTC, while the rest of the
+# bot used constants.timezone (hardcoded Asia/Kolkata).
+# NOTE: use zoneinfo, not pytz, for tzinfo=. A pytz zone keeps the historical
+# LMT offset (+05:53) when passed straight to datetime.time(), which fires
+# these loops 23 min early. zoneinfo.tzinfo= resolves the offset correctly.
+from zoneinfo import ZoneInfo as _ZoneInfo
+local_tz = _ZoneInfo("Asia/Kolkata")
 x = datetime.time(hour=12, minute=0, tzinfo=local_tz)
 @tasks.loop(time=x)
 async def start_auto():
