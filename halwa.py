@@ -3623,6 +3623,27 @@ async def upload_results_error(interaction: discord.Interaction, error):
 # these loops 23 min early. zoneinfo.tzinfo= resolves the offset correctly.
 from zoneinfo import ZoneInfo as _ZoneInfo
 local_tz = _ZoneInfo("Asia/Kolkata")
+
+# Fail loudly at import instead of silently running on UTC. Every scheduled
+# loop below derives from local_tz, so if this is wrong the whole bot fires
+# 5:30 off and can wipe lobbies at the wrong time. Checked here in code so it
+# never depends on the host/container TZ or a TZ env var being set.
+def _assert_ist_schedule():
+    probe = datetime.datetime.combine(
+        datetime.date(2026, 1, 15), datetime.time(12, 0, tzinfo=local_tz), tzinfo=local_tz
+    )
+    off = probe.utcoffset()
+    if off != datetime.timedelta(hours=5, minutes=30):
+        raise RuntimeError(
+            f"Scheduled tasks are not pinned to IST: 12:00 resolved to offset "
+            f"{off}, expected +05:30. Refusing to start so lobbies are not "
+            f"wiped at the wrong time."
+        )
+    # Also make sure no loop was left using the system timezone.
+    if _ZoneInfo("Asia/Kolkata").utcoffset(probe.replace(tzinfo=None)) != off:
+        raise RuntimeError("Asia/Kolkata tzinfo inconsistent; refusing to start.")
+
+_assert_ist_schedule()
 x = datetime.time(hour=12, minute=0, tzinfo=local_tz)
 @tasks.loop(time=x)
 async def start_auto():
