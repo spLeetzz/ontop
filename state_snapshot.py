@@ -21,8 +21,19 @@ import os
 SNAPSHOT_VERSION = 1
 
 
+def _state_dir():
+    """Directory holding mutable registration state.
+
+    Defaults to the directory containing this file (the app dir), so nothing
+    changes for a plain checkout. Set STATE_DIR to a mounted volume in a
+    container so state survives redeploys; without that, every deploy starts
+    from an empty image and wipes a day of registrations.
+    """
+    return os.environ.get("STATE_DIR") or os.path.dirname(os.path.abspath(__file__))
+
+
 def _snapshot_path():
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "state_snapshot.json")
+    return os.path.join(_state_dir(), "state_snapshot.json")
 
 
 def save_state_snapshot():

@@ -22,6 +22,19 @@ import psutil
 import state_snapshot
 import sys
 
+# Mutable state (lobby_*_teams.json, lobby_details*.json, *.csv, snapshot) is
+# opened by bare relative filename throughout this file. In a container the app
+# code sits in a read-only-ish image layer, so keep state on a mounted volume
+# and run from there. STATE_DIR is left unset for a plain checkout, which keeps
+# the original behaviour of running in the app directory.
+_APP_DIR = os.path.dirname(os.path.abspath(__file__))
+_STATE_DIR = os.environ.get("STATE_DIR")
+if _STATE_DIR:
+    os.makedirs(_STATE_DIR, exist_ok=True)
+    os.chdir(_STATE_DIR)
+    print(f"State dir: {os.getcwd()}")
+print(f"App dir: {_APP_DIR}")
+
 class BatchedPrintLogger:
     def __init__(self, filename, batch_size=50):
         self.terminal = sys.stdout
