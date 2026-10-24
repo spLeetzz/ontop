@@ -32,12 +32,27 @@ def _state_dir():
     return os.environ.get("STATE_DIR") or os.path.dirname(os.path.abspath(__file__))
 
 
-def _snapshot_path():
-    return os.path.join(_state_dir(), "state_snapshot.json")
+def _snapshot_path(suffix=None):
+    name = "state_snapshot.json"
+    if suffix:
+        name = "state_snapshot.%s.json" % suffix
+    return os.path.join(_state_dir(), name)
 
 
-def save_state_snapshot():
-    """Write current in-memory registration state to disk atomically. Never raises."""
+def _count_lobby_teams(lobbies):
+    try:
+        return sum(len(l) for l in (lobbies or []) if isinstance(l, dict))
+    except Exception:
+        return 0
+
+
+def save_state_snapshot(suffix=None):
+    """Write current in-memory registration state to disk atomically. Never raises.
+
+    Refuses to overwrite a good snapshot with an empty one unless the empty
+    state looks intentional. The daily /start clears registrations and then
+    saves; without this guard that save destroys the only recovery copy.
+    """
     try:
         from constants import constants
 
@@ -76,7 +91,29 @@ def save_state_snapshot():
             },
         }
 
-        path = _snapshot_path()
+        path = _snapshot_path(suffix)
+
+        # Guard: never clobber a populated snapshot with an empty one. A real
+        # reset is fine, but it must go through the pre-wipe snapshot instead so
+        # the previous state survives. Skipped for explicit suffixed saves.
+        if not suffix:
+            new_count = _count_lobby_teams(payload["open"]["lobby_teams"]) + \
+                _count_lobby_teams(payload["t3"]["lobby_teams"])
+            if new_count == 0 and os.path.exists(path):
+                try:
+                    with open(path, "r", encoding="utf-8") as _f:
+                        old = json.load(_f)
+                    old_count = _count_lobby_teams(old["open"]["lobby_teams"]) + \
+                        _count_lobby_teams(old["t3"]["lobby_teams"])
+                except Exception:
+                    old_count = 0
+                if old_count > 0:
+                    print(
+                        "[snapshot] refusing to overwrite %d teams with an empty "
+                        "state; keeping previous snapshot" % old_count
+                    )
+                    return
+
         tmp = path + ".tmp"
         with open(tmp, "w", encoding="utf-8") as f:
             json.dump(payload, f, indent=1)

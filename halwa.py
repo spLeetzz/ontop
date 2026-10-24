@@ -2454,6 +2454,14 @@ async def connect_to_google_sheets(json_keyfile_path, sheet_id,retry_interval=1)
 #         await ctx.send(f"An error occurred: {error}")
 
 async def start_registration(captcha_phrase: str):
+    # Snapshot the state we are about to wipe. Without this, the only copy of a
+    # day's registrations is the one written AFTER the clear below, which is
+    # empty - that is how the previous run lost everything.
+    try:
+        state_snapshot.save_state_snapshot(suffix="prewipe")
+    except Exception as e:
+        print(f"[snapshot] pre-wipe snapshot failed (non-fatal): {e}")
+
     constants.registered_set = set()
     constants.registered_teams.clear()
     constants.lobby_teams = [{} for _ in range(
