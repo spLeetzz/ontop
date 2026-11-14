@@ -4752,7 +4752,13 @@ async def validate_enrollment(user, team_name, player_igns, thread):
         mentioned_users = response.mentions
         players = [user for user in mentioned_users[:5]]
         player_discord_ids = [str(user.id) for user in mentioned_users[:5]]
-        
+
+        # Initiator must be one of the mentioned players
+        if str(user.id) not in player_discord_ids:
+            await thread.send(f"{user.mention} You must mention yourself as a teammate to enroll your team (4-5 players, including you).\nPlease restart the enrollment and mention all players including yourself.")
+            await response.add_reaction("❌")
+            raise EnrollmentError(60)
+
         # Check if any of the mentioned players are already enrolled
         for discord_id in player_discord_ids:
             
