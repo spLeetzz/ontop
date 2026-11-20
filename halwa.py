@@ -4836,8 +4836,9 @@ async def write_to_sheet(initiator_id, team_name, player_igns, player_discord_id
     remaining_columns = 12 - len(row)  # 12 is the total number of columns
     row.extend([''] * remaining_columns)
     
-    # Append the row to the Google Sheets
-    constants.sheet.append_row(row)
+    # Append the row to the Google Sheets. gspread is blocking; run it off the
+    # event loop so a stalled Google call can't freeze Discord's heartbeat.
+    await asyncio.to_thread(constants.sheet.append_row, row)
     
     # Print registration details for verification
     print(f"Registered: {initiator_idstr}, Team: {team_name}, Discord Usernames: {', '.join(player_discord_ids)}, IGNs: {', '.join(player_igns)}")
@@ -5472,6 +5473,9 @@ async def init_sheet():
         constants.ban_sheet, _ = await connect_to_google_sheets(json_keyfile_path, sheet_id=constants.BAN_SHEET_ID)
         constants.blacklist_sheet, _ = await connect_to_google_sheets(json_keyfile_path, sheet_id=constants.BLACKLIST_SHEET_ID)
         constants.cooldown_sheet, _ = await connect_to_google_sheets(json_keyfile_path, sheet_id=constants.COOLDOWN_SHEET_ID)
+        # Cap Sheets calls: no timeout today means one lost packet can stall the bot for minutes.
+        for _sheet in (constants.sheet, constants.ban_sheet, constants.blacklist_sheet, constants.cooldown_sheet):
+            _sheet.set_timeout((5, 30))
     except Exception as e:
         print("Error while connecting to Google Sheets:", e)
 
