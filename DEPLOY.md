@@ -67,8 +67,13 @@ ssh adity '/usr/local/bin/ontop-update'
 
 Run `/modpanel` once in a mod-only channel. It posts a persistent panel
 (buttons keep working across restarts) with: Live status, Find team, Lobby
-lists, Add team, Unstick user, Backup now, Close Open reg, Close T3 reg.
+lists, Add team, Unstick user, Backup now, Clean threads, Close Open reg,
+Close T3 reg.
 Only `roles_for_bot_access` can use it; every answer is ephemeral.
+
+Leftover enroll/update/delete threads are removed on their own: once in
+the background a minute after boot, then every 30 minutes (idle 20 min, never
+a thread an open flow is using).
 
 ## Crash safety
 

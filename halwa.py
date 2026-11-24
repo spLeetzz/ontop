@@ -1830,6 +1830,7 @@ def mod_panel_embed():
             "**Lobby lists**: any lobby's teams with bookers\n"
             "**Add team**: lobby, then booker, then name (after reg closes)\n"
             "**Unstick user**: clears a stuck \"another process is running\"\n"
+            "**Clean threads**: removes leftover enroll/update/delete threads (also runs on its own)\n"
             "**Backup now**: saves and sends you the crash snapshot\n"
             "**Close Open / Close T3**: same as /break, with a confirm step"
         ),
@@ -1877,6 +1878,14 @@ class ModPanelView(discord.ui.View):
             await interaction.followup.send(f"Backup saved ({stamp}).", file=discord.File(path), ephemeral=True)
         except Exception as e:
             await interaction.followup.send(f"Backup saved on the server, but sending the file failed: {e}", ephemeral=True)
+
+    @discord.ui.button(label="Clean threads", emoji="\U0001f9f9", style=discord.ButtonStyle.secondary, custom_id="modpanel:sweep", row=2)
+    async def sweep(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        deleted, kept = await sweep_flow_threads(min_idle_minutes=10, reason=f"panel by {interaction.user.name}")
+        await interaction.followup.send(
+            f"Removed {deleted} leftover enroll/update/delete thread(s). Kept {kept} that are still active or were used in the last 10 min.",
+            ephemeral=True)
 
     @discord.ui.button(label="Close Open reg", emoji="\u23f9\ufe0f", style=discord.ButtonStyle.danger, custom_id="modpanel:close_open", row=2)
     async def close_open(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -2627,6 +2636,73 @@ async def validate_captcha(captcha_phrase : str, sum1_answer : int, sum2_answer 
     return (captcha_phrase.lower().rstrip() == constants.captcha_question_variables[0] and sum1_answer == int(constants.captcha_question_variables[1] + constants.captcha_question_variables[2]) and sum2_answer == int(constants.captcha_question_variables[3] + constants.captcha_question_variables[4]))  # Replace with actual validation
     
 # Event handler for when the bot is ready
+
+# ---------------------------------------------------------------------------
+# Leftover flow threads (enroll/update/delete) are cleaned up on their own:
+# once in the background after boot, then every 30 minutes. A thread is only
+# removed if nobody is using it (no open flow points at it) and it has been
+# quiet for a while, so a live enrollment is never touched.
+# ---------------------------------------------------------------------------
+_FLOW_THREAD_SUFFIXES = ("-enroll", "-update", "-delete")
+
+async def sweep_flow_threads(min_idle_minutes=20, reason="sweep"):
+    """Delete idle, ownerless flow threads in the enrollment channel. Never raises.
+    Returns (deleted, kept)."""
+    deleted = kept = 0
+    try:
+        guild = bot.get_guild(constants.GUILD_ID)
+        channel = guild.get_channel(constants.ENROLLMENT_CHANNEL_ID) if guild else None
+        if channel is None:
+            return 0, 0
+        live = {e.get("thread_id") for e in constants.running_processes.values() if isinstance(e, dict)}
+        cutoff = discord.utils.utcnow() - datetime.timedelta(minutes=min_idle_minutes)
+        seen, threads = set(), []
+        for t in list(getattr(channel, "threads", []) or []):
+            if t.id not in seen:
+                seen.add(t.id); threads.append(t)
+        for private in (True, False):
+            try:
+                async for t in channel.archived_threads(limit=100, private=private):
+                    if t.id not in seen:
+                        seen.add(t.id); threads.append(t)
+            except Exception as e:
+                print(f"[thread-sweep] archived fetch failed (private={private}): {e}")
+        for t in threads:
+            try:
+                if not t.name.endswith(_FLOW_THREAD_SUFFIXES) or t.id in live:
+                    continue
+                last = None
+                async for m in t.history(limit=1):
+                    last = m.created_at
+                last = last or getattr(t, "created_at", None)
+                if last is not None and last.tzinfo is None:
+                    last = last.replace(tzinfo=datetime.timezone.utc)
+                if last is not None and last > cutoff:
+                    kept += 1
+                    continue
+                await t.delete()
+                deleted += 1
+                await asyncio.sleep(1.2)  # gentle on rate limits; this runs in the background
+            except Exception as e:
+                print(f"[thread-sweep] {getattr(t, 'name', '?')}: {e}")
+        if deleted:
+            print(f"[thread-sweep] {reason}: deleted {deleted} leftover thread(s), kept {kept}")
+    except Exception as e:
+        print(f"[thread-sweep] failed ({reason}): {e}")
+    return deleted, kept
+
+@tasks.loop(minutes=30)
+async def flow_thread_sweeper():
+    if flow_thread_sweeper.current_loop == 0:
+        return  # the boot sweep covers startup
+    await sweep_flow_threads(min_idle_minutes=20, reason="periodic")
+
+async def _boot_thread_sweep():
+    # After a restart no flow is running, so every old flow thread is dead.
+    # Wait a minute so startup (menus, IDP views) finishes first.
+    await asyncio.sleep(60)
+    await sweep_flow_threads(min_idle_minutes=10, reason="boot")
+
 _setup_done = False
 _snapshot_loaded = False
 
@@ -2897,6 +2973,12 @@ async def on_ready():
     for _loop in (t3rulesreminder, t3rulesreminder2):
         if not _loop.is_running():
             _loop.start()
+    try:
+        _spawn(_boot_thread_sweep())  # non-blocking: on_ready doesn't wait for it
+        if not flow_thread_sweeper.is_running():
+            flow_thread_sweeper.start()
+    except Exception as e:
+        print(f"[thread-sweep] could not start (non-fatal): {e}")
     # No polling loop: each claim message gets a one-shot expiry task at
     # M1 START (schedule_claim_expiry), rebuilt on startup above.
     # Get the process ID (PID) of the current program
