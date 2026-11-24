@@ -414,25 +414,25 @@ async def send_selectmenu(channel):
     return message
 
 
-def reg_base_description(is_t3=False):
+def _reg_header(is_t3, live):
+    if live:
+        close_at = _auto_close_at(is_t3)
+        tail = f", closes {_when(close_at)}" if close_at else ""
+        return f"\U0001f7e2 **Registration is open now**{tail}"
+    nxt = _next_reg_open()
+    return f"Next registration opens {_when(nxt)}" if nxt else "**OPENS AT 12 PM**"
+
+def reg_base_description(is_t3=False, live=False):
     enroll = constants.ENROLLMENT_CHANNEL_ID
-    if is_t3:
-        return f'''**OPENS AT 12 PM**
+    per = "1 lobby per day" if is_t3 else "1 lobby per group, so a team can register in both groups"
+    intro = "" if is_t3 else "*Hey Wanderer, can I lurk on you :>*\n\n"
+    return f'''{intro}{_reg_header(is_t3, live)}
 
-1. Make sure that you have completed the enrollment of your team from this channel <#{enroll}>
-2. Please book a slot only if you wanna participate in the scrims, there wont be any slot cancellation/reassignment later on.
-3. Fastest ones to register in any lobby will be allocated with the slots.
-4. You need to pass in a simple Captcha test for registration, have a look at it anytime with 'TRIAL REG' button.
-5. One team can play only 1 lobby per day.'''
-    return f'''*Hey Wanderer, can I lurk on you :>*
-
-**OPENS AT 12 PM**
-
-1. Make sure that you have completed the enrollment of your team from this channel <#{enroll}>
-2. Please book a slot only if you wanna participate in the scrims, there wont be any slot cancellation/reassignment later on.
-3. Fastest ones to register in any lobby will be allocated with the slots.
-4. You need to pass in a simple Captcha test for registration, have a look at it anytime with 'TRIAL REG' button.
-5. One team can play only 1 lobby per group, so a team can register in both groups.'''
+1. Enroll your team first in <#{enroll}> (takes about 2 minutes).
+2. Book only if your team will play. You can cancel from your lobby's slot list until 30 minutes before Match 1.
+3. Fastest teams get the slots.
+4. Booking has a quick captcha. Try it anytime with the TRIAL REG button.
+5. One team can play {per}.'''
 
 def _fill_bar(filled, size, width=10):
     filled = max(0, min(int(filled), int(size)))
@@ -473,10 +473,8 @@ async def _edit_reg_message(is_t3, show_slots):
             message = await channel.fetch_message(message_id)
         except discord.NotFound:
             return
-        desc = reg_base_description(is_t3)
+        desc = reg_base_description(is_t3, live=show_slots)
         if show_slots:
-            # Say it plainly while it's live instead of "OPENS AT 12 PM".
-            desc = desc.replace("**OPENS AT 12 PM**", "\U0001f7e2 **REGISTRATION IS OPEN NOW**", 1)
             desc += reg_slot_lines(is_t3)
         embed = discord.Embed(title='BookMySlot', description=desc, color=0x229db7)
         await message.edit(embed=embed)
@@ -1058,7 +1056,7 @@ def _reg_summary_line(is_t3):
     booked = f"{sum(counts)}/{_slots_limit(is_t3)} booked"
     if _reg_open(is_t3):
         close_at = _auto_close_at(is_t3)
-        tail = f", auto-closes {_fmt_ist(close_at)}" if close_at else ""
+        tail = f", auto-closes {_when(close_at)}" if close_at else ""
         return f"\U0001f7e2 Open, {booked}{tail}"
     return f"Closed, {booked}"
 
@@ -1211,7 +1209,7 @@ def _cancel_state(lobby, is_t3):
     if is_lobby_started(lobby, is_t3):
         return "Closed, match started"
     if is_before_lobby_cancel_deadline(lobby, is_t3):
-        return f"Open until {_fmt_ist(get_lobby_cancel_deadline(lobby, is_t3))}"
+        return f"Open until {_when(get_lobby_cancel_deadline(lobby, is_t3))}"
     return "Closed"
 
 def copy_names_text(lobby, is_t3):
@@ -1242,7 +1240,7 @@ def build_lobby_desk_embed(lobby, is_t3):
     e.description = f"{state}\n{real}/{size} teams" + (f", {freed} freed slot(s)" if freed else "") + (f"  \u00b7  {channel.mention}" if channel else "")
     matches = _lobby_matches(lobby, is_t3)
     if matches:
-        e.add_field(name="Matches", value="\n".join(f"M{m}  {info.get('st', '?')}  {info.get('map', '').title()}" for m, info in matches.items()), inline=True)
+        e.add_field(name="Matches", value=_match_lines(matches), inline=False)
     e.add_field(name="Cancel", value=_cancel_state(lobby, is_t3), inline=True)
     if teams:
         rows = [f"{slot:02}  {name}" for slot, name in enumerate(teams.keys(), start=3)]
@@ -1480,6 +1478,26 @@ class ConfirmCloseView(discord.ui.View):
     async def keep(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.edit_message(content="OK, left it open.", view=None)
 
+def _my_next_step(problems, booked):
+    if problems:
+        return "Sort out the problem above first, or ask a mod if it looks wrong."
+    if booked:
+        is_t3, n, slot = booked[0]
+        first = _lobby_matches(n, is_t3).get(1, {})
+        idt = _ist_today(first.get("idt"))
+        channel = _idp_channel(n, is_t3)
+        where = channel.mention if channel else "your lobby's IDP channel"
+        drop = f" at {_when(idt)}" if idt else ""
+        return f"Match 1 room ID drops in {where}{drop}. Join 2 minutes early and sit in slot {slot:02}."
+    for is_t3 in (False, True):
+        if _reg_open(is_t3):
+            reg = constants.SPECIAL_REGISTRATION_CHANNEL_ID if is_t3 else constants.REGISTRATION_CHANNEL_ID
+            close_at = _auto_close_at(is_t3)
+            tail = f", it closes {_when(close_at)}" if close_at else ""
+            return f"{_reg_kind(is_t3)} registration is open. Book in <#{reg}>{tail}."
+    nxt = _next_reg_open()
+    return f"Next registration opens {_when(nxt)}." if nxt else "Registration is closed for now."
+
 async def build_my_status_embed(user):
     """Everything a player usually asks a mod: team, today's slot, deadlines."""
     team = await validate_registration(user, check_cooldown=False, check_left_server=False)
@@ -1515,9 +1533,10 @@ async def build_my_status_embed(user):
         start = get_lobby_m1_start(n, is_t3)
         channel = _idp_channel(n, is_t3)
         e.add_field(name="Slot", value=f"{_reg_kind(is_t3)} \u00b7 Group {group} \u00b7 Lobby {n} \u00b7 {slot:02}", inline=False)
-        e.add_field(name="Match 1", value=f"{_fmt_ist(start)} IST" if start else "?", inline=True)
+        e.add_field(name="Match 1", value=_when(start) if start else "?", inline=True)
         e.add_field(name="Cancel", value=_cancel_state(n, is_t3), inline=True)
         e.add_field(name="Channel", value=channel.mention if channel else "?", inline=True)
+    e.add_field(name="What to do now", value=_my_next_step(problems, booked), inline=False)
     state = []
     for is_t3 in (False, True):
         state.append(f"{_reg_kind(is_t3)} {'open' if _reg_open(is_t3) else 'closed'}")
@@ -1600,19 +1619,51 @@ def _room_start_time(info):
     except Exception:
         return info.get("st", "")
 
+_MAP_COLORS = {"ERANGEL": 0x3fa34d, "MIRAMAR": 0xd9a441, "RONDO": 0x3d8fd6, "SANHOK": 0x2e8b57, "VIKENDI": 0xbfd7ea, "LIVIK": 0x8e6bd6}
+
+def _slot_list_url(lobby, is_t3):
+    """Jump link to the lobby's slot list message, if we know where it is."""
+    entry = None
+    mem = constants.temp_json_dict2 if is_t3 else constants.temp_json_dict
+    entry = (mem or {}).get(lobby) or (mem or {}).get(str(lobby))
+    if not entry:
+        try:
+            with open("lobby_details2.json" if is_t3 else "lobby_details.json", "r") as f:
+                entry = json.load(f).get(str(lobby))
+        except Exception:
+            entry = None
+    try:
+        return f"https://discord.com/channels/{constants.GUILD_ID}/{int(entry[1])}/{int(entry[0])}"
+    except Exception:
+        return None
+
 def room_message(is_t3, lobby, match_no, info, room_id, password, start):
+    """(content, embed) for a room ID post. Content carries the ping and a
+    one-line preview; the embed puts ID and password in their own boxes."""
     role_name = f"T3 G{lobby} IDP" if is_t3 else f"Group {lobby} IDP"
-    role = discord.utils.get(bot.get_guild(constants.GUILD_ID).roles, name=role_name)
+    guild = bot.get_guild(constants.GUILD_ID)
+    role = discord.utils.get(guild.roles, name=role_name) if guild else None
     header = "TRIDENT ESPORTS T3 SCRIMS" if is_t3 else "TRIDENT ESPORTS TIER 3 SCRIMS"
-    return (f"{header}\n{role.mention if role else role_name}\n\n"
-            f"MATCH - {int(match_no):02}\nMAP - {info.get('map', '?')}\n\n"
-            f"ID - {room_id}\nPASS - {password}\nSTART - {start}\n\n"
-            "TEAMS ARE REQUESTED TO JOIN 2 MINS PRIOR TO THE START TIME\n\n"
-            "Rules Strictly To Be Followed:-\n\n"
-            "1. Sit according to the allotted slots!\n"
-            "2. Pov recording is mandatory for all players. We may request 'Raw Pov' at any time.\n"
-            "3. Emergency pickups are strictly prohibited.\n"
-            "4. Missing a single match will result in a team ban.")
+    game_map = str(info.get("map", "?")).upper()
+    start_dt = _ist_today(start)
+    content = f"{role.mention if role else role_name}  Match {int(match_no)} on {game_map.title()}: room is up, ID and password below."
+    e = discord.Embed(title=f"MATCH {int(match_no):02}  \u00b7  {game_map}", color=_MAP_COLORS.get(game_map, 0x229db7))
+    if start_dt:
+        join_by = start_dt - datetime.timedelta(minutes=2)
+        e.description = f"Starts {_when(start_dt)}\nBe in the room by {_ts(join_by)}"
+    else:
+        e.description = f"Starts {start}\nBe in the room 2 minutes before"
+    e.add_field(name="Room ID", value=f"```{room_id}```", inline=True)
+    e.add_field(name="Password", value=f"```{password}```", inline=True)
+    url = _slot_list_url(lobby, is_t3)
+    slot_line = f"Sit in your allotted slot ([slot list]({url}))" if url else "Sit in your allotted slot (see the slot list above)"
+    e.add_field(name="Before you join", value=(
+        f"1. {slot_line}\n"
+        "2. Every player records POV. We may ask for raw POV anytime.\n"
+        "3. No emergency pickups.\n"
+        "4. Missing a match means a team ban."), inline=False)
+    e.set_footer(text=f"{header}  \u00b7  {_reg_kind(is_t3)} Lobby {lobby}")
+    return content, e
 
 class RoomIdModal(discord.ui.Modal):
     def __init__(self, is_t3, lobby, match_no, info):
@@ -1632,8 +1683,8 @@ class RoomIdModal(discord.ui.Modal):
         if channel is None:
             return await _safe_reply(interaction, "Couldn't find that lobby's IDP channel.")
         await interaction.response.defer(ephemeral=True, thinking=True)
-        text = room_message(self.is_t3, self.lobby, self.match_no, self.info, room_id, self.password.value.strip(), self.start.value.strip())
-        await channel.send(text, allowed_mentions=discord.AllowedMentions(roles=True, users=False, everyone=False))
+        content, embed = room_message(self.is_t3, self.lobby, self.match_no, self.info, room_id, self.password.value.strip(), self.start.value.strip())
+        await channel.send(content, embed=embed, allowed_mentions=discord.AllowedMentions(roles=True, users=False, everyone=False))
         await interaction.followup.send(f"\u2705 Room ID posted in {channel.mention} (start {self.start.value.strip()}).", ephemeral=True)
         try:
             await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(
@@ -1647,29 +1698,32 @@ class RoomIdModal(discord.ui.Modal):
         await _safe_reply(interaction, f"Couldn't post the room ID: {error}")
 
 class RoomMatchSelect(discord.ui.Select):
-    def __init__(self):
+    def __init__(self, is_t3=False):
         now = datetime.datetime.now(tz=constants.timezone).time()
         def _done(o):
             try:
                 return datetime.datetime.strptime(o[4]["st"], "%I:%M %p").time() < now
             except Exception:
                 return False
-        allm = _match_options()
+        allm = [o for o in _match_options() if o[1] == is_t3]
         self._opts = ([o for o in allm if not _done(o)] + [o for o in allm if _done(o)])[:25]
         options = [discord.SelectOption(
-            label=f"{info.get('st', '?')}  {'T3 ' if is_t3 else ''}Lobby {lobby} \u00b7 M{m}",
-            value=str(k), description=f"{info.get('map', '?')}, ID time {info.get('idt', '?')}")
-            for k, (_, is_t3, lobby, m, info) in enumerate(self._opts)]
-        super().__init__(placeholder="Which lobby and match?", options=options)
+            label=f"{info.get('st', '?')}  {'T3 ' if t3 else ''}Lobby {lobby} \u00b7 M{m}" + ("  (done)" if _done(o) else ""),
+            value=str(k), description=f"{str(info.get('map', '?')).title()}, ID at {info.get('idt', '?')}")
+            for k, o in enumerate(self._opts) for (_, t3, lobby, m, info) in [o]]
+        super().__init__(placeholder=f"{_reg_kind(is_t3)}: which lobby and match?", options=options or [discord.SelectOption(label="No matches scheduled", value="none")], disabled=not options)
 
     async def callback(self, interaction: discord.Interaction):
+        if self.values[0] == "none":
+            return await _safe_reply(interaction, "No matches scheduled.", delete_after=15)
         _, is_t3, lobby, m, info = self._opts[int(self.values[0])]
         await interaction.response.send_modal(RoomIdModal(is_t3, lobby, m, info))
 
 class RoomIdView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=300)
-        self.add_item(RoomMatchSelect())
+        self.add_item(RoomMatchSelect(False))
+        self.add_item(RoomMatchSelect(True))
 
 MOD_PANEL_FILE = "mod_panel.json"
 
@@ -1733,7 +1787,7 @@ def mod_panel_embed():
         e.add_field(name=f"{_reg_kind(is_t3)} registration", value=_reg_summary_line(is_t3), inline=True)
     nxt = _next_room_ids()
     if nxt:
-        lines = [f"{_reg_kind(t3)} L{lobby} M{m}  ID {info.get('idt')}, start {info.get('st')}" for _, t3, lobby, m, info in nxt]
+        lines = [f"{_reg_kind(t3)} L{lobby} M{m} {info.get('map', '').title()}  \u00b7  ID {_when(_ist_today(info.get('idt')))}" for _, t3, lobby, m, info in nxt]
         e.add_field(name="Next room IDs", value="\n".join(lines), inline=False)
     flows = len(constants.running_processes)
     if flows:
@@ -1890,6 +1944,46 @@ def _fmt_ist(dt):
         return dt.strftime("%I:%M %p")
     except Exception:
         return "unknown"
+
+def _ts(dt, style="t"):
+    """Discord timestamp. Shows in each reader's own clock; style R counts down live."""
+    try:
+        return f"<t:{int(dt.timestamp())}:{style}>"
+    except Exception:
+        return "unknown"
+
+def _when(dt):
+    """'3:05 PM (in 12 minutes)', kept up to date by Discord itself."""
+    if dt is None:
+        return "unknown"
+    return f"{_ts(dt, 't')} ({_ts(dt, 'R')})"
+
+def _ist_today(time_str):
+    """'3:05 PM' -> today at that time in IST, or None."""
+    try:
+        parsed = datetime.datetime.strptime(str(time_str).strip().upper(), "%I:%M %p")
+    except Exception:
+        return None
+    now = datetime.datetime.now(tz=constants.timezone)
+    return now.replace(hour=parsed.hour, minute=parsed.minute, second=0, microsecond=0)
+
+def _next_reg_open():
+    """Next 12 PM IST on a scrim day (registration opens then)."""
+    now = datetime.datetime.now(tz=constants.timezone)
+    noon = now.replace(hour=12, minute=0, second=0, microsecond=0)
+    for add in range(8):
+        day = noon + datetime.timedelta(days=add)
+        if day > now and day.weekday() in constants.days_to_run:
+            return day
+    return None
+
+def _match_lines(matches):
+    """One line per match: map, when the ID drops, when it starts."""
+    out = []
+    for m, info in matches.items():
+        idt, st = _ist_today(info.get("idt")), _ist_today(info.get("st"))
+        out.append(f"M{m} {info.get('map', '?').title()}  \u00b7  ID {_ts(idt) if idt else info.get('idt', '?')}, start {_ts(st) if st else info.get('st', '?')}")
+    return "\n".join(out)
 
 _claim_expiry_tasks = {}
 
@@ -2129,8 +2223,8 @@ class CancelSlotButton(discord.ui.Button):
             dl = get_lobby_cancel_deadline(lobby_number, is_t3)
             st = get_lobby_m1_start(lobby_number, is_t3)
             return await interaction.response.send_message(
-                f"Cancel closed for Lobby {lobby_number} at {_fmt_ist(dl)} IST "
-                f"(30 mins before M1 start {_fmt_ist(st)} IST).",
+                f"Cancel closed for Lobby {lobby_number} at {_ts(dl)} "
+                f"(30 minutes before Match 1 at {_ts(st)}).",
                 ephemeral=True, delete_after=30
             )
 
@@ -2210,7 +2304,7 @@ async def cancel_team_slot(team_name, lobby_number, is_t3, post_claim=True, enfo
                 return False, f"Match for Lobby {lobby_number} has already started. Cancel closed."
             if not is_before_lobby_cancel_deadline(lobby_number, is_t3):
                 dl = get_lobby_cancel_deadline(lobby_number, is_t3)
-                return False, f"Cancel closed for Lobby {lobby_number} at {_fmt_ist(dl)} IST."
+                return False, f"Cancel closed for Lobby {lobby_number} at {_ts(dl)}."
         json_file_name = f"alt_lobby_{lobby_number}_teams.json" if is_t3 else f"lobby_{lobby_number}_teams.json"
         try:
             with open(json_file_name, 'r') as f:
@@ -2251,7 +2345,7 @@ async def cancel_team_slot(team_name, lobby_number, is_t3, post_claim=True, enfo
             claim_embed.add_field(name="Registration", value=_reg_kind(is_t3), inline=True)
             start = get_lobby_m1_start(lobby_number, is_t3)
             if start:
-                claim_embed.add_field(name="Match 1", value=f"{_fmt_ist(start)} IST", inline=True)
+                claim_embed.add_field(name="Match 1", value=_when(start), inline=True)
             if by_label:
                 claim_embed.set_footer(text=f"Freed by {by_label}")
             reg_channel_id = constants.SPECIAL_REGISTRATION_CHANNEL_ID if is_t3 else constants.REGISTRATION_CHANNEL_ID
@@ -5304,11 +5398,10 @@ async def send_slots_list(team_names, lobby_number, lobby_channel,edit_slots_lis
     title = f"{'T3 ' if use_alt_lobby else ''}GROUP {lobby_number} SLOTS LIST" + (f"  \u00b7  {label}" if label else "")
     embed = discord.Embed(title=title, description=slots_list_message, color=0x229db7)
     if sched:
-        embed.add_field(name="Matches today", value="\n".join(
-            f"M{m}  {info.get('st', '')}  {info.get('map', '').title()}" for m, info in sched.items()), inline=True)
+        embed.add_field(name="Matches today", value=_match_lines(sched), inline=False)
         deadline = get_lobby_cancel_deadline(int(lobby_number), use_alt_lobby)
         if deadline:
-            embed.add_field(name="Cancel closes", value=f"{_fmt_ist(deadline)} IST", inline=True)
+            embed.add_field(name="Cancel closes", value=_when(deadline), inline=False)
 
     if edit_slots_list:
         # Prefer in-memory ids (live during registration); fall back to disk file.
@@ -5351,7 +5444,7 @@ async def send_slots_list(team_names, lobby_number, lobby_channel,edit_slots_lis
         lobby_role = discord.utils.get(bot.get_guild(constants.GUILD_ID).roles, name=f"Group {lobby_number} IDP")
     
     ping = lobby_role.mention if lobby_role else ""
-    await lobby_channel.send(f"{ping}\n\nAll players IGN must have TEAM TAG included, otherwise you will be kicked from the room.\nYou can even play from new id but this is required.")
+    await lobby_channel.send(f"{ping} Your slot list is up above. Room IDs will be posted in this channel.\n\nEvery player's IGN must include your team tag, or they get kicked from the room. Playing from a new ID is fine, as long as it has the tag.")
     try:
         if add_button:
             await message.edit(view=IdpChannelTasksView(cancel_disabled=cancel_disabled))

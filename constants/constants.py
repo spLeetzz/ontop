@@ -122,54 +122,64 @@ practice_emoteid = "<:Holdgun:1252297519543877684>"
 roles_for_purge_perm = ['Admin','++D']
 roles_for_bot_access = ['Admin','++D','Scrim Managers']
 idp_role_names = [f"Group {x} IDP" for x in range(1,int(SLOTS_LIMIT // LOBBY_SIZE) + 1)]
+# Match schedule (IST). idt = when the room ID goes out, st = match start.
+# Every lobby plays M1 Rondo, M2 Erangel, M3 Miramar.
 match_schedule = {
     1: {
-        1: {"idt": "3:00 PM", "st": "3:07 PM", "map": "ERANGEL"},
-        2: {"idt": "3:40 PM", "st": "3:47 PM", "map": "RONDO"}
+        1: {"idt": "3:00 PM", "st": "3:05 PM", "map": "RONDO"},
+        2: {"idt": "3:40 PM", "st": "3:45 PM", "map": "ERANGEL"},
+        3: {"idt": "4:20 PM", "st": "4:25 PM", "map": "MIRAMAR"}
     },
     2: {
-        1: {"idt": "3:10 PM", "st": "3:17 PM", "map": "ERANGEL"},
-        2: {"idt": "3:50 PM", "st": "3:57 PM", "map": "RONDO"}
+        1: {"idt": "3:10 PM", "st": "3:15 PM", "map": "RONDO"},
+        2: {"idt": "3:50 PM", "st": "3:55 PM", "map": "ERANGEL"},
+        3: {"idt": "4:30 PM", "st": "4:35 PM", "map": "MIRAMAR"}
     },
     3: {
-        1: {"idt": "3:20 PM", "st": "3:27 PM", "map": "ERANGEL"},
-        2: {"idt": "4:00 PM", "st": "4:07 PM", "map": "RONDO"}
+        1: {"idt": "3:20 PM", "st": "3:25 PM", "map": "RONDO"},
+        2: {"idt": "4:00 PM", "st": "4:05 PM", "map": "ERANGEL"},
+        3: {"idt": "4:40 PM", "st": "4:45 PM", "map": "MIRAMAR"}
     },
     4: {
-        1: {"idt": "3:30 PM", "st": "3:37 PM", "map": "ERANGEL"},
-        2: {"idt": "4:10 PM", "st": "4:17 PM", "map": "RONDO"}
+        1: {"idt": "3:30 PM", "st": "3:35 PM", "map": "RONDO"},
+        2: {"idt": "4:10 PM", "st": "4:15 PM", "map": "ERANGEL"},
+        3: {"idt": "4:50 PM", "st": "4:55 PM", "map": "MIRAMAR"}
     },
     5: {
-        1: {"idt": "7:00 PM", "st": "7:07 PM", "map": "ERANGEL"},
-        2: {"idt": "7:40 PM", "st": "7:47 PM", "map": "RONDO"}
+        1: {"idt": "7:00 PM", "st": "7:05 PM", "map": "RONDO"},
+        2: {"idt": "7:40 PM", "st": "7:45 PM", "map": "ERANGEL"},
+        3: {"idt": "8:20 PM", "st": "8:25 PM", "map": "MIRAMAR"}
     },
     6: {
-        1: {"idt": "7:10 PM", "st": "7:17 PM", "map": "ERANGEL"},
-        2: {"idt": "7:50 PM", "st": "7:57 PM", "map": "RONDO"}
+        1: {"idt": "7:10 PM", "st": "7:15 PM", "map": "RONDO"},
+        2: {"idt": "7:50 PM", "st": "7:55 PM", "map": "ERANGEL"},
+        3: {"idt": "8:30 PM", "st": "8:35 PM", "map": "MIRAMAR"}
     },
     7: {
-        1: {"idt": "7:20 PM", "st": "7:27 PM", "map": "ERANGEL"},
-        2: {"idt": "8:00 PM", "st": "8:07 PM", "map": "RONDO"}
+        1: {"idt": "7:20 PM", "st": "7:25 PM", "map": "RONDO"},
+        2: {"idt": "8:00 PM", "st": "8:05 PM", "map": "ERANGEL"},
+        3: {"idt": "8:40 PM", "st": "8:45 PM", "map": "MIRAMAR"}
     },
     8: {
-        1: {"idt": "7:30 PM", "st": "7:37 PM", "map": "ERANGEL"},
-        2: {"idt": "8:10 PM", "st": "8:17 PM", "map": "RONDO"}
+        1: {"idt": "7:30 PM", "st": "7:35 PM", "map": "RONDO"},
+        2: {"idt": "8:10 PM", "st": "8:15 PM", "map": "ERANGEL"},
+        3: {"idt": "8:50 PM", "st": "8:55 PM", "map": "MIRAMAR"}
     }
 }
 match_schedule_t3 = {
     1: {
-        1: {"idt": "3:00 PM", "st": "3:07 PM", "map": "RONDO"},
-        2: {"idt": "3:40 PM", "st": "3:47 PM", "map": "ERANGEL"},
-        3: {"idt": "4:20 PM", "st": "4:27 PM", "map": "MIRAMAR"}
+        1: {"idt": "3:00 PM", "st": "3:05 PM", "map": "RONDO"},
+        2: {"idt": "3:40 PM", "st": "3:45 PM", "map": "ERANGEL"},
+        3: {"idt": "4:20 PM", "st": "4:25 PM", "map": "MIRAMAR"}
     },
     2: {
-        1: {"idt": "7:00 PM", "st": "7:07 PM", "map": "RONDO"},
-        2: {"idt": "7:40 PM", "st": "7:47 PM", "map": "ERANGEL"},
-        3: {"idt": "8:20 PM", "st": "8:27 PM", "map": "MIRAMAR"}
+        1: {"idt": "7:00 PM", "st": "7:05 PM", "map": "RONDO"},
+        2: {"idt": "7:40 PM", "st": "7:45 PM", "map": "ERANGEL"},
+        3: {"idt": "8:20 PM", "st": "8:25 PM", "map": "MIRAMAR"}
     },
     3: {
-        1: {"idt": "9:00 PM", "st": "9:07 PM", "map": "RONDO"},
-        2: {"idt": "9:40 PM", "st": "9:47 PM", "map": "ERANGEL"},
-        3: {"idt": "10:20 PM", "st": "10:27 PM", "map": "MIRAMAR"}
+        1: {"idt": "9:00 PM", "st": "9:05 PM", "map": "RONDO"},
+        2: {"idt": "9:40 PM", "st": "9:45 PM", "map": "ERANGEL"},
+        3: {"idt": "10:20 PM", "st": "10:25 PM", "map": "MIRAMAR"}
     }
 }
