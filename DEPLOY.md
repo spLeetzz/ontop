@@ -67,8 +67,10 @@ ssh adity '/usr/local/bin/ontop-update'
 
 Run `/modpanel` once in a mod-only channel. It posts a persistent panel
 (buttons keep working across restarts) with: Live status, Find team, Lobby
-lists, Add team, Unstick user, Backup now, Clean threads, Close Open reg,
-Close T3 reg.
+lists, Post room ID, Lift ban, Add team, Unstick user, Backup now, Clean
+threads, Close Open reg, Close T3 reg. The panel's location is saved in
+`mod_panel.json`; on every startup it is refreshed, or re-posted in the same
+channel if it was deleted. Running `/modpanel` again moves it.
 Only `roles_for_bot_access` can use it; every answer is ephemeral.
 
 Leftover enroll/update/delete threads are removed on their own: once in
@@ -82,3 +84,14 @@ Every booking, cancel, claim and mod add is written to `state_snapshot.json`
 claim JSON files are also written atomically. `/start` keeps the previous
 day in `state_snapshot.prewipe.json`; "Backup now" writes
 `state_snapshot.manual-<time>.json` and sends it to you.
+
+## Bans, cooldowns, blacklist
+
+Rows are `[key, start_unix, duration_seconds, ...]`. Expired rows are ignored
+(not deleted); a row without readable times stays active. Lift ban on the
+Mod Panel deletes the matching rows right away.
+
+## Logs
+
+`bot_logs.txt` gets every line immediately, including errors and tracebacks,
+and rolls over to `bot_logs.txt.1` at 10 MB.

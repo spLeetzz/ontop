@@ -81,6 +81,8 @@ def save_state_snapshot(suffix=None, allow_empty=False):
                 "disabled_status": bool(constants.disabled_status),
                 "captcha": list(constants.captcha_question_variables or []),
                 "temp_json": dict(constants.temp_json_dict or {}),
+                "started_at": (getattr(constants, "reg_started_at", {}) or {}).get("open"),
+                "late": (getattr(constants, "late_attempts", {}) or {}).get("open", 0),
             },
             "t3": {
                 "slots_limit": constants.SPECIAL_SLOTS_LIMIT,
@@ -90,6 +92,8 @@ def save_state_snapshot(suffix=None, allow_empty=False):
                 "lobby_teams": [dict(l) for l in (constants.special_lobby_teams or [])],
                 "disabled_status": bool(constants.special_disabled_status),
                 "temp_json": dict(constants.temp_json_dict2 or {}),
+                "started_at": (getattr(constants, "reg_started_at", {}) or {}).get("t3"),
+                "late": (getattr(constants, "late_attempts", {}) or {}).get("t3", 0),
             },
         }
 
@@ -210,6 +214,12 @@ def load_state_snapshot():
                 constants.temp_json_dict2.update(data_t3["temp_json"])
             except Exception:
                 pass
+
+        try:
+            constants.reg_started_at = {"open": data_open.get("started_at"), "t3": data_t3.get("started_at")}
+            constants.late_attempts = {"open": int(data_open.get("late") or 0), "t3": int(data_t3.get("late") or 0)}
+        except Exception:
+            pass
 
         print(
             f"[snapshot] restored open={len(constants.registered_set)} "

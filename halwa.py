@@ -35,26 +35,60 @@ if _STATE_DIR:
     print(f"State dir: {os.getcwd()}")
 print(f"App dir: {_APP_DIR}")
 
-class BatchedPrintLogger:
-    def __init__(self, filename, batch_size=50):
-        self.terminal = sys.stdout
+class TeeLog:
+    """Mirror a stream (stdout or stderr) into bot_logs.txt.
+    Every write reaches the file immediately (the old logger buffered 50
+    lines, so the lines right before a crash were lost), errors and
+    tracebacks are included, and the file rolls over at 10 MB."""
+    MAX_BYTES = 10 * 1024 * 1024
+    _lock = threading.Lock()
+    _fh = None
+
+    def __init__(self, stream, filename):
+        self.terminal = stream
         self.filename = filename
-        self.buffer = []
-        self.batch_size = batch_size
+
+    @classmethod
+    def _file(cls, filename):
+        if cls._fh is None or cls._fh.closed:
+            cls._fh = open(filename, "a", encoding="utf-8", buffering=1)
+        return cls._fh
 
     def write(self, message):
-        self.terminal.write(message)
-        self.buffer.append(message)
-        if len(self.buffer) >= self.batch_size:
-            self.flush()
+        try:
+            self.terminal.write(message)
+        except Exception:
+            pass
+        if not message:
+            return
+        with TeeLog._lock:
+            try:
+                fh = TeeLog._file(self.filename)
+                fh.write(message)
+                if fh.tell() > TeeLog.MAX_BYTES:
+                    fh.close()
+                    os.replace(self.filename, self.filename + ".1")
+                    TeeLog._fh = None
+            except Exception:
+                pass
 
     def flush(self):
-        if self.buffer:
-            with open(self.filename, "a", encoding="utf-8") as f:
-                f.write("".join(self.buffer))
-            self.buffer.clear()
+        try:
+            self.terminal.flush()
+        except Exception:
+            pass
+        with TeeLog._lock:
+            try:
+                if TeeLog._fh and not TeeLog._fh.closed:
+                    TeeLog._fh.flush()
+            except Exception:
+                pass
 
-sys.stdout = BatchedPrintLogger("bot_logs.txt")
+    def __getattr__(self, name):
+        return getattr(self.terminal, name)
+
+sys.stdout = TeeLog(sys.stdout, "bot_logs.txt")
+sys.stderr = TeeLog(sys.stderr, "bot_logs.txt")
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -379,11 +413,6 @@ async def send_selectmenu(channel):
     message = await channel.send(embed=enrollment_embed(), view=view)
     return message
 
-async def send_pref_menu(channel):
-    embed = discord.Embed(title="Lobby Preferences", description=f"*Hey Wanderer, can I lurk on you :>*\n\nSet your lobby preferences from the dropdown below if you are able to play at a particular time shift only.\n\nYou can select a maximum of 3 lobbies at one instance.", color=0x229db7)
-    view = LobbyPreferencesView()
-    message = await channel.send(embed=embed, view=view)
-    return message
 
 def reg_base_description(is_t3=False):
     enroll = constants.ENROLLMENT_CHANNEL_ID
@@ -405,23 +434,26 @@ def reg_base_description(is_t3=False):
 4. You need to pass in a simple Captcha test for registration, have a look at it anytime with 'TRIAL REG' button.
 5. One team can play only 1 lobby per group, so a team can register in both groups.'''
 
+def _fill_bar(filled, size, width=10):
+    filled = max(0, min(int(filled), int(size)))
+    on = round(width * filled / size) if size else 0
+    return "\u2588" * on + "\u2591" * (width - on)
+
 def reg_slot_lines(is_t3=False):
-    if is_t3:
-        lobby_map = constants.GROUP_LOBBY_MAP2
-        teams = constants.special_lobby_teams
-        size = int(constants.SPECIAL_LOBBY_SIZE)
-    else:
-        lobby_map = constants.GROUP_LOBBY_MAP
-        teams = constants.lobby_teams
-        size = int(constants.LOBBY_SIZE)
-    lines = []
+    """Live fill per lobby, grouped, as a monospace block with bars."""
+    lobby_map = constants.GROUP_LOBBY_MAP2 if is_t3 else constants.GROUP_LOBBY_MAP
+    labels = constants.GROUP_LABELS2 if is_t3 else constants.GROUP_LABELS
+    teams = constants.special_lobby_teams if is_t3 else constants.lobby_teams
+    size = int(constants.SPECIAL_LOBBY_SIZE if is_t3 else constants.LOBBY_SIZE)
+    out = []
     for group, lobbies in lobby_map.items():
+        out.append(f"Group {group} \u00b7 {labels.get(group, '')}")
         for n in lobbies:
             idx = int(n) - 1
             filled = len(teams[idx]) if 0 <= idx < len(teams) else 0
-            lines.append(f'{group} Lobby {n} ({filled}/{size})')
-    sep = chr(10) + chr(10)
-    return sep + chr(10).join(lines)
+            tail = "FULL" if filled >= size else f"{size - filled} left"
+            out.append(f"  L{n} {_fill_bar(filled, size)} {filled:>2}/{size}  {tail}")
+    return "\n\n```\n" + "\n".join(out) + "\n```"
 
 _reg_last_edit = {False: 0.0, True: 0.0}
 _reg_pending = {False: None, True: None}
@@ -493,299 +525,9 @@ async def send_remenu2(channel):
     message = await channel.send(embed=embed, view=view)
     return message
 
-# async def send_overview_menu(channel):
-#     view = ScrimsOverviewView()  
-#     message = await channel.send(content=f"Hey there, here's a complete overview of BGMI scrims at Trident:\n\nThere are 4 tiers basically,\n\n`Trident Rookie Scrims(Tier 3):`\n\n- Open for all, anyone can participate, registrations open at 12 PM Tuesday-Saturday in <#{constants.REGISTRATION_CHANNEL_ID}>\n- 8 Groups every day, Top 1 from each Group qualify for Amateur Scrims\n- Every Group plays 2 matches, Erangle-Miramar\n\n`Amateur Scrims(T2 filtration):`\n\n- 2 Groups on Sunday, Top 4 from each Group qualify for Tier 2 scrims\n- Every Group plays 3 matches, Erangle-Miramar-Sanhok\n\n`Trident Elite Scrims(Tier 2):`\n\n- 4 Groups, Every team plays 24 matches over 6 days.\n- Tuesday-Sunday daily 4 matches, Erangle-Miramar-Sanhok-Vikendi\n- Top 6 teams based on cumulative leaderboard of both Groups qualify for Pro Scrims.\n- Bottom 12 teams are demoted from Tier 2 to Tier 3.\n\n`Trident Pro Scrims:`\n\n- Tuesday-Sunday daily 4 matches, Erangle-Miramar-Sanhok-Vikendi\n- Top 6 teams based on leaderboard retain their spots in Pro Scrims.\n- Rest of the teams are demoted from Pro Scrims to Tier 2.\n\nAny announcements and updates would be shared thru the <#1188849982632099940> channels.\nReact with buttons beneath for more information and make sure to follow all rules.",view=view)
-#     return message
 
-async def send_overview_menu(channel):
-    view = ScrimsOverviewView() 
-    message = await channel.send(content="""## Trident BGMI Scrims 
-
----
-
-**1. Trident Rookie Scrims (Tier 3):**  
-- **Open for all:** Anyone with <@&1217461189152608277> role can participate.  
-- **Registration:** Opens at 12 PM (Tuesday-Saturday) in **<#1252296674739490908>**.  
-- **Format:**  
-  - 8 Groups daily.  
-  - Each Group plays **2 matches**.  
-  - **Top 1** team from each Group qualifies for Amateur Scrims.  
-
----
-
-**2. Amateur Scrims (Tier 2 Filtration):**  
-- **Day:** Sunday.  
-- **Format:**  
-  - 2 Groups.  
-  - Each Group plays **3 matches**.  
-  - **Top 4 teams** from each Group qualify for Tier 2 Scrims.  
-
----
-
-**3. Trident Elite Scrims (Tier 2):**  
-- **Format:**  
-  - 4 Groups, each team plays **18 matches** across 6 days (Tuesday-Sunday).  
-  - **Daily matches:** 3 matches/day.  
-  - **Qualification:**  
-    - **Top 9 teams** (cumulative leaderboard) qualify for Tier 1 Scrims.  
-    - **Bottom 12 teams** are demoted to T3.  
-
----
-
-**4. Trident Tier 1 Scrims:**  
-- **Format:**  
-  - **27 Teams** split into **3 Groups** (A, B, C) with **9 teams each**.  
-  - (9 qualified from T2 + 9 Invited + 9 teams from previous week's T1 scrims) 
-  - Play in a **Round-Robin format** over 3 days (Tuesday-Thursday).  
-  - **Total matches:** 9 matches, with each group playing **6 matches**.  
-  - **Qualification:**  
-    - **Top 9 teams** qualify for Pro Scrims and next week’s Tier 1 Scrims.  
-    - **Bottom 18 teams** are demoted to T2.  
-
----
-
-**5. Trident Pro Scrims:**  
-- **Format:**  
-  - **Top 9 teams** from Tier 1 compete with **9 invited professional teams**.  
-  - 3 matches/day across 3 days (Friday-Sunday).  
-  - Teams earn points for the **Trident BGMI Overall Leaderboard**.  
-
----
-
-Any announcements and updates would be shared thru the ⁠<#1188849982632099940> channels.
-React with buttons beneath for more information and make sure to follow all rules.""",view=view)
-    return message
-
-class LobbySelectDropdown(discord.ui.Select):
-    def __init__(self,disabled = False):
-        options = [discord.SelectOption(label=f"Group {i}", value=f"{int(i)}", emoji="🌟") for i in range(1, (int(constants.SLOTS_LIMIT / constants.LOBBY_SIZE)) + 1)]
-        super().__init__(placeholder="Select you lobby preferences here", min_values=1, max_values=3, options=options,disabled=disabled)
-
-    async def callback(self, interaction: discord.Interaction):
-        user = interaction.user
-        constants.preferences_dict[user.id] = tuple(self.values)
-        await interaction.response.send_message(f"Lobby Preferences updated: {', '.join(self.values)}", ephemeral=True,delete_after=30)
-        await interaction.message.edit(view=LobbyPreferencesView())
-
-class CheckPreferencesButton(discord.ui.Button):
-    def __init__(self):
-        super().__init__(label="Current Preferences", style=discord.ButtonStyle.green)
-
-    async def callback(self, interaction: discord.Interaction):
-        user = interaction.user
-        if constants.preferences_dict.get(user.id):
-            await interaction.response.send_message(f"Current preferences are set to: {', '.join(constants.preferences_dict.get(user.id))}", ephemeral=True,delete_after=60)
-        else:
-            await interaction.response.send_message(f"Current preferences are set to: None, your chances for confirmed slot are maxmimum! {user.mention}", ephemeral=True,delete_after=60)
-
-class ClearPreferencesButton(discord.ui.Button):
-    def __init__(self):
-        super().__init__(label="Clear Preferences", style=discord.ButtonStyle.red)
-
-    async def callback(self, interaction: discord.Interaction):
-        user = interaction.user
-        if user.id in constants.preferences_dict:
-            del constants.preferences_dict[user.id]
-        await interaction.response.send_message("Preferences cleared.", ephemeral=True,delete_after=15)
-        await interaction.message.edit(view=LobbyPreferencesView())
-
-class LobbyPreferencesView(discord.ui.View):
-    def __init__(self,disabled = False):
-        super().__init__(timeout=None)
-        self.add_item(LobbySelectDropdown(disabled = disabled))
-        self.add_item(CheckPreferencesButton())
-        self.add_item(ClearPreferencesButton())
         
-class LobbyButton(discord.ui.Button):
-    def __init__(self, lobby_number):
-        super().__init__(label=f'Lobby {lobby_number}', style=discord.ButtonStyle.green,disabled=constants.special_disabled_status,emoji=f"{constants.emotes_list[lobby_number-1]}",row = 1 if lobby_number >= 5 else 0)
-        # row = int(lobby_number + 1) - 2 if lobby_number % 2 == 1 else lobby_number - 2
-        self.lobby_number = lobby_number
 
-    async def callback(self, interaction: discord.Interaction):
-        # Check if the lobby has available slots
-        user_id = interaction.user.id
-        user = interaction.user
-        team_name = await validate_registration(user)
-        
-        if team_name:
-            if team_name in constants.banned_team_list:
-                await interaction.response.send_message(f"{user.mention} Someone from your team is banned at the moment.\nReach out to the support team in case there's an issue via <#{constants.HELP_CHANNEL_ID}>.",ephemeral=True,delete_after=60)
-
-            # elif team_name == 'cooldown':
-            #     await interaction.response.send_message(f"{user.mention} Someone from your team is on cooldown, please wait for the cooldown period to end\nReach out to the support team in case there's an issue via <#{constants.HELP_CHANNEL_ID}>.",ephemeral=True,delete_after=30)
-
-            elif team_name in constants.cd_team_list:
-                await interaction.response.send_message(f"{user.mention} Someone from your team is on cooldown, please wait for the cooldown period to end\nReach out to the support team in case there's an issue via <#{constants.HELP_CHANNEL_ID}>.",ephemeral=True,delete_after=60)
-
-            elif team_name == 'left_server':
-                await interaction.response.send_message(f"{user.mention} Someone from your team is not present in this server rn.",ephemeral=True,delete_after=60)
-
-            elif team_name in constants.special_registered_teams.keys():
-                await interaction.response.send_message("Someone from your team has already booked a slot for today.", ephemeral=True,delete_after=120)
-            
-            elif available_slots2(self.lobby_number) > 0:
-                await interaction.response.send_modal(CaptchaModal(self.lobby_number,team_name))
-                
-            else:
-                await interaction.response.send_message("Sorry, this lobby is full.", ephemeral=True,delete_after=10)
-        
-        else: await interaction.response.send_message(f"You are not a part of any team right now, please ask your IGL or yourself enlist your team from <#{constants.ENROLLMENT_CHANNEL_ID}>.", ephemeral=True,delete_after=60)
-
-class CaptchaModal(discord.ui.Modal):
-    def __init__(self, lobby_number, team_name):
-        super().__init__(title="Let's fill in a captcha real quick!")
-        self.lobby_number = lobby_number
-        self.team_name = team_name
-        self.slots_available = True
-        self.already_registered = False
-
-        # Add the captcha input fields
-        self.sentence_input = discord.ui.TextInput(label=f"Type this beneath:\n{constants.captcha_question_variables[0]}", placeholder=constants.captcha_question_variables[0],required=True)
-        self.sum1_input = discord.ui.TextInput(label=f"{constants.captcha_question_variables[1]} + {constants.captcha_question_variables[2]}", placeholder="Answer this easyyyy summation 1",required=True)
-        self.sum2_input = discord.ui.TextInput(label=f"{constants.captcha_question_variables[3]} + {constants.captcha_question_variables[4]}", placeholder="Answer this easyyyy summation 2",required=True)
-        
-        self.add_item(self.sentence_input)
-        self.add_item(self.sum1_input)
-        self.add_item(self.sum2_input)
-
-    async def on_submit(self, interaction: discord.Interaction):
-        
-        user = interaction.user
-        user_id = interaction.user.id
-
-        if await validate_captcha(self.sentence_input.value.rstrip(),int(self.sum1_input.value.rstrip()),int(self.sum2_input.value.rstrip())):
-
-            await interaction.response.defer(ephemeral=True,thinking=True)  # Defer the interaction response
-
-            timestamp_ms = datetime.datetime.now(tz=constants.timezone).strftime("%b %d %H:%M:%S.%f")
-
-            # # Acquire the registration lock for this lobby
-            # async with constants.lobby_locks[int(int(self.lobby_number) - 1)]:
-            #     slots_available_currently = available_slots(self.lobby_number)
-            #     if int(slots_available_currently) <= 0:
-            #         await interaction.followup.send("Sorry, this lobby is full.", ephemeral=True) 
-            #         await save_timestamp_to_csv(interaction.user, timestamp_ms,self.lobby_number,"LATE")
-            #         return
-                
-            #     if self.team_name in constants.registered_teams.keys():
-            #         await interaction.followup.send("Someone from your team has already booked a slot for today.", ephemeral=True)
-            #         return
-                
-            #     # Save the registered team's data
-            #     constants.registered_teams[self.team_name] = await isAlreadyEnrolled(user_id,used2returnrow=True)
-            #     constants.lobby_teams[int(self.lobby_number)-1][user_id] = self.team_name
-
-            # Acquire the registration lock for this lobby
-            async with constants.special_lobby_locks[int(int(self.lobby_number) - 1)]:
-                
-                slots_available_currently = available_slots2(self.lobby_number)
-
-                if int(slots_available_currently) <= 0:
-                    self.slots_available = False
-                
-                elif self.team_name in constants.special_registered_teams.keys() and self.slots_available:
-                    self.already_registered = True
-                
-                elif self.slots_available and not self.already_registered:
-                    # Save the registered team's data
-                    constants.special_registered_teams[self.team_name] = await isAlreadyEnrolled(user_id,used2returnrow=True)
-                    constants.special_lobby_teams[int(self.lobby_number)-1][self.team_name] = user_id
-
-            if not self.slots_available:
-                await interaction.followup.send("Sorry, this lobby is full.", ephemeral=True) 
-                await save_timestamp_to_csv(interaction.user, timestamp_ms,self.lobby_number,"LATE")
-                return
-            
-            if self.already_registered:
-                await interaction.followup.send("Someone from your team has already booked a slot for today.", ephemeral=True)
-                return
-                
-            # Operations that do not need to be locked
-
-            task1 = asyncio.create_task(interaction.followup.send(f"Registration confirmed for “{self.team_name}” in Lobby {self.lobby_number}.", ephemeral=True))
-            # task2 = asyncio.create_task(assign_role(user, constants.COOLDOWN_ROLE_ID))
-            task3 = asyncio.create_task(assign_team_to_lobby(user, self.lobby_number, True))
-            task4 = asyncio.create_task(save_timestamp_to_csv(user, timestamp_ms, self.lobby_number,"BOOKED"))
-
-            # await asyncio.gather(task1,task2,task3,task4)
-            await asyncio.gather(task1,task3,task4)
-            try:
-                await refresh_live_slot_list(self.lobby_number, is_t3=True)
-            except Exception as e:
-                print(f"[live-slots] refresh failed (non-fatal): {e}")
-            try:
-                state_snapshot.save_state_snapshot()
-            except Exception as e:
-                print(f"[snapshot] save failed (non-fatal): {e}")
-
-            async with constants.special_registration_lock:
-                if len(constants.special_registered_teams) == constants.SPECIAL_SLOTS_LIMIT:
-                    if not constants.special_disabled_status:
-                        constants.special_disabled_status = True
-                        message = await bot.get_channel(constants.SPECIAL_REGISTRATION_CHANNEL_ID).fetch_message(constants.SPECIAL_REG_MESSAGE_ID)
-                        await message.edit(view=RegistrationView())
-                        await save_as_csv(constants.special_registered_teams, 'registered_teams.csv',save_all_flag = True)
-                        await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(file=discord.File('registered_teams.csv'))
-
-                        for lobby_number, lobby_teams_dict in enumerate(constants.special_lobby_teams, 1):
-                            # csv_file = f"lobby_{lobby_number}_teams.csv"
-                            # await save_as_csv(lobby_teams_dict, csv_file)
-
-                            json_file_name = f"alt_lobby_{lobby_number}_teams.json"
-                            # Write the data dictionary to a JSON file
-                            _atomic_write_json(json_file_name, lobby_teams_dict)
-
-                            team_names = list(lobby_teams_dict.keys())
-                            user_ids = [lobby_teams_dict[team_name] for team_name in team_names]
-                            async with asyncio.TaskGroup() as taskhandler:
-                                # taskhandler.create_task(bot.get_channel(constants.UPDATES_CHANNEL_ID).send(file=discord.File(csv_file)))
-                                taskhandler.create_task(bot.get_channel(constants.UPDATES_CHANNEL_ID).send(file=discord.File(json_file_name)))
-                                try:
-                                    idp_channel = discord.utils.get(bot.get_guild(constants.GUILD_ID).channels, name=f"t3-idp-{lobby_number}")
-                                    await send_slots_list(team_names, lobby_number,idp_channel, add_button=True, use_alt_lobby=True, edit_slots_list=True, cancel_disabled=False)
-#                                     pov_message = """Hello Teams,
-
-# Please follow these steps to record your Point of View (POV) while playing BGMI:
-# 1. Before opening the BGMI app show the list of background running apps on your device
-# 2. Go to the PlayStore (for Android users) or Appstore (for iOS users) and open the BGMI app.
-# 3. Join the Lobby using the provided details.
-# 4. Before starting the match, ensure that both your in-game audio and your own voice (microphone) are being recorded.
-# 5. Play the match.
-# 6. After each match, make sure to show the list of background running apps and IMEI on your device.
-# 7. You need to repeat the above steps for every match you play."""
-#                                     await idp_channel.send(pov_message)
-                                except Exception as e:
-                                    print(f"Got Exception when sending lobby csv files: {e}")
-                        await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"You can download the Google Sheets app to view the list of users and their registration timestamps of {datetime.datetime.today().strftime('%d %b')} from this CSV file (for transparency). If you cant find you name in these, you were later than all these 😢.",file=discord.File('timestamps.csv'))
-                        
-                        _atomic_write_json('lobby_details.json', constants.temp_json_dict)
-                        try:
-                            await refresh_reg_message(is_t3=True, show_slots=False, force=True)
-                        except Exception as e:
-                            print('[reg-slots] hide failed (non-fatal):', e)
-
-            print("Registration confirmed for user:", user_id)
-            print(f"Available slots in Lobby {self.lobby_number}:", int(slots_available_currently)-1)
-
-        else:
-            await interaction.response.send_message("Invalid captcha 😢 GG! Please try again later.", ephemeral=True, delete_after=30)
-    
-    async def on_error(self, interaction: discord.Interaction, error: Exception):
-        if isinstance(error, ValueError):
-            await _safe_reply(interaction, "Summation answers can be numbers only. Tap the button again to retry.", delete_after=240)
-        else:
-            await _safe_reply(interaction, "Something went wrong on our side while booking. Please try again.", delete_after=240)
-            print(f"An error occurred during registeration for {interaction.user}: {error}")
-
-
-class RegistrationView(discord.ui.View):
-    def __init__(self):
-        super().__init__(timeout=None)
-        for i in range(1, (int(constants.SPECIAL_SLOTS_LIMIT/constants.SPECIAL_LOBBY_SIZE)) + 1):
-            self.add_item(LobbyButton(i))
-        self.add_item(PracticeRegistrationButton())
 
 class PracticeRegistrationButton(discord.ui.Button):
     def __init__(self):
@@ -825,463 +567,260 @@ class PracticeRegistrationModal(discord.ui.Modal):
             print(f"An error occurred during practice session for {interaction.user}: {error}")
         
 
+# ---------------------------------------------------------------------------
+# Booking: one implementation for Open (is_t3=False) and T3 (is_t3=True).
+# These used to be two copy-pasted sets of classes, which is how fixes kept
+# landing in one path and not the other.
+# ---------------------------------------------------------------------------
+
+def _reg_key(is_t3):
+    return "t3" if is_t3 else "open"
+
+def _reg_kind(is_t3):
+    return "T3" if is_t3 else "Open"
+
+def _group_map(is_t3):
+    return constants.GROUP_LOBBY_MAP2 if is_t3 else constants.GROUP_LOBBY_MAP
+
+def _group_label(group, is_t3):
+    return (constants.GROUP_LABELS2 if is_t3 else constants.GROUP_LABELS).get(group, "")
+
+def _reg_set(is_t3):
+    return constants.special_registered_set if is_t3 else constants.registered_set
+
+def _reg_teams(is_t3):
+    return constants.special_registered_teams if is_t3 else constants.registered_teams
+
+def _lobbies(is_t3):
+    return constants.special_lobby_teams if is_t3 else constants.lobby_teams
+
+def _max_groups(is_t3):
+    return constants.MAX_T3_GROUP_REGISTRATIONS if is_t3 else constants.MAX_GROUP_REGISTRATIONS
+
+def _slots_limit(is_t3):
+    return int(constants.SPECIAL_SLOTS_LIMIT if is_t3 else constants.SLOTS_LIMIT)
+
+def _lobby_size(is_t3):
+    return int(constants.SPECIAL_LOBBY_SIZE if is_t3 else constants.LOBBY_SIZE)
+
+def _free_slots(lobby_number, is_t3):
+    return available_slots2(lobby_number) if is_t3 else available_slots(lobby_number)
+
+def _idp_channel_name(lobby_number, is_t3):
+    return f"t3-idp-{lobby_number}" if is_t3 else f"group-{lobby_number}-idp"
+
+def _groups_booked(team_name, is_t3):
+    return sum(1 for entry in _reg_set(is_t3) if entry[0] == team_name)
+
+async def _booking_block_reason(user, team_name, is_t3):
+    """Why this team can't book right now, or None if it can."""
+    help_line = f"\nReach out to the support team in case there's an issue via <#{constants.HELP_CHANNEL_ID}>."
+    if not team_name:
+        return f"You are not a part of any team right now, please ask your IGL or yourself enlist your team from <#{constants.ENROLLMENT_CHANNEL_ID}>."
+    if team_name in constants.banned_team_list:
+        return f"{user.mention} Someone from your team is banned{_until_text(constants.ban_until.get(team_name))}.{help_line}"
+    if team_name in constants.cd_team_list:
+        return f"{user.mention} Someone from your team is on cooldown{_until_text(constants.cd_until.get(team_name))}, please wait for the cooldown period to end.{help_line}"
+    if team_name == 'left_server':
+        return f"{user.mention} Someone from your team is not present in this server rn. They need to rejoin before you can book."
+    if is_t3 and any(role.name.startswith("Amateur") for role in getattr(user, "roles", [])):
+        return f"{user.mention} You can't register here as you have an Amateur role."
+    return None
+
+class GroupButton(discord.ui.Button):
+    def __init__(self, group, is_t3=False):
+        super().__init__(
+            label=f"Grp {group} - {_group_label(group, is_t3)}",
+            style=discord.ButtonStyle.green,
+            disabled=constants.special_disabled_status if is_t3 else constants.disabled_status,
+        )
+        self.group = group
+        self.is_t3 = is_t3
+
+    async def callback(self, interaction: discord.Interaction):
+        user = interaction.user
+        if not _reg_open(self.is_t3):
+            return await interaction.response.send_message(
+                f"{_reg_kind(self.is_t3)} registration is closed right now. Cancelled slots show up in this channel to claim.",
+                ephemeral=True, delete_after=30)
+        team_name = await validate_registration(user)
+        reason = await _booking_block_reason(user, team_name, self.is_t3)
+        if reason:
+            return await interaction.response.send_message(reason, ephemeral=True, delete_after=60)
+        if (team_name, self.group) in _reg_set(self.is_t3):
+            return await interaction.response.send_message(
+                f"Your team already has a slot in Group {self.group} today. Tap **My status** to see it.",
+                ephemeral=True, delete_after=120)
+        booked = _groups_booked(team_name, self.is_t3)
+        if booked >= _max_groups(self.is_t3):
+            return await interaction.response.send_message(
+                f"Your team is already booked in {booked} group(s) today (max {_max_groups(self.is_t3)}). Tap **My status** to see it.",
+                ephemeral=True, delete_after=120)
+        if not any(_free_slots(lobby, self.is_t3) > 0 for lobby in _group_map(self.is_t3)[self.group]):
+            return await interaction.response.send_message(
+                f"Group {self.group} is full. Cancelled slots show up in this channel to claim.",
+                ephemeral=True, delete_after=30)
+        await interaction.response.send_modal(GroupCaptchaModal(self.group, team_name, self.is_t3))
+
+class GroupCaptchaModal(discord.ui.Modal):
+    def __init__(self, group, team_name, is_t3=False):
+        super().__init__(title="Let's fill in a captcha real quick!")
+        self.group = group
+        self.team_name = team_name
+        self.is_t3 = is_t3
+
+        self.sentence_input = discord.ui.TextInput(
+            label=f"Type this beneath:\n{constants.captcha_question_variables[0]}",
+            placeholder=constants.captcha_question_variables[0], required=True
+        )
+        self.sum1_input = discord.ui.TextInput(
+            label=f"{constants.captcha_question_variables[1]} + {constants.captcha_question_variables[2]}",
+            placeholder="Answer this easyyyy summation 1", required=True
+        )
+        self.sum2_input = discord.ui.TextInput(
+            label=f"{constants.captcha_question_variables[3]} + {constants.captcha_question_variables[4]}",
+            placeholder="Answer this easyyyy summation 2", required=True
+        )
+        self.add_item(self.sentence_input)
+        self.add_item(self.sum1_input)
+        self.add_item(self.sum2_input)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        user = interaction.user
+        user_id = user.id
+        is_t3 = self.is_t3
+
+        if not await validate_captcha(
+            self.sentence_input.value.strip(),
+            int(self.sum1_input.value.strip()),
+            int(self.sum2_input.value.strip())
+        ):
+            return await interaction.response.send_message(
+                "That captcha didn't match \U0001f622 Tap the group button again to retry.", ephemeral=True, delete_after=30
+            )
+
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        timestamp_ms = datetime.datetime.now(tz=constants.timezone).strftime("%b %d %H:%M:%S.%f")
+        group_lobbies = _group_map(is_t3)[self.group]
+        locks = constants.group_locks2 if is_t3 else constants.group_locks
+        assigned_lobby = None
+        slot_no = None
+        outcome = None
+
+        async with locks[self.group]:
+            reg_set = _reg_set(is_t3)
+            if not _reg_open(is_t3):
+                # Closed (full, auto-close or /break) while the captcha was open.
+                # Booking now would land after the lobby files were written.
+                outcome = "closed"
+            elif (self.team_name, self.group) in reg_set:
+                outcome = "same_group"
+            elif _groups_booked(self.team_name, is_t3) >= _max_groups(is_t3):
+                outcome = "limit"
+            else:
+                for lobby in group_lobbies:
+                    if int(_free_slots(lobby, is_t3)) > 0:
+                        assigned_lobby = lobby
+                        break
+                if not assigned_lobby:
+                    outcome = "full"
+                else:
+                    row = await isAlreadyEnrolled(user_id, used2returnrow=True)
+                    if not row:
+                        outcome = "changed"
+                    else:
+                        _reg_teams(is_t3)[self.team_name] = row
+                        reg_set.add((self.team_name, self.group))
+                        lobby_dict = _lobbies(is_t3)[assigned_lobby - 1]
+                        lobby_dict[self.team_name] = user_id
+                        slot_no = list(lobby_dict.keys()).index(self.team_name) + 3
+                        # Persist before anything slow (role, slot list edit): a crash
+                        # after this point can no longer lose a confirmed booking.
+                        state_snapshot.save_state_snapshot()
+
+        if outcome == "closed":
+            return await interaction.followup.send(
+                f"{_reg_kind(is_t3)} registration closed while you were solving the captcha, so this booking was not made. Cancelled slots show up in this channel to claim.",
+                ephemeral=True)
+        if outcome == "same_group":
+            return await interaction.followup.send(f"Your team already has a slot in Group {self.group} today.", ephemeral=True)
+        if outcome == "limit":
+            return await interaction.followup.send(
+                f"Your team is already booked in the max {_max_groups(is_t3)} group(s) for today.", ephemeral=True)
+        if outcome == "changed":
+            return await interaction.followup.send(
+                "Your team was changed (deleted/updated) while you were solving the captcha, so this booking was not saved. Please book again.",
+                ephemeral=True)
+        if outcome == "full":
+            try:
+                constants.late_attempts[_reg_key(is_t3)] = constants.late_attempts.get(_reg_key(is_t3), 0) + 1
+            except Exception:
+                pass
+            await save_timestamp_to_csv(user, timestamp_ms, group_lobbies[0], "LATE")
+            return await interaction.followup.send(
+                f"Sorry, Group {self.group} filled up just before you. Cancelled slots show up in this channel to claim.", ephemeral=True)
+
+        task1 = asyncio.create_task(
+            interaction.followup.send(
+                f'\u2705 Booked! "{self.team_name}" is in Group {self.group} ({_group_label(self.group, is_t3)}), '
+                f'Lobby {assigned_lobby}, slot {slot_no:02}.\nYour IDP role is being added; the slot list is in {_idp_channel_name(assigned_lobby, is_t3)}.',
+                ephemeral=True
+            )
+        )
+        task3 = asyncio.create_task(assign_team_to_lobby(user, assigned_lobby, is_t3))
+        task4 = asyncio.create_task(save_timestamp_to_csv(user, timestamp_ms, assigned_lobby, "BOOKED"))
+        await asyncio.gather(task1, task3, task4)
+        try:
+            await refresh_live_slot_list(assigned_lobby, is_t3=is_t3)
+        except Exception as e:
+            print(f"[live-slots] refresh failed (non-fatal): {e}")
+
+        if len(_reg_set(is_t3)) >= _slots_limit(is_t3):
+            print(f"{_reg_kind(is_t3).upper()} REGISTRATION FULL")
+            await finalize_registration(is_t3, reason="all lobbies full")
+
+        print("Registration confirmed for user:", user_id)
+        print(f"Assigned Lobby {assigned_lobby} in Group {self.group}")
+
+    async def on_error(self, interaction: discord.Interaction, error: Exception):
+        if isinstance(error, ValueError):
+            await _safe_reply(interaction, "Summation answers can be numbers only. Tap the group button again to retry.", delete_after=240)
+        else:
+            await _safe_reply(interaction, "Something went wrong on our side while booking. Tap **My status** to check, then try again if you are not listed.", delete_after=240)
+            print(f"An error occurred during registration for {interaction.user}: {error}")
+
+class MyStatusButton(discord.ui.Button):
+    def __init__(self):
+        super().__init__(label="My status", style=discord.ButtonStyle.secondary, emoji="\U0001f9fe")
+
+    async def callback(self, interaction: discord.Interaction):
+        try:
+            embed = await build_my_status_embed(interaction.user)
+            await interaction.response.send_message(embed=embed, ephemeral=True, delete_after=180)
+        except Exception as e:
+            print(f"[my-status] {e}")
+            await _safe_reply(interaction, "Couldn't load your status right now. Please try again in a moment.", delete_after=30)
+
 class RegistrationView2(discord.ui.View):
+    """Open registration buttons."""
     def __init__(self):
         super().__init__(timeout=None)
         for group in constants.GROUP_LOBBY_MAP.keys():
-            self.add_item(GroupButton(group))
+            self.add_item(GroupButton(group, is_t3=False))
         self.add_item(PracticeRegistrationButton())
-
-class GroupButton(discord.ui.Button):
-    def __init__(self, group):
-
-        super().__init__(
-            label=f"Grp {group} - {constants.GROUP_LABELS.get(group, '')}",
-            style=discord.ButtonStyle.green,
-            disabled=constants.disabled_status,
-        )
-        self.group = group
-
-    async def callback(self, interaction: discord.Interaction):
-        user = interaction.user
-        user_id = interaction.user.id
-        team_name = await validate_registration(user)
-
-        if not team_name:
-            return await interaction.response.send_message(
-                f"You are not a part of any team right now, please ask your IGL or yourself enlist your team from <#{constants.ENROLLMENT_CHANNEL_ID}>.",
-                ephemeral=True, delete_after=60
-            )
-        if team_name in constants.banned_team_list:
-            return await interaction.response.send_message(
-                f"{user.mention} Someone from your team is banned at the moment.\nReach out to the support team in case there's an issue via <#{constants.HELP_CHANNEL_ID}>.",
-                ephemeral=True, delete_after=60
-            )
-        if team_name in constants.cd_team_list:
-            return await interaction.response.send_message(
-                f"{user.mention} Someone from your team is on cooldown, please wait for the cooldown period to end\nReach out to the support team in case there's an issue via <#{constants.HELP_CHANNEL_ID}>.",
-                ephemeral=True, delete_after=60
-            )
-        if team_name == 'left_server':
-            return await interaction.response.send_message(
-                f"{user.mention} Someone from your team is not present in this server rn.",
-                ephemeral=True, delete_after=60
-            )
-        # check: already registered in this specific group?
-        if (team_name, self.group) in constants.registered_set:
-            return await interaction.response.send_message(
-                f"Someone from your team booked a slot in Group {self.group}.",
-                ephemeral=True, delete_after=120
-            )
-
-        # check: max group registration limit (e.g. 2 groups max overall)
-        groups_registered = 0
-        for entry in constants.registered_set:
-            if entry[0] == team_name:
-                groups_registered += 1
-        if groups_registered >= constants.MAX_GROUP_REGISTRATIONS:
-            return await interaction.response.send_message(
-                f"Your team has already registered in {groups_registered} groups (max {constants.MAX_GROUP_REGISTRATIONS}).",
-                ephemeral=True, delete_after=120
-            )
-
-        # quick pre-check, any slot available in this group at all?
-        group_lobbies = constants.GROUP_LOBBY_MAP[self.group]
-        has_slot = False
-
-        for lobby in group_lobbies:
-            if available_slots(lobby) > 0:
-                has_slot = True
-                break
-
-        if not has_slot:
-            return await interaction.response.send_message(
-                f"Group {self.group} is full.",
-                ephemeral=True,
-                delete_after=10,
-            )
-
-        await interaction.response.send_modal(
-            GroupCaptchaModal(self.group, team_name)
-        )
-
-class GroupCaptchaModal(discord.ui.Modal):
-    def __init__(self, group, team_name):
-        super().__init__(title="Let's fill in a captcha real quick!")
-        self.group = group
-        self.team_name = team_name
-        self.slots_available = True
-        self.already_registered = False
-
-        self.sentence_input = discord.ui.TextInput(
-            label=f"Type this beneath:\n{constants.captcha_question_variables[0]}",
-            placeholder=constants.captcha_question_variables[0], required=True
-        )
-        self.sum1_input = discord.ui.TextInput(
-            label=f"{constants.captcha_question_variables[1]} + {constants.captcha_question_variables[2]}",
-            placeholder="Answer this easyyyy summation 1", required=True
-        )
-        self.sum2_input = discord.ui.TextInput(
-            label=f"{constants.captcha_question_variables[3]} + {constants.captcha_question_variables[4]}",
-            placeholder="Answer this easyyyy summation 2", required=True
-        )
-        self.add_item(self.sentence_input)
-        self.add_item(self.sum1_input)
-        self.add_item(self.sum2_input)
-
-    async def on_submit(self, interaction: discord.Interaction):
-        user = interaction.user
-        user_id = interaction.user.id
-
-        if not await validate_captcha(
-            self.sentence_input.value.strip(),
-            int(self.sum1_input.value.strip()),
-            int(self.sum2_input.value.strip())
-        ):
-            return await interaction.response.send_message(
-                "That captcha didn't match 😢 Tap the group button again to retry.", ephemeral=True, delete_after=30
-            )
-
-        await interaction.response.defer(ephemeral=True, thinking=True)
-        timestamp_ms = datetime.datetime.now(tz=constants.timezone).strftime("%b %d %H:%M:%S.%f")
-        group_lobbies = constants.GROUP_LOBBY_MAP[self.group]
-        assigned_lobby = None
-
-        async with constants.group_locks[self.group]:
-            # re-check after lock: same group
-            if (self.team_name, self.group) in constants.registered_set:
-                self.already_registered = True
-            # re-check after lock: max group limit (prevents race conditions)
-            elif sum(1 for entry in constants.registered_set if entry[0] == self.team_name) >= constants.MAX_GROUP_REGISTRATIONS:
-                self.already_registered = True
-            else:
-                for lobby in group_lobbies:
-                    slots = available_slots(lobby)
-                    if int(slots) > 0:
-                        assigned_lobby = lobby
-                        break
-                if not assigned_lobby:
-                    self.slots_available = False
-                else:
-                    row = await isAlreadyEnrolled(user_id, used2returnrow=True)
-                    if not row:
-                        return await interaction.followup.send(
-                            "Your team was changed (deleted/updated) while you were solving the captcha, so this booking was not saved. Please book again.", ephemeral=True
-                        )
-                    constants.registered_teams[self.team_name] = row
-                    constants.registered_set.add((self.team_name, self.group))
-                    constants.lobby_teams[assigned_lobby - 1][self.team_name] = user_id
-                    slot_no = list(constants.lobby_teams[assigned_lobby - 1].keys()).index(self.team_name) + 3
-                    # Persist before anything slow (role, slot list edit): a crash
-                    # after this point can no longer lose a confirmed booking.
-                    state_snapshot.save_state_snapshot()
-
-        if self.already_registered:
-            return await interaction.followup.send(
-                "Someone from your team has already booked a slot for today.", ephemeral=True
-            )
-        if not self.slots_available:
-            await save_timestamp_to_csv(user, timestamp_ms, group_lobbies[0], "LATE")
-            return await interaction.followup.send(
-                f"Sorry, Group {self.group} is full.", ephemeral=True
-            )
-
-
-        task1 = asyncio.create_task(
-            interaction.followup.send(
-                f'✅ Booked! "{self.team_name}" is in Group {self.group} ({constants.GROUP_LABELS.get(self.group, "")}), '
-                f'Lobby {assigned_lobby}, slot {slot_no:02}.\nYour IDP role is being added; the slot list is in group-{assigned_lobby}-idp.',
-                ephemeral=True
-            )
-        )
-        task3 = asyncio.create_task(assign_team_to_lobby(user, assigned_lobby))
-        task4 = asyncio.create_task(save_timestamp_to_csv(user, timestamp_ms, assigned_lobby, "BOOKED"))
-        await asyncio.gather(task1, task3, task4)
-        try:
-            await refresh_live_slot_list(assigned_lobby, is_t3=False)
-        except Exception as e:
-            print(f"[live-slots] refresh failed (non-fatal): {e}")
-        try:
-            state_snapshot.save_state_snapshot()
-        except Exception as e:
-            print(f"[snapshot] save failed (non-fatal): {e}")
-
-        async with constants.registration_lock:
-            if len(constants.registered_set) >= constants.SLOTS_LIMIT:
-                print("REGISTRATION FULL")
-                if not constants.disabled_status:
-                    constants.disabled_status = True
-                    state_snapshot.save_state_snapshot()
-                    message = await bot.get_channel(constants.REGISTRATION_CHANNEL_ID).fetch_message(constants.REG_MESSAGE_ID)
-                    await message.edit(view=RegistrationView2())
-                    await save_as_csv(constants.registered_teams, 'registered_teams.csv', save_all_flag=True)
-                    await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(file=discord.File('registered_teams.csv'))
-                    for lobby_number, lobby_teams_dict in enumerate(constants.lobby_teams, 1):
-                        json_file_name = f"lobby_{lobby_number}_teams.json"
-                        _atomic_write_json(json_file_name, lobby_teams_dict)
-                        team_names = list(lobby_teams_dict.keys())
-                        async with asyncio.TaskGroup() as taskhandler:
-                            taskhandler.create_task(
-                                bot.get_channel(constants.UPDATES_CHANNEL_ID).send(file=discord.File(json_file_name))
-                            )
-                            try:
-                                idp_channel = discord.utils.get(
-                                    bot.get_guild(constants.GUILD_ID).channels,
-                                    name=f"group-{lobby_number}-idp"
-                                )
-                                await send_slots_list(team_names, lobby_number, idp_channel, edit_slots_list=True, cancel_disabled=False)
-                            except Exception as e:
-                                print(f"Got Exception when sending lobby csv files: {e}")
-                    await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(
-                        f"You can download the Google Sheets app to view the list of users and their registration timestamps of {datetime.datetime.today().strftime('%d %b')} from this CSV file (for transparency). If you cant find you name in these, you were later than all these 😢.",
-                        file=discord.File('timestamps.csv')
-                    )
-                    _atomic_write_json('lobby_details.json', constants.temp_json_dict)
-                    try:
-                        await refresh_reg_message(is_t3=False, show_slots=False, force=True)
-                    except Exception as e:
-                        print('[reg-slots] hide failed (non-fatal):', e)
-
-        print("Registration confirmed for user:", user_id)
-        print(f"Assigned Lobby {assigned_lobby} in Group {self.group}")
-
-    async def on_error(self, interaction: discord.Interaction, error: Exception):
-        if isinstance(error, ValueError):
-            await _safe_reply(interaction, "Summation answers can be numbers only. Tap the group button again to retry.", delete_after=240)
-        else:
-            await _safe_reply(interaction, "Something went wrong on our side while booking. Please check your IDP channel, then try again if you are not listed.", delete_after=240)
-            print(f"An error occurred during registration for {interaction.user}: {error}")
+        self.add_item(MyStatusButton())
 
 class RegistrationView3(discord.ui.View):
+    """T3 registration buttons."""
     def __init__(self):
         super().__init__(timeout=None)
         for group in constants.GROUP_LOBBY_MAP2.keys():
-            self.add_item(GroupButton2(group))
+            self.add_item(GroupButton(group, is_t3=True))
         self.add_item(PracticeRegistrationButton())
+        self.add_item(MyStatusButton())
 
-class GroupButton2(discord.ui.Button):
-    def __init__(self, group):
-
-        super().__init__(
-            label=f"Grp {group} - {constants.GROUP_LABELS2[group]}",
-            style=discord.ButtonStyle.green,
-            disabled=constants.special_disabled_status,
-        )
-        self.group = group
-
-    async def callback(self, interaction: discord.Interaction):
-        user = interaction.user
-        user_id = interaction.user.id
-        team_name = await validate_registration(user)
-
-        if not team_name:
-            return await interaction.response.send_message(
-                f"You are not a part of any team right now, please ask your IGL or yourself enlist your team from <#{constants.ENROLLMENT_CHANNEL_ID}>.",
-                ephemeral=True, delete_after=60
-            )
-        if team_name in constants.banned_team_list:
-            return await interaction.response.send_message(
-                f"{user.mention} Someone from your team is banned at the moment.\nReach out to the support team in case there's an issue via <#{constants.HELP_CHANNEL_ID}>.",
-                ephemeral=True, delete_after=60
-            )
-        if team_name in constants.cd_team_list:
-            return await interaction.response.send_message(
-                f"{user.mention} Someone from your team is on cooldown, please wait for the cooldown period to end\nReach out to the support team in case there's an issue via <#{constants.HELP_CHANNEL_ID}>.",
-                ephemeral=True, delete_after=60
-            )
-        if team_name == 'left_server':
-            return await interaction.response.send_message(
-                f"{user.mention} Someone from your team is not present in this server rn.",
-                ephemeral=True, delete_after=60
-            )
-        if any(role.name.startswith("Amateur") for role in user.roles):
-            return await interaction.response.send_message(
-                f"{user.mention} You can't register here as you have an Amateur role.",
-                ephemeral=True, delete_after=60
-            )
-        if (team_name, self.group) in constants.special_registered_set:
-            return await interaction.response.send_message(
-                f"Someone from your team booked a slot in Group {self.group}.",
-                ephemeral=True, delete_after=120
-            )
-
-        # check: max group registration limit (1 lobby max per day)
-        t3_groups_registered = 0
-        for entry in constants.special_registered_set:
-            if entry[0] == team_name:
-                t3_groups_registered += 1
-        if t3_groups_registered >= constants.MAX_T3_GROUP_REGISTRATIONS:
-            return await interaction.response.send_message(
-                f"Your team has already registered in {t3_groups_registered} group(s) (max {constants.MAX_T3_GROUP_REGISTRATIONS}, 1 lobby max per day).",
-                ephemeral=True, delete_after=120
-            )
-
-        # quick pre-check, any slot available in this group at all?
-        group_lobbies = constants.GROUP_LOBBY_MAP2[self.group]
-        has_slot = False
-
-        for lobby in group_lobbies:
-            if available_slots2(lobby) > 0:
-                has_slot = True
-                break
-
-        if not has_slot:
-            return await interaction.response.send_message(
-                f"Group {self.group} is full.",
-                ephemeral=True,
-                delete_after=10,
-            )
-
-        await interaction.response.send_modal(
-            GroupCaptchaModal2(self.group, team_name)
-        )
-
-class GroupCaptchaModal2(discord.ui.Modal):
-    def __init__(self, group, team_name):
-        super().__init__(title="Let's fill in a captcha real quick!")
-        self.group = group
-        self.team_name = team_name
-        self.slots_available = True
-        self.already_registered = False
-
-        self.sentence_input = discord.ui.TextInput(
-            label=f"Type this beneath:\n{constants.captcha_question_variables[0]}",
-            placeholder=constants.captcha_question_variables[0], required=True
-        )
-        self.sum1_input = discord.ui.TextInput(
-            label=f"{constants.captcha_question_variables[1]} + {constants.captcha_question_variables[2]}",
-            placeholder="Answer this easyyyy summation 1", required=True
-        )
-        self.sum2_input = discord.ui.TextInput(
-            label=f"{constants.captcha_question_variables[3]} + {constants.captcha_question_variables[4]}",
-            placeholder="Answer this easyyyy summation 2", required=True
-        )
-        self.add_item(self.sentence_input)
-        self.add_item(self.sum1_input)
-        self.add_item(self.sum2_input)
-
-    async def on_submit(self, interaction: discord.Interaction):
-        user = interaction.user
-        user_id = interaction.user.id
-
-        if not await validate_captcha(
-            self.sentence_input.value.strip(),
-            int(self.sum1_input.value.strip()),
-            int(self.sum2_input.value.strip())
-        ):
-            return await interaction.response.send_message(
-                "That captcha didn't match 😢 Tap the group button again to retry.", ephemeral=True, delete_after=30
-            )
-
-        await interaction.response.defer(ephemeral=True, thinking=True)
-        timestamp_ms = datetime.datetime.now(tz=constants.timezone).strftime("%b %d %H:%M:%S.%f")
-        group_lobbies = constants.GROUP_LOBBY_MAP2[self.group]
-        assigned_lobby = None
-
-        async with constants.group_locks2[self.group]:
-            # re-check after lock
-            if (self.team_name, self.group) in constants.special_registered_set:
-                self.already_registered = True
-            # re-check after lock: max group limit (prevents race conditions)
-            elif sum(1 for entry in constants.special_registered_set if entry[0] == self.team_name) >= constants.MAX_T3_GROUP_REGISTRATIONS:
-                self.already_registered = True
-
-            else:
-                for lobby in group_lobbies:
-                    slots = available_slots2(lobby)
-                    if int(slots) > 0:
-                        assigned_lobby = lobby
-                        break
-                if not assigned_lobby:
-                    self.slots_available = False
-                else:
-                    row = await isAlreadyEnrolled(user_id, used2returnrow=True)
-                    if not row:
-                        return await interaction.followup.send(
-                            "Your team was changed (deleted/updated) while you were solving the captcha, so this booking was not saved. Please book again.", ephemeral=True
-                        )
-                    constants.special_registered_teams[self.team_name] = row
-                    constants.special_registered_set.add((self.team_name, self.group))
-                    constants.special_lobby_teams[assigned_lobby - 1][self.team_name] = user_id
-                    slot_no = list(constants.special_lobby_teams[assigned_lobby - 1].keys()).index(self.team_name) + 3
-                    # Persist before anything slow (role, slot list edit).
-                    state_snapshot.save_state_snapshot()
-
-        if self.already_registered:
-            return await interaction.followup.send(
-                "Someone from your team booked a slot in Group " + self.group + ".", ephemeral=True
-            )
-        if not self.slots_available:
-            await save_timestamp_to_csv(user, timestamp_ms, group_lobbies[0], "LATE")
-            return await interaction.followup.send(
-                f"Sorry, Group {self.group} is full.", ephemeral=True
-            )
-
-        # lobby filled notification
-        task1 = asyncio.create_task(
-            interaction.followup.send(
-                f'✅ Booked! "{self.team_name}" is in Group {self.group} ({constants.GROUP_LABELS2.get(self.group, "")}), '
-                f'Lobby {assigned_lobby}, slot {slot_no:02}.\nYour IDP role is being added; the slot list is in t3-idp-{assigned_lobby}.',
-                ephemeral=True
-            )
-        )
-        task3 = asyncio.create_task(assign_team_to_lobby(user, assigned_lobby, True))
-        task4 = asyncio.create_task(save_timestamp_to_csv(user, timestamp_ms, assigned_lobby, "BOOKED"))
-        await asyncio.gather(task1, task3, task4)
-        try:
-            await refresh_live_slot_list(assigned_lobby, is_t3=True)
-        except Exception as e:
-            print(f"[live-slots] refresh failed (non-fatal): {e}")
-        try:
-            state_snapshot.save_state_snapshot()
-        except Exception as e:
-            print(f"[snapshot] save failed (non-fatal): {e}")
-
-        async with constants.special_registration_lock:
-            if len(constants.special_registered_set) >= constants.SPECIAL_SLOTS_LIMIT:
-                print("REGISTRATION FULL")
-                if not constants.special_disabled_status:
-                    constants.special_disabled_status = True
-                    state_snapshot.save_state_snapshot()
-                    message = await bot.get_channel(constants.SPECIAL_REGISTRATION_CHANNEL_ID).fetch_message(constants.SPECIAL_REG_MESSAGE_ID)
-                    await message.edit(view=RegistrationView3())
-                    await save_as_csv(constants.special_registered_teams, 'registered_teams.csv', save_all_flag=True)
-                    await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(file=discord.File('registered_teams.csv'))
-                    for lobby_number, lobby_teams_dict in enumerate(constants.special_lobby_teams, 1):
-                        json_file_name = f"alt_lobby_{lobby_number}_teams.json"
-                        _atomic_write_json(json_file_name, lobby_teams_dict)
-                        team_names = list(lobby_teams_dict.keys())
-                        async with asyncio.TaskGroup() as taskhandler:
-                            taskhandler.create_task(
-                                bot.get_channel(constants.UPDATES_CHANNEL_ID).send(file=discord.File(json_file_name))
-                            )
-                            try:
-                                idp_channel = discord.utils.get(
-                                    bot.get_guild(constants.GUILD_ID).channels,
-                                    name=f"t3-idp-{lobby_number}"
-                                )
-                                await send_slots_list(team_names, lobby_number, idp_channel, use_alt_lobby=True, edit_slots_list=True, cancel_disabled=False)
-                            except Exception as e:
-                                print(f"Got Exception when sending lobby csv files: {e}")
-                    await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(
-                        f"You can download the Google Sheets app to view the list of users and their registration timestamps of {datetime.datetime.today().strftime('%d %b')} from this CSV file (for transparency). If you cant find you name in these, you were later than all these 😢.",
-                        file=discord.File('timestamps.csv')
-                    )
-                    _atomic_write_json('lobby_details2.json', constants.temp_json_dict2)
-                    try:
-                        await refresh_reg_message(is_t3=True, show_slots=False, force=True)
-                    except Exception as e:
-                        print('[reg-slots] hide failed (non-fatal):', e)
-
-        print("Registration confirmed for user:", user_id)
-        print(f"Assigned Lobby {assigned_lobby} in Group {self.group}")
-
-    async def on_error(self, interaction: discord.Interaction, error: Exception):
-        if isinstance(error, ValueError):
-            await _safe_reply(interaction, "Summation answers can be numbers only. Tap the group button again to retry.", delete_after=240)
-        else:
-            await _safe_reply(interaction, "Something went wrong on our side while booking. Please check your IDP channel, then try again if you are not listed.", delete_after=240)
-            print(f"An error occurred during registration for {interaction.user}: {error}")
+def _view_for(is_t3):
+    return RegistrationView3() if is_t3 else RegistrationView2()
 
 class HowToPlayButton(discord.ui.Button):
     def __init__(self):
@@ -1345,12 +884,6 @@ class bitInfoButton(discord.ui.Button):
     async def callback(self, interaction: discord.Interaction):
         await interaction.response.send_message(f"Checkout <#{constants.INFO_CHANNEL_ID}> channel.\nComplete details have been listed there.",ephemeral=True,delete_after=30)
 
-class bitsInfoButton(discord.ui.Button):
-    def __init__(self):
-        super().__init__(label=f"I'm Verified but can not create team", row = 1,style=discord.ButtonStyle.primary)
-
-    async def callback(self, interaction: discord.Interaction):
-        await interaction.response.send_message(f"Follow the Step 2 listed above.",ephemeral=True,delete_after=30)
 
 class bitsMoreInfoButton(discord.ui.Button):
     def __init__(self):
@@ -1359,12 +892,6 @@ class bitsMoreInfoButton(discord.ui.Button):
     async def callback(self, interaction: discord.Interaction):
         await interaction.response.send_message(f"Website Verification is a manual process and may take upto 7-14 days, you need to wait until its done.",ephemeral=True,delete_after=30)
 
-class bitFewInfoButton(discord.ui.Button):
-    def __init__(self):
-        super().__init__(label=f"Cross ❌arha even when Verified", row = 2,style=discord.ButtonStyle.primary)
-
-    async def callback(self, interaction: discord.Interaction):
-        await interaction.response.send_message(f"One or more of your teammates haven't verified on the discord server yet.\nJust ask your teammates to complete the process listed above.\n(All 4 players of your team must be verified from your team in order to play)",ephemeral=True,delete_after=45)
 
 class FaqView(discord.ui.View):
     def __init__(self):
@@ -1372,9 +899,7 @@ class FaqView(discord.ui.View):
         self.add_item(ExampleSsButton())
         self.add_item(CheckVerificationButton())
         self.add_item(bitInfoButton())
-        # self.add_item(bitsInfoButton())
         self.add_item(bitsMoreInfoButton())
-        # self.add_item(bitFewInfoButton())
 
 class TransferIDPButton(discord.ui.Button):
     def __init__(self):
@@ -1693,9 +1218,9 @@ def build_team_embed(row):
         e.add_field(name="Created by", value=f"<@{row[0]}>", inline=True)
     status = []
     if team_name in constants.banned_team_list:
-        status.append("\U0001f6ab Banned")
+        status.append(f"\U0001f6ab Banned{_until_text(constants.ban_until.get(team_name))}")
     if team_name in constants.cd_team_list:
-        status.append("\u23f3 On cooldown")
+        status.append(f"\u23f3 On cooldown{_until_text(constants.cd_until.get(team_name))}")
     e.add_field(name="Status", value=", ".join(status) or "\u2705 Clear", inline=True)
     bookings = _team_bookings(team_name)
     e.add_field(name="Booked today", value="\n".join(bookings) or "Not booked", inline=False)
@@ -1806,19 +1331,244 @@ class ConfirmCloseView(discord.ui.View):
             return await interaction.response.edit_message(content=f"{kind} registration is already closed.", view=None)
         await interaction.response.edit_message(content=f"Closing {kind} registration and posting slot lists...", view=None)
         try:
-            if self.is_t3:
-                await break_special_registration()
+            closed = await finalize_registration(self.is_t3, reason=f"Mod Panel, {interaction.user.name}")
+            if closed:
+                await interaction.followup.send(f"\u2705 {kind} registration closed. Cancel buttons are open in the IDP channels and the summary is in <#{constants.UPDATES_CHANNEL_ID}>.", ephemeral=True)
             else:
-                await break_main_registration()
-            await interaction.followup.send(f"\u2705 {kind} registration closed. Cancel buttons are open in the IDP channels.", ephemeral=True)
-            await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(
-                f"{kind} registration closed from the Mod Panel by {interaction.user.name}", allowed_mentions=discord.AllowedMentions.none())
+                await interaction.followup.send(f"{kind} registration was already closed.", ephemeral=True)
         except Exception as e:
             await interaction.followup.send(f"Close failed: {e}", ephemeral=True)
 
     @discord.ui.button(label="Keep it open", style=discord.ButtonStyle.secondary)
     async def keep(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.edit_message(content="OK, left it open.", view=None)
+
+async def build_my_status_embed(user):
+    """Everything a player usually asks a mod: team, today's slot, deadlines."""
+    team = await validate_registration(user, check_cooldown=False, check_left_server=False)
+    if not team:
+        return discord.Embed(
+            title="You're not in a team yet",
+            description=f"Enroll your team from <#{constants.ENROLLMENT_CHANNEL_ID}> (pick **Enroll** in the menu). It takes about 2 minutes.",
+            color=0xf0b232)
+    e = discord.Embed(title=team, color=0x229db7)
+    row = next((r for r in (constants.cached_data or []) if str(user.id) in r), None)
+    if row:
+        roster = [f"{ign or '?'}" for dc, ign in zip(row[2::2], row[3::2]) if dc and str(dc).strip()]
+        e.description = "  \u00b7  ".join(roster)
+    problems = []
+    if team in constants.banned_team_list:
+        problems.append(f"\U0001f6ab Banned{_until_text(constants.ban_until.get(team))}")
+    if team in constants.cd_team_list:
+        problems.append(f"\u23f3 On cooldown{_until_text(constants.cd_until.get(team))}")
+    if await validate_registration(user) == 'left_server':
+        problems.append("\u26a0\ufe0f A teammate left the server; they must rejoin before you can book")
+    e.add_field(name="Can book", value="\n".join(problems) if problems else "\u2705 Yes", inline=False)
+
+    lines = []
+    for is_t3 in (False, True):
+        for n in range(1, _lobby_count(is_t3) + 1):
+            teams = get_lobby_teams(n, is_t3)
+            if team not in teams:
+                continue
+            slot = list(teams.keys()).index(team) + 3
+            group = get_group_for_lobby(n, is_t3) or "?"
+            start = get_lobby_m1_start(n, is_t3)
+            if _reg_open(is_t3):
+                cancel = "Cancel opens when registration closes"
+            elif is_lobby_started(n, is_t3):
+                cancel = "Match started"
+            elif is_before_lobby_cancel_deadline(n, is_t3):
+                cancel = f"Cancel open until {_fmt_ist(get_lobby_cancel_deadline(n, is_t3))}"
+            else:
+                cancel = "Cancel closed"
+            lines.append(f"**{_reg_kind(is_t3)} Group {group} \u00b7 Lobby {n} \u00b7 slot {slot:02}**\n"
+                         f"Match 1 at {_fmt_ist(start) if start else '?'} IST in <#{getattr(_idp_channel(n, is_t3), 'id', 0)}>\n{cancel}")
+    e.add_field(name="Today", value="\n\n".join(lines) if lines else "Not booked today", inline=False)
+    state = []
+    for is_t3 in (False, True):
+        word = "open" if _reg_open(is_t3) else "closed"
+        state.append(f"{_reg_kind(is_t3)}: {word}")
+    e.set_footer(text="Registration  |  " + "   ".join(state))
+    return e
+
+class LiftKindSelect(discord.ui.Select):
+    def __init__(self):
+        super().__init__(placeholder="What do you want to lift?", options=[
+            discord.SelectOption(label="Ban", value="ban", description="Team ban", emoji="\U0001f6ab"),
+            discord.SelectOption(label="Cooldown", value="cooldown", description="Team cooldown", emoji="\u23f3"),
+            discord.SelectOption(label="Blacklist", value="blacklist", description="User blacklist", emoji="\u26d4"),
+        ])
+
+    async def callback(self, interaction: discord.Interaction):
+        await interaction.response.send_modal(LiftModal(self.values[0]))
+
+class LiftView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=300)
+        self.add_item(LiftKindSelect())
+
+class LiftModal(discord.ui.Modal):
+    def __init__(self, kind):
+        super().__init__(title=f"Lift {kind}")
+        self.kind = kind
+        label = "@mention or user ID" if kind == "blacklist" else "Team name, @mention or user ID"
+        self.target = discord.ui.TextInput(label=label, max_length=100, required=True)
+        self.add_item(self.target)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        try:
+            removed, what = await lift_restriction(self.kind, self.target.value)
+        except ValueError as e:
+            return await interaction.followup.send(str(e), ephemeral=True)
+        if not removed:
+            return await interaction.followup.send(f"No active {self.kind} found for {what}.", ephemeral=True,
+                                                   allowed_mentions=discord.AllowedMentions.none())
+        await interaction.followup.send(f"\u2705 Lifted {self.kind} for {what} ({removed} row(s) removed from the sheet).",
+                                        ephemeral=True, allowed_mentions=discord.AllowedMentions.none())
+        try:
+            await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(
+                f"{interaction.user.name} lifted {self.kind} for {what}", allowed_mentions=discord.AllowedMentions.none())
+        except Exception:
+            pass
+
+    async def on_error(self, interaction: discord.Interaction, error: Exception):
+        print(f"[lift] {error}")
+        await _safe_reply(interaction, f"Couldn't lift it: {error}")
+
+# ---------------------------------------------------------------------------
+# Room ID posting: replaces the old disabled per-lobby loops.
+# ---------------------------------------------------------------------------
+
+def _match_options():
+    opts = []
+    for is_t3 in (False, True):
+        sched = constants.match_schedule_t3 if is_t3 else constants.match_schedule
+        for lobby, matches in sched.items():
+            for m, info in matches.items():
+                opts.append((info.get("st", ""), is_t3, lobby, m, info))
+    def _key(o):
+        try:
+            return datetime.datetime.strptime(o[0], "%I:%M %p").time()
+        except Exception:
+            return datetime.time(23, 59)
+    opts.sort(key=_key)
+    return opts
+
+def _room_start_time(info):
+    """Scheduled start, or now + 5 min if the ID is posted after the ID time."""
+    now = datetime.datetime.now(tz=constants.timezone)
+    try:
+        st = datetime.datetime.strptime(info["st"], "%I:%M %p")
+        idt = datetime.datetime.strptime(info["idt"], "%I:%M %p")
+        if now.time() >= idt.time():
+            return (now + datetime.timedelta(minutes=5)).strftime("%I:%M %p")
+        return st.strftime("%I:%M %p")
+    except Exception:
+        return info.get("st", "")
+
+def room_message(is_t3, lobby, match_no, info, room_id, password, start):
+    role_name = f"T3 G{lobby} IDP" if is_t3 else f"Group {lobby} IDP"
+    role = discord.utils.get(bot.get_guild(constants.GUILD_ID).roles, name=role_name)
+    header = "TRIDENT ESPORTS T3 SCRIMS" if is_t3 else "TRIDENT ESPORTS TIER 3 SCRIMS"
+    return (f"{header}\n{role.mention if role else role_name}\n\n"
+            f"MATCH - {int(match_no):02}\nMAP - {info.get('map', '?')}\n\n"
+            f"ID - {room_id}\nPASS - {password}\nSTART - {start}\n\n"
+            "TEAMS ARE REQUESTED TO JOIN 2 MINS PRIOR TO THE START TIME\n\n"
+            "Rules Strictly To Be Followed:-\n\n"
+            "1. Sit according to the allotted slots!\n"
+            "2. Pov recording is mandatory for all players. We may request 'Raw Pov' at any time.\n"
+            "3. Emergency pickups are strictly prohibited.\n"
+            "4. Missing a single match will result in a team ban.")
+
+class RoomIdModal(discord.ui.Modal):
+    def __init__(self, is_t3, lobby, match_no, info):
+        super().__init__(title=f"{'T3 ' if is_t3 else ''}Lobby {lobby}, Match {match_no} ({info.get('map', '?')})"[:45])
+        self.is_t3, self.lobby, self.match_no, self.info = is_t3, lobby, match_no, info
+        self.room_id = discord.ui.TextInput(label="Room ID", max_length=20, required=True)
+        self.password = discord.ui.TextInput(label="Password", default=f"TG{lobby}{lobby}{lobby}", max_length=30, required=True)
+        self.start = discord.ui.TextInput(label="Start time", default=_room_start_time(info), max_length=12, required=True)
+        for item in (self.room_id, self.password, self.start):
+            self.add_item(item)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        room_id = self.room_id.value.strip()
+        if not room_id.isdigit():
+            return await _safe_reply(interaction, f"Room ID should be digits only, got `{room_id}`. Nothing was posted.", delete_after=60)
+        channel = _idp_channel(self.lobby, self.is_t3)
+        if channel is None:
+            return await _safe_reply(interaction, "Couldn't find that lobby's IDP channel.")
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        text = room_message(self.is_t3, self.lobby, self.match_no, self.info, room_id, self.password.value.strip(), self.start.value.strip())
+        await channel.send(text, allowed_mentions=discord.AllowedMentions(roles=True, users=False, everyone=False))
+        await interaction.followup.send(f"\u2705 Room ID posted in {channel.mention} (start {self.start.value.strip()}).", ephemeral=True)
+        try:
+            await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(
+                f"Room ID for {_reg_kind(self.is_t3)} Lobby {self.lobby} M{self.match_no} posted by {interaction.user.name}",
+                allowed_mentions=discord.AllowedMentions.none())
+        except Exception:
+            pass
+
+    async def on_error(self, interaction: discord.Interaction, error: Exception):
+        print(f"[room-id] {error}")
+        await _safe_reply(interaction, f"Couldn't post the room ID: {error}")
+
+class RoomMatchSelect(discord.ui.Select):
+    def __init__(self):
+        self._opts = _match_options()[:25]
+        options = [discord.SelectOption(
+            label=f"{info.get('st', '?')}  {'T3 ' if is_t3 else ''}Lobby {lobby} \u00b7 M{m}",
+            value=str(k), description=f"{info.get('map', '?')}, ID time {info.get('idt', '?')}")
+            for k, (_, is_t3, lobby, m, info) in enumerate(self._opts)]
+        super().__init__(placeholder="Which lobby and match?", options=options)
+
+    async def callback(self, interaction: discord.Interaction):
+        _, is_t3, lobby, m, info = self._opts[int(self.values[0])]
+        await interaction.response.send_modal(RoomIdModal(is_t3, lobby, m, info))
+
+class RoomIdView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=300)
+        self.add_item(RoomMatchSelect())
+
+MOD_PANEL_FILE = "mod_panel.json"
+
+def _load_mod_panel_ref():
+    try:
+        with open(MOD_PANEL_FILE, "r") as f:
+            ref = json.load(f)
+        return {"channel_id": int(ref["channel_id"]), "message_id": int(ref["message_id"])}
+    except Exception:
+        return None
+
+def _save_mod_panel_ref(channel_id, message_id):
+    _atomic_write_json(MOD_PANEL_FILE, {"channel_id": channel_id, "message_id": message_id})
+
+async def restore_mod_panel():
+    """On startup: refresh the saved panel (latest text + buttons), or post it
+    again in the same channel if someone deleted it. The buttons themselves are
+    persistent views, so even an old panel message keeps working."""
+    ref = _load_mod_panel_ref()
+    if not ref:
+        return
+    channel = bot.get_channel(ref["channel_id"])
+    if channel is None:
+        print("[modpanel] saved channel not found; run /modpanel again")
+        return
+    try:
+        msg = await channel.fetch_message(ref["message_id"])
+        await msg.edit(embed=mod_panel_embed(), view=ModPanelView())
+        print("[modpanel] restored")
+    except discord.NotFound:
+        try:
+            msg = await channel.send(embed=mod_panel_embed(), view=ModPanelView())
+            _save_mod_panel_ref(channel.id, msg.id)
+            print("[modpanel] panel was deleted; posted a new one")
+        except Exception as e:
+            print(f"[modpanel] repost failed (non-fatal): {e}")
+    except Exception as e:
+        print(f"[modpanel] restore failed (non-fatal): {e}")
 
 def mod_panel_embed():
     return discord.Embed(
@@ -1829,6 +1579,8 @@ def mod_panel_embed():
             "**Find team**: by name, @mention or ID. Roster, ban/cooldown, today's slots\n"
             "**Lobby lists**: any lobby's teams with bookers\n"
             "**Add team**: lobby, then booker, then name (after reg closes)\n"
+            "**Post room ID**: pick lobby and match, type the ID; map, pass and start time are filled in\n"
+            "**Lift ban**: removes a ban, cooldown or blacklist from the sheet right away\n"
             "**Unstick user**: clears a stuck \"another process is running\"\n"
             "**Clean threads**: removes leftover enroll/update/delete threads (also runs on its own)\n"
             "**Backup now**: saves and sends you the crash snapshot\n"
@@ -1858,6 +1610,14 @@ class ModPanelView(discord.ui.View):
     @discord.ui.button(label="Lobby lists", emoji="\U0001f4cb", style=discord.ButtonStyle.primary, custom_id="modpanel:lists", row=0)
     async def lists(self, interaction: discord.Interaction, button: discord.ui.Button):
         await _safe_reply(interaction, "Which lobby?", view=LobbyListView(), delete_after=300)
+
+    @discord.ui.button(label="Post room ID", emoji="\U0001f3ae", style=discord.ButtonStyle.primary, custom_id="modpanel:room", row=0)
+    async def room(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await _safe_reply(interaction, "Post a room ID:", view=RoomIdView(), delete_after=300)
+
+    @discord.ui.button(label="Lift ban", emoji="\U0001f513", style=discord.ButtonStyle.secondary, custom_id="modpanel:lift", row=1)
+    async def lift(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await _safe_reply(interaction, "Lift a ban, cooldown or blacklist:", view=LiftView(), delete_after=300)
 
     @discord.ui.button(label="Add team", emoji="\u2795", style=discord.ButtonStyle.secondary, custom_id="modpanel:add", row=1)
     async def add(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -2392,177 +2152,117 @@ class ClaimSlotButton(discord.ui.Button):
 
     async def callback(self, interaction: discord.Interaction):
         user = interaction.user
-
-        # validate: team exists, not banned, etc.
         team_name = await validate_registration(user)
-        if not team_name:
-            return await interaction.response.send_message(
-                f"You are not a part of any team right now, please enlist your team from <#{constants.ENROLLMENT_CHANNEL_ID}>.",
-                ephemeral=True, delete_after=60
-            )
-        if team_name in constants.banned_team_list:
-            return await interaction.response.send_message(
-                f"{user.mention} Someone from your team is banned at the moment.",
-                ephemeral=True, delete_after=60
-            )
-        if team_name in constants.cd_team_list:
-            return await interaction.response.send_message(
-                f"{user.mention} Someone from your team is on cooldown.",
-                ephemeral=True, delete_after=60
-            )
-        if team_name == 'left_server':
-            return await interaction.response.send_message(
-                f"{user.mention} Someone from your team is not present in this server.",
-                ephemeral=True, delete_after=60
-            )
+        reason = await _booking_block_reason(user, team_name, False)
+        if reason:
+            return await interaction.response.send_message(reason, ephemeral=True, delete_after=60)
+        # No time check for claims: if the message is there and the click is
+        # valid, the team gets the slot. Expiry deletes the message at M1 start.
+        label = f"{'T3 ' if self.is_t3 else ''}Group {self.group}, Lobby {self.lobby_number}"
+        await interaction.response.send_message(
+            f"Claim **{label}** for **{team_name}**? This counts as today's booking for your team.",
+            view=ClaimConfirmView(self.lobby_number, self.group, self.is_t3, team_name, interaction.message),
+            ephemeral=True, delete_after=90)
 
-        # No time check for claims: if the message is there and the click
-        # is valid, the team gets the slot. Expiry is handled by deleting
-        # the message at match start (expire_stale_claim_messages).
-        # show confirmation modal
-        await interaction.response.send_modal(
-            ClaimConfirmModal(self.lobby_number, self.group, self.is_t3, team_name, interaction.message)
-        )
-
-
-class ClaimConfirmModal(discord.ui.Modal):
-    """Simple confirmation modal for claiming a slot."""
+class ClaimConfirmView(discord.ui.View):
+    """One-tap confirm for a claim (replaces typing "confirm" into a modal)."""
     def __init__(self, lobby_number, group, is_t3, team_name, claim_message):
-        super().__init__(title="Confirm Slot Claim")
+        super().__init__(timeout=90)
         self.lobby_number = lobby_number
         self.group = group
         self.is_t3 = is_t3
         self.team_name = team_name
         self.claim_message = claim_message
 
-        self.confirm_input = discord.ui.TextInput(
-            label=f'Type "confirm" to claim this slot',
-            placeholder="confirm",
-            required=True
-        )
-        self.add_item(self.confirm_input)
+    @discord.ui.button(label="Claim it", style=discord.ButtonStyle.success, emoji="\u2705")
+    async def claim(self, interaction: discord.Interaction, button: discord.ui.Button):
+        try:
+            await interaction.response.edit_message(content="Claiming...", view=None)
+        except Exception:
+            await interaction.response.defer(ephemeral=True)
+        ok, msg = await claim_cancelled_slot(interaction.user, self.lobby_number, self.group, self.is_t3,
+                                             self.team_name, self.claim_message)
+        try:
+            await interaction.edit_original_response(content=msg, view=None)
+        except Exception:
+            await _safe_reply(interaction, msg)
 
-    async def on_submit(self, interaction: discord.Interaction):
-        if self.confirm_input.value.strip().lower() != "confirm":
-            return await interaction.response.send_message(
-                "You didn't type 'confirm'. Claim aborted.", ephemeral=True, delete_after=15
-            )
+    @discord.ui.button(label="Not now", style=discord.ButtonStyle.secondary)
+    async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.edit_message(content="OK, not claimed.", view=None)
 
-        await interaction.response.defer(ephemeral=True, thinking=True)
+async def claim_cancelled_slot(member, lobby_number, group, is_t3, team_name, claim_message):
+    """Give a cancelled slot to team_name. Returns (ok, message for the user)."""
+    async with constants.cancel_slots_lock:
+        cancelled_data = load_cancelled_slots()
+        slot_entry = None
+        slot_key = None
+        for key, entry in cancelled_data.items():
+            if (entry["lobby"] == lobby_number
+                and entry["group"] == group
+                and entry["type"] == ("t3" if is_t3 else "open")
+                and entry["message_id"] == claim_message.id
+                and not entry["claimed"]):
+                slot_entry = entry
+                slot_key = key
+                break
+        if not slot_entry:
+            return False, "This slot has already been claimed by someone else."
 
-        async with constants.cancel_slots_lock:
-            # No time check for claims: message existence + valid click = slot.
-            # check if slot is still available (not already claimed)
-            cancelled_data = load_cancelled_slots()
-            slot_entry = None
-            slot_key = None
+        # enforce the per-day limit: a team at the limit can't claim more
+        if is_t3:
+            if (team_name, group) in constants.special_registered_set:
+                return False, "Your team is already registered in this group."
+            if _groups_booked(team_name, True) >= constants.MAX_T3_GROUP_REGISTRATIONS:
+                return False, "Your team is already registered in 1 lobby (1 lobby max per day)."
+        else:
+            if any(entry[0] == team_name for entry in constants.registered_set):
+                return False, "Your team is already registered in another lobby (1 lobby max per day)."
 
-            for key, entry in cancelled_data.items():
-                if (entry["lobby"] == self.lobby_number
-                    and entry["group"] == self.group
-                    and entry["type"] == ("t3" if self.is_t3 else "open")
-                    and entry["message_id"] == self.claim_message.id
-                    and not entry["claimed"]):
-                    slot_entry = entry
-                    slot_key = key
-                    break
+        json_file_name = f"alt_lobby_{lobby_number}_teams.json" if is_t3 else f"lobby_{lobby_number}_teams.json"
+        try:
+            with open(json_file_name, 'r') as f:
+                lobby_data = json.load(f)
+        except FileNotFoundError:
+            return False, "Lobby data not found."
 
-            if not slot_entry:
-                return await interaction.followup.send(
-                    "This slot has already been claimed by someone else.", ephemeral=True
-                )
+        # replace the CANCELLED placeholder with the claiming team at the same position
+        cancel_key = slot_entry.get("cancel_key")
+        if cancel_key and cancel_key in lobby_data:
+            items = list(lobby_data.items())
+            position = next(i for i, (k, v) in enumerate(items) if k == cancel_key)
+            items[position] = (team_name, member.id)
+            lobby_data = dict(items)
+        else:
+            lobby_data[team_name] = member.id
+        _atomic_write_json(json_file_name, lobby_data)
+        slot_no = list(lobby_data.keys()).index(team_name) + 3
 
-            # enforce 1 lobby max per day: team at the limit can't claim more
-            if self.is_t3:
-                if (self.team_name, self.group) in constants.special_registered_set:
-                    return await interaction.followup.send(
-                        "Your team is already registered in this group.", ephemeral=True
-                    )
-                if sum(1 for entry in constants.special_registered_set if entry[0] == self.team_name) >= constants.MAX_T3_GROUP_REGISTRATIONS:
-                    return await interaction.followup.send(
-                        "Your team is already registered in 1 lobby (1 lobby max per day).", ephemeral=True
-                    )
-            else:
-                if any(entry[0] == self.team_name for entry in constants.registered_set):
-                    return await interaction.followup.send(
-                        "Your team is already registered in another lobby (1 lobby max per day).", ephemeral=True
-                    )
-
-            # add team to the lobby JSON file
-            json_file_name = f"alt_lobby_{self.lobby_number}_teams.json" if self.is_t3 else f"lobby_{self.lobby_number}_teams.json"
+        role_name = f"T3 G{lobby_number} IDP" if is_t3 else f"Group {lobby_number} IDP"
+        role = discord.utils.get(bot.get_guild(constants.GUILD_ID).roles, name=role_name)
+        if role:
             try:
-                with open(json_file_name, 'r') as f:
-                    lobby_data = json.load(f)
-            except FileNotFoundError:
-                return await interaction.followup.send("Lobby data not found.", ephemeral=True)
-
-            # replace the CANCELLED placeholder with the claiming team at the same position
-            cancel_key = slot_entry.get("cancel_key")
-            if cancel_key and cancel_key in lobby_data:
-                items = list(lobby_data.items())
-                position = next(i for i, (k, v) in enumerate(items) if k == cancel_key)
-                items[position] = (self.team_name, interaction.user.id)
-                lobby_data = dict(items)
-            else:
-                # fallback: just append if cancel_key not found
-                lobby_data[self.team_name] = interaction.user.id
-
-            _atomic_write_json(json_file_name, lobby_data)
-
-            # assign IDP role
-            if self.is_t3:
-                role = discord.utils.get(bot.get_guild(constants.GUILD_ID).roles, name=f"T3 G{self.lobby_number} IDP")
-            else:
-                role = discord.utils.get(bot.get_guild(constants.GUILD_ID).roles, name=f"Group {self.lobby_number} IDP")
-
-            if role:
-                try:
-                    await interaction.user.add_roles(role)
-                except Exception as e:
-                    print(f"Error assigning IDP role: {e}")
-
-            # update the slot list embed in the IDP channel
-            await update_slot_list_after_cancel(self.lobby_number, self.is_t3)
-
-            # mark as claimed in cancelled_slots.json
-            cancelled_data[slot_key]["claimed"] = True
-            cancelled_data[slot_key]["claimed_by"] = self.team_name
-            save_cancelled_slots(cancelled_data)
-            # Count the claim as a registration so the same team can't claim a
-            # second cancelled slot (the per-day limit checks these sets).
-            try:
-                if self.is_t3:
-                    constants.special_registered_set.add((self.team_name, self.group))
-                else:
-                    constants.registered_set.add((self.team_name, self.group))
+                await member.add_roles(role)
             except Exception as e:
-                print(f"[claim] could not record registration (non-fatal): {e}")
-            try:
-                cancel_claim_expiry(slot_key)
-            except Exception:
-                pass
-            try:
-                state_snapshot.save_state_snapshot()
-            except Exception as e:
-                print(f"[snapshot] save failed (non-fatal): {e}")
+                print(f"Error assigning IDP role: {e}")
 
-            # delete the claim message since slot is now filled
-            try:
-                await self.claim_message.delete()
-            except Exception as e:
-                print(f"Error deleting claim message: {e}")
+        await update_slot_list_after_cancel(lobby_number, is_t3)
 
-        await interaction.followup.send(
-            f'Slot claimed! You are now in Group {self.group}, Lobby {self.lobby_number}.\n'
-            f'Check your IDP channel for the slot list.',
-            ephemeral=True
-        )
+        cancelled_data[slot_key]["claimed"] = True
+        cancelled_data[slot_key]["claimed_by"] = team_name
+        save_cancelled_slots(cancelled_data)
+        # Count the claim as a registration so the same team can't claim a
+        # second cancelled slot (the per-day limit checks these sets).
+        _reg_set(is_t3).add((team_name, group))
+        cancel_claim_expiry(slot_key)
+        state_snapshot.save_state_snapshot()
+        try:
+            await claim_message.delete()
+        except Exception as e:
+            print(f"Error deleting claim message: {e}")
 
-    async def on_error(self, interaction: discord.Interaction, error: Exception):
-        await _safe_reply(interaction, "Something went wrong during claiming. Please try again.", delete_after=30)
-        print(f"Error in ClaimConfirmModal: {error}")
-
-# ──────────────────────────────────────────────────────────────────
+    return True, (f"\u2705 Slot claimed! **{team_name}** is in Group {group}, Lobby {lobby_number}, slot {slot_no:02}.\n"
+                  f"Your slot list is in {_idp_channel_name(lobby_number, is_t3)}.")
 
 class PlayerSelectView(discord.ui.View):
     def __init__(self,row,role):
@@ -2754,23 +2454,6 @@ async def on_ready():
         message = await send_selectmenu(bot.get_channel(constants.ENROLLMENT_CHANNEL_ID))
         constants.ENROLLMENT_MESSAGE_ID = message.id
 
-    #     # Handle Tournament View persistence
-    # if constants.PREFERENCE_MESSAGE_ID and bot.get_channel(constants.PREF_SELECTION_CHANNEL_ID):
-    #     try:
-    #         # Fetch the message
-    #         message = await bot.get_channel(constants.PREF_SELECTION_CHANNEL_ID).fetch_message(constants.PREFERENCE_MESSAGE_ID)
-    #     except discord.NotFound:
-    #         # If the message is not found, reset the interaction message ID
-    #         constants.PREFERENCE_MESSAGE_ID = None
-    #         return
-    #     if message:
-    #         await message.edit(view=LobbyPreferencesView())
-    #     else:
-    #         message = await send_pref_menu(bot.get_channel(constants.PREF_SELECTION_CHANNEL_ID))
-    #         constants.PREFERENCE_MESSAGE_ID = message.id
-    # else:
-    #     # If the channel or message ID is not valid, send the select menu
-    #     await send_pref_menu(bot.get_channel(constants.PREF_SELECTION_CHANNEL_ID))
 
     if constants.SPECIAL_REG_MESSAGE_ID and bot.get_channel(constants.SPECIAL_REGISTRATION_CHANNEL_ID):
         try:
@@ -2818,66 +2501,22 @@ async def on_ready():
         message = await send_remenu(bot.get_channel(constants.REGISTRATION_CHANNEL_ID))
         constants.REG_MESSAGE_ID = message.id
 
-    # if constants.SCRIMS_INFO_MESSAGE_ID and bot.get_channel(constants.INFO_CHANNEL_ID):
-    #     try:
-    #         # Fetch the message
-    #         message = await bot.get_channel(constants.INFO_CHANNEL_ID).fetch_message(constants.SCRIMS_INFO_MESSAGE_ID)
-    #     except discord.NotFound:
-    #         # If the message is not found, handle the case gracefully
-    #         message = None
+    try:
+        await restore_mod_panel()
+    except Exception as e:
+        print(f"[modpanel] restore failed (non-fatal): {e}")
 
-    #     if message:
-    #         # Edit the existing message with the dropdown menu
-    #         await message.edit(view=ScrimsOverviewView())
-    #     else:
-    #         # Send a new message with the dropdown menu
-    #         message = await send_overview_menu(bot.get_channel(constants.INFO_CHANNEL_ID))
-        
-    #     # Update the interaction message ID
-    #     constants.SCRIMS_INFO_MESSAGE_ID = message.id
-
-    # else:
-    #     # If the channel or message ID is not valid, send the select menu
-    #     message = await send_overview_menu(bot.get_channel(constants.INFO_CHANNEL_ID))
-    #     constants.SCRIMS_INFO_MESSAGE_ID = message.id
-
-    # if constants.SCRIMS_INFO_MESSAGE_ID and bot.get_channel(constants.INFO_CHANNEL_ID):
-    #     try:
-    #         # Fetch the message
-    #         message = await bot.get_channel(constants.INFO_CHANNEL_ID).fetch_message(constants.SCRIMS_INFO_MESSAGE_ID)
-    #     except discord.NotFound:
-    #         # If the message is not found, handle the case gracefully
-    #         message = None
-
-    #     if message:
-    #         # Edit the existing message with the dropdown menu
-    #         await message.edit(view=ScrimsOverviewView())
-    #     else:
-    #         # Send a new message with the dropdown menu
-    #         message = await send_overview_menu(bot.get_channel(constants.INFO_CHANNEL_ID))
-        
-    #     # Update the interaction message ID
-    #     constants.SCRIMS_INFO_MESSAGE_ID = message.id
-
-    # else:
-    #     # If the channel or message ID is not valid, send the select menu
-    #     message = await send_overview_menu(bot.get_channel(constants.INFO_CHANNEL_ID))
-    #     constants.SCRIMS_INFO_MESSAGE_ID = message.id
-
-    # if constants.FAQ_MESSAGE_ID and bot.get_channel(constants.HOW_TO_PLAY_CHANNEL_ID):
-    #     try:
-    #         # Fetch the message
-    #         message = await bot.get_channel(constants.HOW_TO_PLAY_CHANNEL_ID).fetch_message(constants.FAQ_MESSAGE_ID)
-    #     except discord.NotFound:
-    #         # If the message is not found, handle the case gracefully
-    #         message = None
-
-    #     if message:
-    #         # Edit the existing message with the dropdown menu
-    #         await message.edit(view=FaqView())
-
-    #     # Update the interaction message ID
-    #     constants.FAQ_MESSAGE_ID = message.id
+    # Re-attach the info and FAQ buttons; they were never re-attached after a
+    # restart, so "Tier-3 Schedule" (linked from every slot list) stopped working.
+    for _cid, _mid, _view in ((constants.INFO_CHANNEL_ID, constants.SCRIMS_INFO_MESSAGE_ID, ScrimsOverviewView),
+                              (constants.HOW_TO_PLAY_CHANNEL_ID, constants.FAQ_MESSAGE_ID, FaqView)):
+        try:
+            _ch = bot.get_channel(_cid)
+            if _ch and _mid:
+                _msg = await _ch.fetch_message(_mid)
+                await _msg.edit(view=_view())
+        except Exception as e:
+            print(f"[views] could not re-attach {_view.__name__} (non-fatal): {e}")
 
     # Re-attach IDP views. Prefer in-memory live ids (snapshot-restored),
     # fall back to lobby_details files on disk.
@@ -2964,12 +2603,6 @@ async def on_ready():
     for _loop in (start_auto, clear_lb_auto, auto_close_reg):
         if not _loop.is_running():
             _loop.start()
-    # idploop.start()
-    # idploop2.start()
-    # idploop3.start()
-    # idploop4.start()
-    # idploop5.start()
-    # idploop6.start()
     for _loop in (t3rulesreminder, t3rulesreminder2):
         if not _loop.is_running():
             _loop.start()
@@ -3002,6 +2635,10 @@ async def on_guild_join(guild):
     await bot.tree.sync(guild=guild)
     print(f"Slash commands synced in new guild: {guild.name}")
     
+def _google_key_path():
+    """GOOGLE_APPLICATION_CREDENTIALS, or the key's usual place on the dev PC."""
+    return os.getenv("GOOGLE_APPLICATION_CREDENTIALS") or "D:/Google Cloud JSON Key/clear-healer-415920-7abc2cda379e.json"
+
 async def connect_to_google_sheets(json_keyfile_path, sheet_id,retry_interval=1):
     while True:
         try:
@@ -3024,56 +2661,6 @@ async def connect_to_google_sheets(json_keyfile_path, sheet_id,retry_interval=1)
             print(f"Retrying in {retry_interval} seconds...")
             await asyncio.sleep(retry_interval)
 
-# @bot.hybrid_command(name="setprompt")
-# @app_commands.describe(prompt="karle bhai prompt set koi ni dekhra")
-# @commands.has_permissions(view_audit_log=True, manage_roles=True)
-# async def setprompt(ctx, *, prompt: str = None):
-#     try:
-#         if prompt is None:
-#             await ctx.send("Invalid prompt. Please provide a non-empty prompt.")
-#             return
-
-#         # Check if the prompt is not an empty string
-#         if prompt.strip():
-#             constants.REGISTRATION_PROMPT = prompt
-#             await ctx.send(f"Registration prompt set to: {prompt}")
-#         else:
-#             await ctx.send("Invalid prompt. Please provide a non-empty prompt.")
-
-#     except MissingPermissions as e:
-#         await ctx.send(f"You don't have the required permissions to use this command: {', '.join(e.missing_perms)}")
-#     except Exception as e:
-#         await ctx.send(f"An error occurred: {e}")
-
-# @setprompt.error
-# async def setprompt(ctx, error):
-#     if isinstance(error, commands.MissingPermissions):
-#         missing_perms = ', '.join(error.missing_permissions)
-#         await ctx.send(f"You don't have the required permissions to use this command: {missing_perms}")
-#     else:
-#         await ctx.send(f"An error occurred: {error}")
-
-# @bot.hybrid_command(name="start")
-# @commands.has_permissions(view_audit_log=True, manage_roles=True)
-# async def start(ctx):
-#     constants.registered_teams.clear()
-#     try:
-#         os.remove('registered_teams.csv')
-#         print("CSV file deleted successfully.")
-
-#     except FileNotFoundError:
-#         await bot.get_channel(constants.MOD_CHANNEL_ID).send("Error: CSV file not found.")
-
-#     await unlock_channel(constants.REGISTRATION_CHANNEL_ID)
-#     await ctx.send("## STARTED")
-
-# @start.error
-# async def start_error(ctx, error):
-#     if isinstance(error, commands.MissingPermissions):
-#         missing_perms = ', '.join(error.missing_permissions)
-#         await ctx.send(f"You don't have the required permissions to use this command: {missing_perms}")
-#     else:
-#         await ctx.send(f"An error occurred: {error}")
 
 async def start_registration(captcha_phrase: str):
     # Snapshot the state we are about to wipe. Without this, the only copy of a
@@ -3098,6 +2685,9 @@ async def start_registration(captcha_phrase: str):
         int(constants.SPECIAL_SLOTS_LIMIT) // int(constants.SPECIAL_LOBBY_SIZE)
     )]
     constants.special_disabled_status = False
+    _now_ts = time.time()
+    constants.reg_started_at = {"open": _now_ts, "t3": _now_ts}
+    constants.late_attempts = {"open": 0, "t3": 0}
 
     try:
         await bot.get_channel(constants.SPECIAL_REGISTRATION_CHANNEL_ID).purge(check=lambda m: m.id != constants.SPECIAL_REG_MESSAGE_ID, limit=100)
@@ -3197,79 +2787,121 @@ async def start_error(ctx, error):
 async def break_reg(ctx, target: str):
     await ctx.defer()
 
-    if target == "main":
-        await break_main_registration()
+    is_t3 = target != "main"
+    closed = await finalize_registration(is_t3, reason=f"/break by {ctx.author.name}")
+    if closed:
+        await ctx.send(f"Broke registration: {target}. Summary posted in <#{constants.UPDATES_CHANNEL_ID}>.")
     else:
-        await break_special_registration()
+        await ctx.send(f"{_reg_kind(is_t3)} registration was already closed, nothing changed.")
 
-    await ctx.send(f"Broke registration: {target}")
+def _fmt_duration(seconds):
+    seconds = int(max(0, seconds))
+    m, s = divmod(seconds, 60)
+    h, m = divmod(m, 60)
+    if h:
+        return f"{h}h {m}m"
+    if m:
+        return f"{m}m {s}s"
+    return f"{s}s"
 
-async def break_main_registration():
-    constants.disabled_status = True
-    state_snapshot.save_state_snapshot()
-    message = await bot.get_channel(constants.REGISTRATION_CHANNEL_ID).fetch_message(constants.REG_MESSAGE_ID)
-    await message.edit(view=RegistrationView2())
-    await save_as_csv(constants.registered_teams, 'registered_teams.csv', save_all_flag=True)
-    await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(file=discord.File('registered_teams.csv'))
-    for lobby_number, lobby_teams_dict in enumerate(constants.lobby_teams, 1):
-        json_file_name = f"lobby_{lobby_number}_teams.json"
-        _atomic_write_json(json_file_name, lobby_teams_dict)
-        team_names = list(lobby_teams_dict.keys())
-        async with asyncio.TaskGroup() as taskhandler:
-            taskhandler.create_task(
-                bot.get_channel(constants.UPDATES_CHANNEL_ID).send(file=discord.File(json_file_name))
-            )
-            try:
-                idp_channel = discord.utils.get(
-                    bot.get_guild(constants.GUILD_ID).channels,
-                    name=f"group-{lobby_number}-idp"
-                )
-                await send_slots_list(team_names, lobby_number, idp_channel, edit_slots_list=True, cancel_disabled=False)
-            except Exception as e:
-                print(f"Got Exception when sending lobby csv files: {e}")
-    await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(
-        f"You can download the Google Sheets app to view the list of users and their registration timestamps of {datetime.datetime.today().strftime('%d %b')} from this CSV file (for transparency). If you cant find you name in these, you were later than all these 😢.",
-        file=discord.File('timestamps.csv')
-    )
-    _atomic_write_json('lobby_details.json', constants.temp_json_dict)
-    try:
-        await refresh_reg_message(is_t3=False, show_slots=False, force=True)
-    except Exception as e:
-        print('[reg-slots] hide failed (non-fatal):', e)
+def build_close_summary(is_t3, reason):
+    key = _reg_key(is_t3)
+    n = _lobby_count(is_t3)
+    size = _lobby_size(is_t3)
+    counts = [len(_lobbies(is_t3)[i]) for i in range(n)]
+    booked = sum(counts)
+    now = datetime.datetime.now(tz=constants.timezone)
+    lines = [f"**{_reg_kind(is_t3)} registration closed** ({reason})"]
+    started = (constants.reg_started_at or {}).get(key)
+    if started:
+        opened = datetime.datetime.fromtimestamp(started, tz=constants.timezone)
+        lines.append(f"Opened {opened.strftime('%I:%M:%S %p')}, closed {now.strftime('%I:%M:%S %p')} IST ({_fmt_duration(now.timestamp() - started)} open)")
+    late = (constants.late_attempts or {}).get(key, 0)
+    lines.append(f"Booked **{booked}/{_slots_limit(is_t3)}**  |  {late} late attempt(s) after a group filled")
+    lines.append("  ".join(f"`L{i} {c}/{size}`" for i, c in enumerate(counts, 1)))
+    return "\n".join(lines)[:1990]
 
-
-async def break_special_registration():
-    try:
-        constants.special_disabled_status = True
+async def finalize_registration(is_t3, reason="closed"):
+    """Close Open or T3 registration once: disable the buttons, write and post
+    the lobby files, post the slot lists, post a summary. Safe to call from
+    several places at once (full lobbies, auto-close, /break, Mod Panel): only
+    the first call does the work. Returns True if this call closed it."""
+    lock = constants.special_registration_lock if is_t3 else constants.registration_lock
+    async with lock:
+        if not _reg_open(is_t3):
+            return False
+        if is_t3:
+            constants.special_disabled_status = True
+        else:
+            constants.disabled_status = True
         state_snapshot.save_state_snapshot()
-        special_message = await bot.get_channel(constants.SPECIAL_REGISTRATION_CHANNEL_ID).fetch_message(constants.SPECIAL_REG_MESSAGE_ID)
-        await special_message.edit(view=RegistrationView3())
-        if constants.special_registered_teams:
-            await save_as_csv(constants.special_registered_teams, 'special_registered_teams.csv', save_all_flag=True)
-            await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(file=discord.File('special_registered_teams.csv'))
-            for lobby_number, lobby_teams_dict in enumerate(constants.special_lobby_teams, 1):
-                json_file_name = f"alt_lobby_{lobby_number}_teams.json"
-                _atomic_write_json(json_file_name, lobby_teams_dict)
-                team_names = list(lobby_teams_dict.keys())
-                async with asyncio.TaskGroup() as taskhandler:
-                    taskhandler.create_task(
-                        bot.get_channel(constants.UPDATES_CHANNEL_ID).send(file=discord.File(json_file_name))
-                    )
-                    try:
-                        idp_channel = discord.utils.get(
-                            bot.get_guild(constants.GUILD_ID).channels,
-                            name=f"t3-idp-{lobby_number}"
-                        )
-                        await send_slots_list(team_names, lobby_number, idp_channel, use_alt_lobby=True, edit_slots_list=True, cancel_disabled=False)
-                    except Exception as e:
-                        print(f"Got Exception when sending special lobby files: {e}")
-            _atomic_write_json('lobby_details2.json', constants.temp_json_dict2)
+
+        updates = bot.get_channel(constants.UPDATES_CHANNEL_ID)
+        reg_channel_id = constants.SPECIAL_REGISTRATION_CHANNEL_ID if is_t3 else constants.REGISTRATION_CHANNEL_ID
+        reg_message_id = constants.SPECIAL_REG_MESSAGE_ID if is_t3 else constants.REG_MESSAGE_ID
+        try:
+            message = await bot.get_channel(reg_channel_id).fetch_message(reg_message_id)
+            await message.edit(view=_view_for(is_t3))
+        except Exception as e:
+            print(f"[close] could not disable buttons (non-fatal): {e}")
+
+        teams = _reg_teams(is_t3)
+        lobbies = _lobbies(is_t3)
+        if teams:
+            csv_name = 'special_registered_teams.csv' if is_t3 else 'registered_teams.csv'
             try:
-                await refresh_reg_message(is_t3=True, show_slots=False, force=True)
+                await save_as_csv(teams, csv_name, save_all_flag=True)
+                await updates.send(file=discord.File(csv_name))
             except Exception as e:
-                print('[reg-slots] hide failed (non-fatal):', e)
-    except Exception as e:
-        print(f"Error breaking special registration: {e}")
+                print(f"[close] registered teams csv failed (non-fatal): {e}")
+
+        async def _one_lobby(lobby_number, lobby_teams_dict):
+            json_file_name = f"alt_lobby_{lobby_number}_teams.json" if is_t3 else f"lobby_{lobby_number}_teams.json"
+            # Always rewrite the file, even empty: cancel / claim / add read it
+            # after close, and yesterday's file must not leak into today.
+            _atomic_write_json(json_file_name, lobby_teams_dict)
+            if not lobby_teams_dict:
+                return
+            try:
+                await updates.send(file=discord.File(json_file_name))
+            except Exception as e:
+                print(f"[close] sending {json_file_name} failed (non-fatal): {e}")
+            try:
+                idp_channel = _idp_channel(lobby_number, is_t3)
+                await send_slots_list(list(lobby_teams_dict.keys()), lobby_number, idp_channel,
+                                      use_alt_lobby=is_t3, edit_slots_list=True, cancel_disabled=False)
+            except Exception as e:
+                print(f"[close] slot list for lobby {lobby_number} failed (non-fatal): {e}")
+
+        results = await asyncio.gather(*(_one_lobby(i, dict(d)) for i, d in enumerate(lobbies, 1)), return_exceptions=True)
+        for r in results:
+            if isinstance(r, Exception):
+                print(f"[close] lobby step failed (non-fatal): {r}")
+
+        if teams:
+            try:
+                await updates.send(
+                    f"You can download the Google Sheets app to view the list of users and their registration timestamps of {datetime.datetime.now(tz=constants.timezone).strftime('%d %b')} from this CSV file (for transparency). If you cant find you name in these, you were later than all these \U0001f622.",
+                    file=discord.File('timestamps.csv')
+                )
+            except Exception as e:
+                print(f"[close] timestamps csv failed (non-fatal): {e}")
+
+        try:
+            _atomic_write_json('lobby_details2.json' if is_t3 else 'lobby_details.json',
+                               constants.temp_json_dict2 if is_t3 else constants.temp_json_dict)
+        except Exception as e:
+            print(f"[close] lobby details write failed (non-fatal): {e}")
+        try:
+            await refresh_reg_message(is_t3=is_t3, show_slots=False, force=True)
+        except Exception as e:
+            print('[reg-slots] hide failed (non-fatal):', e)
+        try:
+            await updates.send(build_close_summary(is_t3, reason), allowed_mentions=discord.AllowedMentions.none())
+        except Exception as e:
+            print(f"[close] summary failed (non-fatal): {e}")
+        state_snapshot.save_state_snapshot()
+        return True
 
 
 @break_reg.error
@@ -3280,31 +2912,6 @@ async def break_reg_error(ctx, error):
     else:
         await ctx.send(f"An error occurred: {error}")
 
-# @bot.hybrid_command(name="editslots", description="Change the slots limit and lobby size.")
-# @commands.has_permissions(view_audit_log=True, manage_roles=True)
-# async def editslots(ctx, slots_limit: int, lobby_size: int):
-#     await ctx.defer()
-
-#     constants.SLOTS_LIMIT = slots_limit
-#     constants.LOBBY_SIZE = lobby_size
-#     constants.lobby_teams = [{} for _ in range(int(slots_limit / lobby_size))]
-
-#     try:
-#         message = await bot.get_channel(constants.REGISTRATION_CHANNEL_ID).fetch_message(constants.REG_MESSAGE_ID)
-#         await message.edit(view=RegistrationView2())
-
-#     except discord.HTTPException as e:
-#         print(f"An error occurred while purging messages: {e}")
-
-#     await ctx.send(f"Slots limit and lobby size updated:\nSlots limit: {slots_limit}\nLobby size: {lobby_size}")
-
-# @editslots.error
-# async def editslots_error(ctx, error):
-#     if isinstance(error, commands.MissingPermissions):
-#         missing_perms = ', '.join(error.missing_permissions)
-#         await ctx.send(f"You don't have the required permissions to use this command: {missing_perms}")
-#     else:
-#         await ctx.send(f"An error occurred: {error}")
 
 @bot.hybrid_command(name="show_limits", description="Show the current slots limit and lobby size.")
 @commands.has_any_role(*constants.roles_for_bot_access)
@@ -3502,34 +3109,6 @@ async def rr(ctx, error):
     else:
         await ctx.send(f"An error occurred: {error}")
 
-# @bot.hybrid_command(name="clearcd", description="**Clear Cool-down role")
-# @commands.has_permissions(view_audit_log=True, manage_roles=True)
-# async def clearcd(ctx):
-
-#     await ctx.send("kr rha thoda wait krna ..")
-
-#     try:
-#         role = bot.get_guild(constants.GUILD_ID).get_role(constants.COOLDOWN_ROLE_ID)
-#         if role:
-#             for member in role.members:
-#                 await member.remove_roles(role)
-
-#         await ctx.send("Cooldown role is cleared now.")
-    
-#     except discord.Forbidden:
-#         await ctx.send("I do not have permission to manage roles or channels.")
-#     except discord.HTTPException as e:
-#         await ctx.send(f"An HTTP error occurred: {e}")    
-#     except Exception as e:
-#         await ctx.send(f"An error occurred: {e}")
-
-# @clearcd.error
-# async def clearcd(ctx, error):
-#     if isinstance(error, commands.MissingPermissions):
-#         missing_perms = ', '.join(error.missing_permissions)
-#         await ctx.send(f"You don't have the required permissions to use this command: {missing_perms}")
-#     else:
-#         await ctx.send(f"An error occurred: {error}")
 
 @bot.hybrid_command(name="purge", description="Purge a specified number of messages from the channel.")
 @commands.has_any_role(*constants.roles_for_purge_perm)
@@ -3667,38 +3246,30 @@ async def role_by_reply_error(ctx, error):
     else:
         await ctx.send(f"An error occurred: {error}")
         
-# @bot.hybrid_command(name="spamloop", description="spam loop")
-# @commands.has_permissions(manage_roles=True,view_audit_log=True)
-# async def spamloop(ctx: commands.Context,*, message: str,time : int):
-#     try:
-#         for _ in range(0,99999999999999):
-#             await ctx.channel.send(message)
-#             await asyncio.sleep(time)
-            
-#     except discord.HTTPException as e:
-#         await ctx.send(f"An error occurred while sending the message: {e}")
-
-# @spamloop.error
-# async def spamloop(ctx: commands.Context, error: commands.CommandError):
-#     if isinstance(error, commands.MissingPermissions):
-#         await ctx.send("You don't have the required permissions to use this command.")
-#     elif isinstance(error, commands.ChannelNotFound):
-#         await ctx.send("The specified channel was not found.")
-#     else:
-#         await ctx.send(f"An error occurred: {error}")
 
 @bot.hybrid_command(name="inrole", description="inrole users and team names")
 @commands.has_any_role(*constants.roles_for_bot_access)
 async def inrole(ctx: commands.Context, role: discord.Role):
     try:
-        # Create a list of formatted mentions asynchronously
-        mentions_list = [
+        lines = [
             f"{member.mention} : {await validate_registration(member, check_cooldown=False, check_left_server=False)}"
             for member in role.members
         ]
-        # Join the list into a single string separated by newlines
-        mentions = '\n'.join(mentions_list)
-        await ctx.send(mentions)
+        if not lines:
+            await ctx.send(f"No members found in {role.name}.")
+            return
+        chunks, cur = [], ""
+        for line in lines:
+            if len(cur) + len(line) + 1 > 1900:
+                chunks.append(cur)
+                cur = ""
+            cur += line + "\n"
+        chunks.append(cur)
+        if len(chunks) > 5:
+            await ctx.send(f"{role.name} has {len(lines)} members, too many to list here. Use `/inrole_csv {role.name}` for the full file.")
+            return
+        for chunk in chunks:
+            await ctx.send(chunk, allowed_mentions=discord.AllowedMentions.none())
     except discord.HTTPException as e:
         await ctx.send(f"An error occurred while sending the message: {e}")
 
@@ -3819,9 +3390,18 @@ async def amateur_details_view_error(ctx: commands.Context, error: commands.Comm
 @commands.has_any_role(*constants.roles_for_bot_access)
 async def modpanel(ctx: commands.Context):
     try:
-        await ctx.channel.send(embed=mod_panel_embed(), view=ModPanelView())
+        # One panel at a time: remove the previous one so mods never click a stale copy.
+        old = _load_mod_panel_ref()
+        if old:
+            try:
+                old_msg = await bot.get_channel(old["channel_id"]).fetch_message(old["message_id"])
+                await old_msg.delete()
+            except Exception:
+                pass
+        msg = await ctx.channel.send(embed=mod_panel_embed(), view=ModPanelView())
+        _save_mod_panel_ref(msg.channel.id, msg.id)
         if ctx.interaction:
-            await ctx.send("Mod Panel posted.", ephemeral=True)
+            await ctx.send("Mod Panel posted. It stays here across restarts.", ephemeral=True)
     except discord.HTTPException as e:
         await ctx.send(f"Couldn't post the panel: {e}")
 
@@ -4392,51 +3972,87 @@ async def is_clearlb_done_for_today():
         print(f"[clearlb-check] failed: {e}")
         return False
 
-async def clear_lobbies(purge_all=False, before_time=None):
+async def clear_lobbies(purge_all=False, before_time=None, progress=None):
+    """Remove every IDP role and purge every IDP channel (last 24 h unless
+    purge_all). Roles and channels are processed in parallel with a small
+    limit; progress(text) is awaited with a short status when given."""
     guild = bot.get_guild(constants.GUILD_ID)
+    roles = []
+    channels = []
+    for is_t3 in (False, True):
+        for n in range(1, _lobby_count(is_t3) + 1):
+            role = discord.utils.get(guild.roles, name=f"T3 G{n} IDP" if is_t3 else f"Group {n} IDP")
+            if role:
+                roles.append(role)
+            channel = _idp_channel(n, is_t3)
+            if channel:
+                channels.append(channel)
 
-    lobby_role_names = [f"Group {i} IDP" for i in range(1, int(constants.SLOTS_LIMIT / constants.LOBBY_SIZE) + 1)]
-    lobby_channel_names = [f"group-{i}-idp" for i in range(1, int(constants.SLOTS_LIMIT / constants.LOBBY_SIZE) + 1)]
+    pairs = [(m, r) for r in roles for m in list(r.members)]
+    done = {"roles": 0, "channels": 0}
+    errors = []
+    sem = asyncio.Semaphore(5)
+    last_report = [0.0]
 
-    # Add T3
-    lobby_role_names.extend(
-        [f"T3 G{i} IDP" for i in range(1, int(constants.SPECIAL_SLOTS_LIMIT / constants.SPECIAL_LOBBY_SIZE) + 1)]
-    )
+    async def report(force=False):
+        if progress is None:
+            return
+        now = time.monotonic()
+        if not force and now - last_report[0] < 2:
+            return
+        last_report[0] = now
+        try:
+            await progress(f"Roles removed: {done['roles']}/{len(pairs)}  |  Channels cleared: {done['channels']}/{len(channels)}")
+        except Exception:
+            pass
 
-    lobby_channel_names.extend(
-        [f"t3-idp-{i}" for i in range(1, int(constants.SPECIAL_SLOTS_LIMIT / constants.SPECIAL_LOBBY_SIZE) + 1)]
-    )
+    async def drop(member, role):
+        async with sem:
+            try:
+                await member.remove_roles(role, reason="daily lobby clear")
+            except Exception as e:
+                errors.append(f"{member}: {e}")
+            done["roles"] += 1
+            await report()
 
-    for role_name in lobby_role_names:
-        role = discord.utils.get(guild.roles, name=role_name)
-        if role:
-            for member in role.members:
-                await member.remove_roles(role)
+    async def purge(channel):
+        async with sem:
+            try:
+                if purge_all:
+                    await channel.purge()
+                elif before_time:
+                    await channel.purge(after=(datetime.datetime.now() - datetime.timedelta(hours=24)), before=before_time)
+                else:
+                    await channel.purge(after=(datetime.datetime.now() - datetime.timedelta(hours=24)))
+            except Exception as e:
+                errors.append(f"#{channel.name}: {e}")
+            done["channels"] += 1
+            await report()
 
-    for channel_name in lobby_channel_names:
-        channel = discord.utils.get(guild.channels, name=channel_name)
-        if channel:
-            if purge_all:
-                await channel.purge()
-            elif before_time:
-                await channel.purge(after=(datetime.datetime.now() - datetime.timedelta(hours=24)), before=before_time)
-            else:
-                await channel.purge(after=(datetime.datetime.now() - datetime.timedelta(hours=24)))
+    await report(force=True)
+    await asyncio.gather(*(drop(m, r) for m, r in pairs))
+    await asyncio.gather(*(purge(c) for c in channels))
+    await report(force=True)
+    if errors:
+        print(f"[clearlb] {len(errors)} problem(s): {errors[:5]}")
+    return len(pairs), len(channels), errors
 
 @bot.hybrid_command(name="clearlb", description="**Clear lobby Channels and role")
 @commands.has_any_role(*constants.roles_for_bot_access)
 async def clear_lb(ctx):
+    status = await ctx.send("Clearing lobbies...")
 
-    await ctx.send("kr rha thoda wait krna ..")
+    async def progress(text):
+        await status.edit(content=f"Clearing lobbies... {text}")
 
     try:
-        await clear_lobbies(before_time=ctx.message.created_at)
-        await ctx.send("Lobby channels (last 24 hrs) and roles are cleared now.")
-    
+        roles, channels, errors = await clear_lobbies(before_time=ctx.message.created_at, progress=progress)
+        tail = f" {len(errors)} item(s) failed, see logs." if errors else ""
+        await status.edit(content=f"\u2705 Lobby channels (last 24 hrs) and roles are cleared now. {roles} roles removed, {channels} channels cleared.{tail}")
     except discord.Forbidden:
         await ctx.send("I do not have permission to manage roles or channels.")
     except discord.HTTPException as e:
-        await ctx.send(f"An HTTP error occurred: {e}")    
+        await ctx.send(f"An HTTP error occurred: {e}")
     except Exception as e:
         await ctx.send(f"An error occurred: {e}")
 
@@ -4530,426 +4146,16 @@ async def auto_close_reg():
                         earliest = start
                 if earliest is None:
                     continue
-                if now >= earliest - datetime.timedelta(minutes=30):
-                    if is_t3:
-                        if not constants.special_disabled_status:
-                            print('[auto-close] closing T3 reg 30 min before M1')
-                            await break_special_registration()
-                    else:
-                        if not constants.disabled_status:
-                            print('[auto-close] closing open reg 30 min before M1')
-                            await break_main_registration()
+                if now >= earliest - datetime.timedelta(minutes=30) and _reg_open(is_t3):
+                    print(f'[auto-close] closing {_reg_kind(is_t3)} reg 30 min before M1')
+                    await finalize_registration(is_t3, reason="auto-close, 30 min before match 1")
             except Exception as e:
                 print('[auto-close] failed (non-fatal):', e)
     except Exception as e:
         print('[auto-close] loop failed (non-fatal):', e)
 
 
-idt1 = datetime.time(hour=15, minute=56, tzinfo=local_tz)
-@tasks.loop(time=idt1)
-async def idploop():
-
-    today = datetime.datetime.now(local_tz).weekday()
-    if today in constants.days_to_run:
-        try:
-            # Start the inner loop to run every 10 minutes after the initial execution
-            inner_loop1.start()
-            await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"hey")
-
-        except Exception as e:
-            await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"Exception aayi: {e}")
-            print(f"Exception aayi: {e}")
-
-@tasks.loop(minutes=10)
-async def inner_loop1():
-    
-    try:
-        constants.inner_loop_counter += 1
-
-        lobby_number = int(int(constants.inner_loop_counter) % ((int(constants.SLOTS_LIMIT) / int(constants.LOBBY_SIZE))/2))
-        if lobby_number == 0:
-            lobby_number = int((int(constants.SLOTS_LIMIT) / int(constants.LOBBY_SIZE))/2)
-
-        print(lobby_number)
-        role = discord.utils.get(bot.get_guild(constants.GUILD_ID).roles, name= f"Group {lobby_number} IDP")
-        idchannel = discord.utils.get(bot.get_guild(constants.GUILD_ID).channels, name=f"group-{lobby_number}-idp")
-
-        await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"Please enter Match {lobby_number} ID.")
-        
-        def check(msg):
-            if msg.channel.id == constants.UPDATES_CHANNEL_ID and msg.content.isdigit() and msg.author.id != bot.user.id:
-                member = bot.get_guild(constants.GUILD_ID).get_member(msg.author.id)
-                if member and any(role.name in constants.roles_for_purge_perm for role in member.roles):
-                    return True
-            return False
-        
-        response = await bot.wait_for(
-    'message',
-    check=check,
-    timeout=390
-)
-        
-        if response.content.strip():  # Check if the response is not empty after stripping whitespace
-            # Process the response if needed
-            current_time = datetime.datetime.now(local_tz)
-            match_times = constants.match_schedule[lobby_number][1]
-            start_time_str = match_times['st']
-            id_time_str = match_times['idt']
-            start_time = datetime.datetime.strptime(start_time_str, "%I:%M %p").replace(tzinfo=local_tz)
-            id_time = datetime.datetime.strptime(id_time_str, "%I:%M %p").replace(tzinfo=local_tz)
-            if current_time.time() >= id_time.time():
-                final_start_time = (current_time + datetime.timedelta(minutes=5)).time()
-            else:
-                final_start_time = start_time
-            await idchannel.send(f"""TRIDENT ESPORTS TIER 3 SCRIMS 
-{role.mention}
-
-MATCH - 01
-MAP- ERANGLE
-
-ID - {response.content}
-PASS - TG{lobby_number}{lobby_number}{lobby_number}
-START - {final_start_time.strftime('%I:%M %p')}
- 
-TEAMS ARE REQUESTED TO JOIN 2 MINS PRIOR TO THE START TIME
-
-Rules Strictly To Be Followed:-
-
-1. Sit according to the allotted slots!
-2. Pov recording is mandatory for all players. We may request 'Raw Pov' at any time.
-3. Emergency pickups are strictly prohibited.
-4. Missing a single match will result in a team ban.""")
-            
-        await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"IDP SENT BORO, START TIME SHALL BE {final_start_time.strftime('%I:%M %p')} {response.author.mention}")
-
-    except asyncio.TimeoutError:
-        pass
-
-    except Exception as e:
-        await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"Exception aayi: {e}")
-        print(f"Exception aayi: {e}")
-
-idt2 = datetime.time(hour=16, minute=34, tzinfo=local_tz)
-@tasks.loop(time=idt2)
-async def idploop2():
-
-    today = datetime.datetime.now(local_tz).weekday()
-    if today in constants.days_to_run:
-        try:
-            inner_loop1.cancel()
-            await asyncio.sleep(120)
-            constants.inner_loop_counter = 0
-            # Start the inner loop to run every 10 minutes after the initial execution
-            inner_loop2.start()
-            await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"hey")
-
-        except Exception as e:
-            await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"Exception aayi: {e}")
-            print(f"Exception aayi: {e}")
-
-@tasks.loop(minutes=10)
-async def inner_loop2():
-    try:
-        constants.inner_loop_counter += 1
-
-        lobby_number = int(int(constants.inner_loop_counter) % ((int(constants.SLOTS_LIMIT) / int(constants.LOBBY_SIZE))/2))
-        if lobby_number == 0:
-            lobby_number = int((int(constants.SLOTS_LIMIT) / int(constants.LOBBY_SIZE))/2)
-
-        print(lobby_number)
-        role = discord.utils.get(bot.get_guild(constants.GUILD_ID).roles, name= f"Group {lobby_number} IDP")
-        idchannel = discord.utils.get(bot.get_guild(constants.GUILD_ID).channels, name=f"group-{lobby_number}-idp")
-
-        await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"Please enter Match {lobby_number} ID.")
-        
-        def check(msg):
-            if msg.channel.id == constants.UPDATES_CHANNEL_ID and msg.content.isdigit() and msg.author.id != bot.user.id:
-                member = bot.get_guild(constants.GUILD_ID).get_member(msg.author.id)
-                if member and any(role.name in constants.roles_for_purge_perm for role in member.roles):
-                    return True
-            return False
-        
-        response = await bot.wait_for(
-    'message',
-    check=check,
-    timeout=390
-)
-        
-        if response.content.strip():  # Check if the response is not empty after stripping whitespace
-            # Process the response if needed
-            current_time = datetime.datetime.now(local_tz)
-            match_times = constants.match_schedule[lobby_number][2]
-            start_time_str = match_times['st']
-            id_time_str = match_times['idt']
-            start_time = datetime.datetime.strptime(start_time_str, "%I:%M %p").replace(tzinfo=local_tz)
-            id_time = datetime.datetime.strptime(id_time_str, "%I:%M %p").replace(tzinfo=local_tz)
-            if current_time.time() >= id_time.time():
-                final_start_time = (current_time + datetime.timedelta(minutes=6)).time()
-            else:
-                final_start_time = start_time
-            await idchannel.send(f"""TRIDENT ESPORTS TIER 3 SCRIMS 
-{role.mention}
-                                 
-MATCH - 02
-MAP- RONDO
-
-ID - {response.content}
-PASS - TG{lobby_number}{lobby_number}{lobby_number}
-START - {final_start_time.strftime('%I:%M %p')}
- 
-TEAMS ARE REQUESTED TO JOIN 2 MINS PRIOR TO THE START TIME
-
-Rules Strictly To Be Followed:-
-
-1. Sit according to the allotted slots!
-2. Pov recording is mandatory for all players. We may request 'Raw Pov' at any time.
-3. Emergency pickups are strictly prohibited.
-4. Missing a single match will result in a team ban.""")
-            
-        await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"IDP SENT BORO, START TIME SHALL BE {final_start_time.strftime('%I:%M %p')} {response.author.mention}")
-
-    except asyncio.TimeoutError:
-        pass
-    
-    except Exception as e:
-        await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"Exception aayi: {e}")
-        print(f"Exception aayi: {e}")
-
-idtloopstop = datetime.time(hour=17, minute=14, tzinfo=local_tz)
-@tasks.loop(time=idtloopstop)
-async def idploop3():
-
-    today = datetime.datetime.now(local_tz).weekday()
-    if today in constants.days_to_run:
-        try:
-            inner_loop2.cancel()
-            constants.inner_loop_counter = 0
-            await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"done for the day")
-
-        except Exception as e:
-            await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"Exception aayi: {e}")
-            print(f"Exception aayi: {e}")
-
-idt3 = datetime.time(hour=17, minute=56, tzinfo=local_tz)
-@tasks.loop(time=idt3)
-async def idploop4():
-
-    today = datetime.datetime.now(local_tz).weekday()
-    if today in constants.days_to_run:
-        try:
-            # Start the inner loop to run every 10 minutes after the initial execution
-            inner_loop3.start()
-            await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"hey")
-
-        except Exception as e:
-            await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"Exception aayi: {e}")
-            print(f"Exception aayi: {e}")
-
-@tasks.loop(minutes=10)
-async def inner_loop3():
-    
-    try:
-        constants.inner_loop_counter += 1
-
-        _half = int((int(constants.SLOTS_LIMIT) / int(constants.LOBBY_SIZE)) // 2)
-        _rem = int(constants.inner_loop_counter) % _half
-        if _rem == 0:
-            _rem = _half
-        lobby_number = int(_rem + _half)
-
-        print(lobby_number)
-        role = discord.utils.get(bot.get_guild(constants.GUILD_ID).roles, name= f"Group {lobby_number} IDP")
-        idchannel = discord.utils.get(bot.get_guild(constants.GUILD_ID).channels, name=f"group-{lobby_number}-idp")
-
-        await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"Please enter Match {lobby_number} ID.")
-        
-        def check(msg):
-            if msg.channel.id == constants.UPDATES_CHANNEL_ID and msg.content.isdigit() and msg.author.id != bot.user.id:
-                member = bot.get_guild(constants.GUILD_ID).get_member(msg.author.id)
-                if member and any(role.name in constants.roles_for_purge_perm for role in member.roles):
-                    return True
-            return False
-        
-        response = await bot.wait_for(
-    'message',
-    check=check,
-    timeout=390
-)
-        
-        if response.content.strip():  # Check if the response is not empty after stripping whitespace
-            # Process the response if needed
-            current_time = datetime.datetime.now(local_tz)
-            match_times = constants.match_schedule[lobby_number][1]
-            start_time_str = match_times['st']
-            id_time_str = match_times['idt']
-            start_time = datetime.datetime.strptime(start_time_str, "%I:%M %p").replace(tzinfo=local_tz)
-            id_time = datetime.datetime.strptime(id_time_str, "%I:%M %p").replace(tzinfo=local_tz)
-            if current_time.time() >= id_time.time():
-                final_start_time = (current_time + datetime.timedelta(minutes=5)).time()
-            else:
-                final_start_time = start_time
-            await idchannel.send(f"""TRIDENT ESPORTS TIER 3 SCRIMS 
-{role.mention}
-
-MATCH - 01
-MAP- ERANGLE
-
-ID - {response.content}
-PASS - TG{lobby_number}{lobby_number}{lobby_number}
-START - {final_start_time.strftime('%I:%M %p')}
- 
-TEAMS ARE REQUESTED TO JOIN 2 MINS PRIOR TO THE START TIME
-
-Rules Strictly To Be Followed:-
-
-1. Sit according to the allotted slots!
-2. Pov recording is mandatory for all players. We may request 'Raw Pov' at any time.
-3. Emergency pickups are strictly prohibited.
-4. Missing a single match will result in a team ban.""")
-            
-        await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"IDP SENT BORO, START TIME SHALL BE {final_start_time.strftime('%I:%M %p')} {response.author.mention}")
-
-    except asyncio.TimeoutError:
-        pass
-
-    except Exception as e:
-        await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"Exception aayi: {e}")
-        print(f"Exception aayi: {e}")
-
-idt4 = datetime.time(hour=18, minute=34, tzinfo=local_tz)
-@tasks.loop(time=idt4)
-async def idploop5():
-
-    today = datetime.datetime.now(local_tz).weekday()
-    if today in constants.days_to_run:
-        try:
-            inner_loop3.cancel()
-            await asyncio.sleep(120)
-            constants.inner_loop_counter = 0
-            # Start the inner loop to run every 10 minutes after the initial execution
-            inner_loop4.start()
-            await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"hey")
-
-        except Exception as e:
-            await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"Exception aayi: {e}")
-            print(f"Exception aayi: {e}")
-
-@tasks.loop(minutes=10)
-async def inner_loop4():
-    try:
-        constants.inner_loop_counter += 1
-
-        _half = int((int(constants.SLOTS_LIMIT) / int(constants.LOBBY_SIZE)) // 2)
-        _rem = int(constants.inner_loop_counter) % _half
-        if _rem == 0:
-            _rem = _half
-        lobby_number = int(_rem + _half)
-
-        print(lobby_number)
-        role = discord.utils.get(bot.get_guild(constants.GUILD_ID).roles, name= f"Group {lobby_number} IDP")
-        idchannel = discord.utils.get(bot.get_guild(constants.GUILD_ID).channels, name=f"group-{lobby_number}-idp")
-
-        await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"Please enter Match {lobby_number} ID.")
-        
-        def check(msg):
-            if msg.channel.id == constants.UPDATES_CHANNEL_ID and msg.content.isdigit() and msg.author.id != bot.user.id:
-                member = bot.get_guild(constants.GUILD_ID).get_member(msg.author.id)
-                if member and any(role.name in constants.roles_for_purge_perm for role in member.roles):
-                    return True
-            return False
-        
-        response = await bot.wait_for(
-    'message',
-    check=check,
-    timeout=390
-)
-        
-        if response.content.strip():  # Check if the response is not empty after stripping whitespace
-            # Process the response if needed
-            current_time = datetime.datetime.now(local_tz)
-            match_times = constants.match_schedule[lobby_number][2]
-            start_time_str = match_times['st']
-            id_time_str = match_times['idt']
-            start_time = datetime.datetime.strptime(start_time_str, "%I:%M %p").replace(tzinfo=local_tz)
-            id_time = datetime.datetime.strptime(id_time_str, "%I:%M %p").replace(tzinfo=local_tz)
-            if current_time.time() >= id_time.time():
-                final_start_time = (current_time + datetime.timedelta(minutes=6)).time()
-            else:
-                final_start_time = start_time
-            await idchannel.send(f"""TRIDENT ESPORTS TIER 3 SCRIMS 
-{role.mention}
-                                 
-MATCH - 02
-MAP- RONDO
-
-ID - {response.content}
-PASS - TG{lobby_number}{lobby_number}{lobby_number}
-START - {final_start_time.strftime('%I:%M %p')}
- 
-TEAMS ARE REQUESTED TO JOIN 2 MINS PRIOR TO THE START TIME
-
-Rules Strictly To Be Followed:-
-
-1. Sit according to the allotted slots!
-2. Pov recording is mandatory for all players. We may request 'Raw Pov' at any time.
-3. Emergency pickups are strictly prohibited.
-4. Missing a single match will result in a team ban.""")
-            
-        await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"IDP SENT BORO, START TIME SHALL BE {final_start_time.strftime('%I:%M %p')} {response.author.mention}")
-
-    except asyncio.TimeoutError:
-        pass
-    
-    except Exception as e:
-        await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"Exception aayi: {e}")
-        print(f"Exception aayi: {e}")
-
-idtloopstop2 = datetime.time(hour=19, minute=14, tzinfo=local_tz)
-@tasks.loop(time=idtloopstop2)
-async def idploop6():
-
-    today = datetime.datetime.now(local_tz).weekday()
-    if today in constants.days_to_run:
-        try:
-            inner_loop4.cancel()
-            constants.inner_loop_counter = 0
-            await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"done for the day")
-
-        except Exception as e:
-            await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"Exception aayi: {e}")
-            print(f"Exception aayi: {e}")
-
-rulesremindertime = datetime.time(hour=13, minute=00, tzinfo=local_tz)
-@tasks.loop(time=rulesremindertime)
-async def t3rulesreminder():
-
-    today = datetime.datetime.now(local_tz).weekday()
-    if today in constants.days_to_run:
-        try:
-            lobby_channel_names = [f"group-{i}-idp" for i in range(1, int(constants.SLOTS_LIMIT / constants.LOBBY_SIZE) + 1)]
-
-            for channel_name in lobby_channel_names:
-                channel = discord.utils.get(bot.get_guild(constants.GUILD_ID).channels, name=channel_name)
-                if channel:
-                    await channel.send("Reminder to read rules written in slots list and rules channel.")
-
-        except Exception as e:
-            await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"Exception aayi: {e}")
-            print(f"Exception aayi: {e}")
-
-rulesremindertime2 = datetime.time(hour=13, minute=50, tzinfo=local_tz)
-@tasks.loop(time=rulesremindertime2)
-async def t3rulesreminder2():
-
-    today = datetime.datetime.now(local_tz).weekday()
-    if today in constants.days_to_run:
-        try:
-            lobby_channel_names = [f"group-{i}-idp" for i in range(1, int(constants.SLOTS_LIMIT / constants.LOBBY_SIZE) + 1)]
-
-            for channel_name in lobby_channel_names:
-                channel = discord.utils.get(bot.get_guild(constants.GUILD_ID).channels, name=channel_name)
-                if channel:
-                    pov_message = """Hello Teams,
+POV_STEPS = """Hello Teams,
 
 Please follow these steps to record your Point of View (POV) while playing BGMI:
 1. Before opening the BGMI app show the list of background running apps on your device
@@ -4959,106 +4165,30 @@ Please follow these steps to record your Point of View (POV) while playing BGMI:
 5. Play the match.
 6. After each match, make sure to show the list of background running apps and IMEI on your device.
 7. You need to repeat the above steps for every match you play."""
-                    await channel.send(pov_message)
 
-        except Exception as e:
-            await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(f"Exception aayi: {e}")
-            print(f"Exception aayi: {e}")
+async def _post_to_all_idp(text):
+    """Post the same text in every Open and T3 IDP channel (T3 used to be skipped)."""
+    for is_t3 in (False, True):
+        for n in range(1, _lobby_count(is_t3) + 1):
+            channel = _idp_channel(n, is_t3)
+            if channel is None:
+                continue
+            try:
+                await channel.send(text)
+            except Exception as e:
+                print(f"[reminder] {channel.name}: {e}")
 
-# @bot.event
-# async def on_message(message):
-#     # Check if the message is in the desired channel
-#     if message.channel.id == constants.REGISTRATION_CHANNEL_ID:
-#         if message.content.strip() == constants.REGISTRATION_PROMPT:
-#             await confirm(message.author.id,message.id)
+rulesremindertime = datetime.time(hour=13, minute=00, tzinfo=local_tz)
+@tasks.loop(time=rulesremindertime)
+async def t3rulesreminder():
+    if datetime.datetime.now(local_tz).weekday() in constants.days_to_run:
+        await _post_to_all_idp("Reminder to read rules written in slots list and rules channel.")
 
-#         elif message.author.bot:
-#             return
-        
-#         else:
-#             await bot.process_commands(message)
-        
-#     else:
-#         # Process bot commands if the message doesn't match the registration prompt
-#         await bot.process_commands(message)
-
-# async def confirm(user_id, message_id):
-
-#     channel = bot.get_channel(constants.REGISTRATION_CHANNEL_ID) 
-#     if channel:
-#         try:
-#             message = await channel.fetch_message(message_id)  # Fetch message from the channel
-#         except discord.NotFound:
-#             print("Error: Message not found.")
-#     else:
-#         print("Error: Channel not found.")
-
-#     # Check if the user is already enrolled
-#     team_name = await validate_registration(user_id)
-#     if team_name:
-#         if team_name == 'banned':
-#             # Send a message to the user with the reason for the ban
-#             user = bot.get_user(user_id)
-#             if user:
-#                 await bot.get_channel(constants.SCRIMS_LOG_CHANNEL_ID).send(f"{user.mention} Someone from your team is banned at the moment.\nReach out to the support team in case there's an issue via <#{constants.HELP_CHANNEL_ID}>.")
-#             else:
-#                 print("Error: User not found.")
-#             await message.add_reaction('❌')
-
-#         elif team_name == 'cooldown':
-#             # Send a message to the user informing about the cooldown
-#             user = bot.get_user(user_id)
-#             if user:
-#                 await bot.get_channel(constants.SCRIMS_LOG_CHANNEL_ID).send(f"{user.mention} Someone from your team is on cooldown, please wait for the cooldown period to end\nReach out to the support team in case there's an issue via <#{constants.HELP_CHANNEL_ID}>.")
-#             else:
-#                 print("Error: User not found.")
-#             await message.add_reaction('❌')
-
-#         elif user_id not in constants.registered_teams:  # Check if the user is not already registered
-#             if available_slots() > 0:
-#                 print("Available slots:", available_slots())
-#                 await message.add_reaction('✅')
-#                 # Mark registration as confirmed
-#                 await confirm_registration(user_id, team_name)  # Pass team name
-#                 print("Registration confirmed for user:", user_id)
-#                 # Save the registered team's data
-#                 constants.registered_teams[user_id] = team_name
-#                 print("Registered teams' data:", constants.registered_teams)  # Log the registered teams' data
-#                 print("Available slots:", available_slots())
-                
-#                 # Assign COOLDOWN_ROLE_ID to the confirmed user
-#                 await assign_role(user_id, constants.COOLDOWN_ROLE_ID)
-                
-#                 # Check if all slots are filled
-#                 if available_slots() == 0:
-
-#                     await lock_channel(constants.REGISTRATION_CHANNEL_ID)
-
-#                     # Create and save the CSV file
-#                     await save_as_csv(constants.registered_teams, 'registered_teams.csv')
-                    
-#                     # Send the CSV file to the designated channel
-#                     channel = bot.get_channel(constants.MOD_CHANNEL_ID)
-#                     if channel:
-#                         await channel.send(file=discord.File('registered_teams.csv'))
-#                     else:
-#                         print("Error: Designated channel not found.")
-
-#                     # Allocate lobby channels
-#                     await allocate_lobby_channels()
-
-#             else:
-#                 print("All slots are filled.")
-#                 await reject_registration(user_id, "Sorry, all slots are filled.")
-#                 await message.add_reaction('❌')
-#         else:
-#             print("User is already registered.")
-#             await reject_registration(user_id, "Your team has already been registered for today.")
-#             await message.add_reaction('❌')
-#     else:
-#         print("User is not enrolled.")
-#         await reject_registration(user_id, f"Your team is not enrolled yet, please do checkout <#{constants.INFO_CHANNEL_ID}>.")
-#         await message.add_reaction('❌')
+rulesremindertime2 = datetime.time(hour=13, minute=50, tzinfo=local_tz)
+@tasks.loop(time=rulesremindertime2)
+async def t3rulesreminder2():
+    if datetime.datetime.now(local_tz).weekday() in constants.days_to_run:
+        await _post_to_all_idp(POV_STEPS)
 
 _RESERVED_TEAM_NAMES = {"cooldown", "banned", "left_server", "cancel"}
 
@@ -5300,18 +4430,6 @@ class EnrollmentError(Exception):
         self.timeout = timeout
         self.text = text
 
-async def get_user_response(user, prompt=""):
-    try:
-        await user.send(prompt)
-        response = await bot.wait_for('message', check=lambda msg: msg.author == user and msg.channel.type == discord.ChannelType.private, timeout=120)
-        if response.content.strip():  # Check if the response is not empty after stripping whitespace
-            return response.content
-        else:
-            await user.send("Please provide a non-empty response.")
-            return await get_user_response(user, prompt)  # Ask for response again recursively
-    except asyncio.TimeoutError:
-        await user.send("Response timed out. Please try again later.")
-        return None
 
 async def _wait_for_reply(user, channel, timeout, cancel_ev=None, check=None):
     """Wait for the user's next message in channel, or raise FlowCancelled
@@ -5594,9 +4712,7 @@ async def is_team_name_unique(team_name):
         team_names = await asyncio.to_thread(constants.sheet.col_values, 2)
     except Exception as e:
         print(f"[unique] sheet read failed, reconnecting: {e}")
-        json_keyfile_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "default_path")
-        if json_keyfile_path == "default_path":
-            json_keyfile_path = "D:/Google Cloud JSON Key/clear-healer-415920-7abc2cda379e.json"
+        json_keyfile_path = _google_key_path()
         constants.sheet, constants.service = await connect_to_google_sheets(json_keyfile_path, sheet_id=constants.GOOGLE_SHEET_ID)
         constants.ban_sheet, _ = await connect_to_google_sheets(json_keyfile_path, sheet_id=constants.BAN_SHEET_ID)
         constants.blacklist_sheet, _ = await connect_to_google_sheets(json_keyfile_path, sheet_id=constants.BLACKLIST_SHEET_ID)
@@ -5650,84 +4766,102 @@ async def isAlreadyEnrolled(user_id,used2returnrow=False,returnTeamName=False,ct
         print("Error occurred while checking Discord ID:", e)
         return None
 
-# Function to fetch data from the worksheet and update the cache
+def _active_entries(rows):
+    """Rows are [key, start_unix, duration_seconds, ...] after a header row.
+    Returns {key: end_unix or None}. Expired rows are skipped. A row whose
+    time columns can't be read stays active, so hand-made rows still work."""
+    now = time.time()
+    out = {}
+    for row in (rows or [])[1:]:
+        if not row or not str(row[0]).strip():
+            continue
+        key = row[0]
+        try:
+            until = float(row[1]) + float(row[2])
+            if until <= now:
+                continue
+        except (IndexError, ValueError, TypeError):
+            until = None
+        if key in out:
+            out[key] = None if (out[key] is None or until is None) else max(out[key], until)
+        else:
+            out[key] = until
+    return out
+
+def _until_text(until):
+    if not until:
+        return ""
+    end = datetime.datetime.fromtimestamp(until, tz=constants.timezone)
+    return f" until {end.strftime('%d %b, %I:%M %p')} IST"
+
+def _sheet_poller(name, get_sheet, list_attr, until_attr, lock, interval, active_only=True):
+    """Keep a list in constants in sync with a Google sheet (runs in a thread)."""
+    initialized = False
+    while True:
+        try:
+            sheet = get_sheet()
+            rows = sheet.get_all_values()
+            if active_only:
+                active = _active_entries(rows)
+                with lock:
+                    setattr(constants, list_attr, list(active.keys()))
+                    setattr(constants, until_attr, active)
+            else:
+                with lock:
+                    setattr(constants, list_attr, rows)
+            if not initialized:
+                print(f"\n{name} initialized.")
+                initialized = True
+        except Exception as e:
+            print(f"Error occurred while refreshing {name}:", e)
+        time.sleep(interval)
+
 def refresh_cache():
-    initialized = False
-    while True:
-        try:
-            # Fetch all values from the worksheet
-            rows = constants.sheet.get_all_values()
-            # Update the cached data
-            with constants.cache_data_thread_lock:
-                constants.cached_data = rows
-            
-            # Check if cached_data is initialized and print message only once
-            if constants.cached_data is not None and not initialized:
-                print(f"\ncache_data initialized.")
-                initialized = True  # Set flag to True after printing
-            
-        except Exception as e:
-            print("Error occurred while refreshing cache:", e)
-        # Sleep for 5 seconds before refreshing again
-        time.sleep(5)
+    _sheet_poller("cache_data", lambda: constants.sheet, "cached_data", None, constants.cache_data_thread_lock, 5, active_only=False)
 
-# Function to fetch data from the worksheet and update banned_team_list
 def refresh_cache2():
-    initialized = False
-    while True:
-        try:
-            # Fetch all values from the worksheet
-            rows = constants.ban_sheet.get_all_values()
-            with constants.ban_list_thread_lock:
-                constants.banned_team_list = [row[0] for row in rows[1:]]
-                
-            # Check if banned_teams_list is initialized and print message only once
-            if constants.banned_team_list is not None and not initialized:
-                print(f"\nbanned_teams_list initialized.")
-                initialized = True  # Set flag to True after printing
+    _sheet_poller("banned_teams_list", lambda: constants.ban_sheet, "banned_team_list", "ban_until", constants.ban_list_thread_lock, 20)
 
-        except Exception as e:
-            print("Error occurred while refreshing banned_teams", e)
-        # Sleep for 20 seconds before refreshing again
-        time.sleep(20)
-
-# Function to fetch data from the worksheet and update the cache
 def refresh_cache3():
-    initialized = False
-    while True:
-        try:
-
-            rows = constants.blacklist_sheet.get_all_values()
-            with constants.blk_list_thread_lock:
-                constants.blk_users_list = [row[0] for row in rows[1:]]
-
-            # Check if blk_users_list is initialized and print message only once
-            if constants.blk_users_list is not None and not initialized:
-                print(f"\nblk_users_list initialized.")
-                initialized = True  # Set flag to True after printing 
-
-        except Exception as e:
-            print("Error occurred while refreshing blk_users_list", e)
-        # Sleep for 20 seconds before refreshing again
-        time.sleep(5)
+    _sheet_poller("blk_users_list", lambda: constants.blacklist_sheet, "blk_users_list", "blk_until", constants.blk_list_thread_lock, 5)
 
 def refresh_cache4():
-    initialized = False
-    while True:
-        try:
-            rows = constants.cooldown_sheet.get_all_values()
-            with constants.cd_list_thread_lock:
-                constants.cd_team_list = [row[0] for row in rows[1:]]
+    _sheet_poller("cd_users_list", lambda: constants.cooldown_sheet, "cd_team_list", "cd_until", constants.cd_list_thread_lock, 5)
 
-            # Check if blk_users_list is initialized and print message only once
-            if constants.cd_team_list is not None and not initialized:
-                print(f"\ncd_users_list initialized.")
-                initialized = True  # Set flag to True after printing 
-
-        except Exception as e:
-            print("Error occurred while refreshing blk_users_list", e)
-        # Sleep for 20 seconds before refreshing again
-        time.sleep(5)
+async def lift_restriction(kind, target_text):
+    """Remove active ban / cooldown / blacklist rows for a team or user.
+    Returns (removed_count, what) and updates the local lists right away."""
+    sheet = {"ban": constants.ban_sheet, "cooldown": constants.cooldown_sheet, "blacklist": constants.blacklist_sheet}[kind]
+    ids = re.findall(r"\d{15,20}", target_text or "")
+    if kind == "blacklist":
+        if not ids:
+            raise ValueError("Give an @mention or user ID for a blacklist.")
+        key_match = lambda k: str(k).strip() == ids[0]
+        what = f"<@{ids[0]}>"
+    else:
+        if ids:
+            hits = _find_team_rows(ids[0], limit=1)
+            if not hits:
+                raise ValueError("That user isn't in any team.")
+            want = _norm_team_name(hits[0][1])
+            what = hits[0][1]
+        else:
+            want = _norm_team_name(target_text)
+            what = target_text.strip()
+        key_match = lambda k: _norm_team_name(k) == want
+    rows = await asyncio.to_thread(sheet.get_all_values)
+    idxs = [n + 1 for n, r in enumerate(rows) if n > 0 and r and key_match(r[0])]
+    for idx in sorted(idxs, reverse=True):
+        await asyncio.to_thread(sheet.delete_rows, idx)
+    list_attr, until_attr, lock = {
+        "ban": ("banned_team_list", "ban_until", constants.ban_list_thread_lock),
+        "cooldown": ("cd_team_list", "cd_until", constants.cd_list_thread_lock),
+        "blacklist": ("blk_users_list", "blk_until", constants.blk_list_thread_lock),
+    }[kind]
+    with lock:
+        setattr(constants, list_attr, [k for k in getattr(constants, list_attr) if not key_match(k)])
+        setattr(constants, until_attr, {k: v for k, v in getattr(constants, until_attr).items() if not key_match(k)})
+    return len(idxs), what
 
 async def validate_registration(user,check_cooldown = True,check_left_server = True, user_idd = None):
     try:
@@ -5761,24 +4895,11 @@ async def validate_registration(user,check_cooldown = True,check_left_server = T
     
 # Function to check the number of available slots
 def available_slots(lobby_number):
-    # Subtract the number of registered teams from the total slots limit
-    # return constants.SLOTS_LIMIT - len(constants.registered_teams)
     return constants.LOBBY_SIZE - len(constants.lobby_teams[int(lobby_number)-1])
 
 def available_slots2(lobby_number):
-    # Subtract the number of registered teams from the total slots limit
-    # return constants.SLOTS_LIMIT - len(constants.registered_teams)
     return constants.SPECIAL_LOBBY_SIZE - len(constants.special_lobby_teams[int(lobby_number)-1])
 
-# Function to reject the registration
-async def reject_registration(user_id, reason):
-    try:
-        # Fetch the discord.User object corresponding to the user_id
-        user = await bot.fetch_user(user_id)
-        # Implement your logic to reject the registration
-        await bot.get_channel(constants.SCRIMS_LOG_CHANNEL_ID).send(f"{user.mention} {reason}")
-    except Exception as e:
-        print(f"An error occurred while confirming registration: {e}")
 
 async def save_timestamp_to_csv(user, timestamp_ms,lobby_number,status : str):
     with open('timestamps.csv', 'a', newline='') as csvfile:
@@ -5820,82 +4941,6 @@ async def assign_role(user, role_id):
     except Exception as e:
         print(f"An error occurred while assigning role to user {user}: {e}")
 
-# Function to lock a channel
-async def lock_channel(channel_id):
-    channel = bot.get_channel(channel_id)
-    if channel:
-        default_role = channel.guild.default_role
-        await channel.set_permissions(default_role, send_messages=False)
-        await channel.send("This channel has been locked.")
-    else:
-        print("Channel not found.")
-
-# Function to unlock a channel
-async def unlock_channel(channel_id):
-    channel = bot.get_channel(channel_id)
-    if channel:
-        default_role = channel.guild.default_role
-        await channel.set_permissions(default_role, send_messages=True)
-        await channel.send("This channel has been unlocked.")
-    else:
-        print("Channel not found.")
-
-# async def allocate_lobby_channels():
-#     # Initialize a list to store dictionaries for each lobby
-#     lobby_teams = [{} for _ in range(int(constants.SLOTS_LIMIT / constants.LOBBY_SIZE))]
-
-#     # List to hold users whose registrations were not confirmed
-#     unconfirmed_users = []
-
-#     copy_dict = constants.registered_teams.copy()
-
-#     # Allocate users with preferences to their preferred lobbies
-#     for user_id, team_name in copy_dict.items():
-#         if user_id in constants.preferences_dict:
-#             preferred_lobbies = constants.preferences_dict[user_id]
-#             allocated = False
-
-#             for lobby_number_str in preferred_lobbies:
-#                 lobby_number = int(lobby_number_str)
-#                 if len(lobby_teams[lobby_number - 1]) < constants.LOBBY_SIZE:  # Adjusted index
-#                     lobby_teams[lobby_number - 1][user_id] = team_name  # Adjusted index
-#                     await assign_team_to_lobby(user_id, team_name, lobby_number)
-#                     allocated = True
-#                     break
-
-#             del constants.registered_teams[user_id]    
-
-#             if not allocated:
-#                 unconfirmed_users.append((user_id, team_name))
-
-#     # Notify users whose registrations were not confirmed
-#     for user_id, team_name in unconfirmed_users:
-#         await reject_registration(user_id, "We weren't able to find a match for your lobby preference, so your slot was not confirmed.")
-#         await bot.get_channel(constants.MOD_CHANNEL_ID).send(f"LAFDA MISHAP PARESHANI, yaar {bot.get_guild(constants.GUILD_ID).get_member(user_id).mention} ki Team {team_name} ki vajah se ek slot empty rahega for sure, preference f for my rememberance")
-
-#     # Make another copy of registered_teams for safe iteration of remaining users
-#     remaining_teams = constants.registered_teams.copy()
-
-#     # Allocate remaining users to available lobbies
-#     for user_id, team_name in remaining_teams.items():
-#         for lobby_number_str, lobby_teams_dict in enumerate(lobby_teams):
-#             lobby_number = int(lobby_number_str)
-#             if len(lobby_teams_dict) < constants.LOBBY_SIZE:
-#                 lobby_teams[lobby_number][user_id] = team_name
-#                 await assign_team_to_lobby(user_id, team_name, lobby_number + 1)  # Adjusted index
-#                 del constants.registered_teams[user_id]
-#                 break
-
-#     # Check if all allocation processes are completed
-#     if not constants.registered_teams:
-#         # Generate CSV files for each lobby
-#         for lobby_number, lobby_teams_dict in enumerate(lobby_teams, 1):
-#             csv_file = f"lobby_{lobby_number}_teams.csv"
-#             await save_as_csv(lobby_teams_dict, csv_file)
-#             await bot.get_channel(constants.MOD_CHANNEL_ID).send(file=discord.File(csv_file))
-#             user_ids = list(lobby_teams_dict.keys())
-#             team_names = [lobby_teams_dict[user_id] for user_id in user_ids]
-#             await send_slots_list(team_names, discord.utils.get(bot.get_guild(constants.GUILD_ID).channels, name=f"lobby-{lobby_number}"))
 
 async def assign_team_to_lobby(user, lobby_number, t3=False):
 
@@ -6091,22 +5136,6 @@ async def share_lobby_results(lobby_number, team_name):
 
         await channel.send(f"Results updated in <#{constants.RESULTS_CHANNEL_ID}>\n\n{team_name} : <@{user_id}>\n\nPromoted to Tier 3.")
 
-        # team_name = await validate_registration(user="None", check_cooldown = False,check_left_server = False,user_idd=user_id)
-        # if team_name in constants.cd_team_list:
-        #     return f"{team_name} is already in cooldown."
-        # elif not team_name:
-        #     return f"Can't find any team for user: {member.mention}"
-        
-        # local_tz = datetime.datetime.now().astimezone().tzinfo
-        # today = datetime.datetime.now(local_tz).weekday()
-
-        # days_until_sunday = 6 - today
-        # # If today is Sunday (weekday() == 6), adjust to return 0
-        # if days_until_sunday == 0:
-        #     days_until_sunday = 0
-
-        # row = [team_name,int(time.time()),int((0 * 3600) + (days_until_sunday * 86400)),datetime.datetime.now(tz=constants.timezone).strftime("%Y-%m-%d %H:%M"),f"{days_until_sunday} days {0} hours",str(user_id)]
-        # constants.cooldown_sheet.append_row(row)
 
 async def send_slots_list(team_names, lobby_number, lobby_channel,edit_slots_list=  False, add_button = True, use_alt_lobby = False, cancel_disabled = False):
     # Prepare the slots list message
@@ -6130,7 +5159,17 @@ async def send_slots_list(team_names, lobby_number, lobby_channel,edit_slots_lis
     slots_list_message += f"```\n**Rules:**\n1. Make sure to checkout your lobbies schedule from the \"Tier-3 Schedule\" button in <#{constants.INFO_CHANNEL_ID}>.\n2. Be available on time and participate in all matches with minimum 3 players in lobbies to avoid a ban.\n3. All players' in-game names (IGN) must include a team acronym as a prefix/suffix (Similar NAME TAG). Players without this will not be allowed and kicked from the lobby.\n4. If there is an issue with changing IGN's (In Game Name), you can participate from a new id but have to ensure that raw pov is available.\n5. Use the button beneath in case you wanna transfer lobby role to teammate, it will be removed from you btw."
     if cancel_disabled:
         slots_list_message += "\n6. Cancel buttons open after registrations close."
-    embed = discord.Embed(title=f"GROUP {lobby_number} SLOTS LIST:", description=slots_list_message,color=0x229db7)
+    group = get_group_for_lobby(int(lobby_number), use_alt_lobby)
+    label = _group_label(group, use_alt_lobby) if group else ""
+    sched = (constants.match_schedule_t3 if use_alt_lobby else constants.match_schedule).get(int(lobby_number), {})
+    if sched:
+        times = "  \u00b7  ".join(f"M{m} {info.get('map', '').title()} {info.get('st', '')}" for m, info in sched.items())
+        deadline = get_lobby_cancel_deadline(int(lobby_number), use_alt_lobby)
+        slots_list_message += f"\n\n**Today:** {times}"
+        if deadline:
+            slots_list_message += f"\n**Cancel closes:** {_fmt_ist(deadline)} IST"
+    title = f"{'T3 ' if use_alt_lobby else ''}GROUP {lobby_number} SLOTS LIST" + (f"  \u00b7  {label}" if label else "")
+    embed = discord.Embed(title=title, description=slots_list_message, color=0x229db7)
 
     if edit_slots_list:
         # Prefer in-memory ids (live during registration); fall back to disk file.
@@ -6172,7 +5211,8 @@ async def send_slots_list(team_names, lobby_number, lobby_channel,edit_slots_lis
     else:
         lobby_role = discord.utils.get(bot.get_guild(constants.GUILD_ID).roles, name=f"Group {lobby_number} IDP")
     
-    await lobby_channel.send(f"{lobby_role.mention}\n\nAll players IGN must have TEAM TAG included, otherwise you will be kicked from the room.\nYou can even play from new id but this is required.")
+    ping = lobby_role.mention if lobby_role else ""
+    await lobby_channel.send(f"{ping}\n\nAll players IGN must have TEAM TAG included, otherwise you will be kicked from the room.\nYou can even play from new id but this is required.")
     try:
         if add_button:
             await message.edit(view=IdpChannelTasksView(cancel_disabled=cancel_disabled))
@@ -6187,13 +5227,7 @@ async def send_slots_list(team_names, lobby_number, lobby_channel,edit_slots_lis
 
 async def init_sheet():
 
-    # Get the JSON key file path from an environment variable
-    json_keyfile_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "default_path")
-    
-    # for pc
-    if json_keyfile_path == "default_path":
-        # If the environment variable is not set, use a default path
-        json_keyfile_path = "D:/Google Cloud JSON Key/clear-healer-415920-7abc2cda379e.json"
+    json_keyfile_path = _google_key_path()
 
     try:
         # Attempt to connect to Google Sheets
@@ -6230,4 +5264,6 @@ if __name__ == "__main__":
         runner.run(init_sheet())
         
     # Run the bot with the specified token
-    bot.run(os.environ.get('DISCORD_TOKEN'))
+    # basicConfig above already logs to stderr (and so to bot_logs.txt);
+    # log_handler=None stops discord.py adding a second handler (doubled lines).
+    bot.run(os.environ.get('DISCORD_TOKEN'), log_handler=None)

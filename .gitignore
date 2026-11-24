@@ -6,3 +6,4 @@
 .env
 bot_logs.txt
 *.tmp
+bot_logs.txt.1
