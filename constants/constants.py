@@ -121,7 +121,6 @@ timezone = pytz.timezone('Asia/Kolkata')
 practice_emoteid = "<:Holdgun:1252297519543877684>"
 roles_for_purge_perm = ['Admin','++D']
 roles_for_bot_access = ['Admin','++D','Scrim Managers']
-idp_role_names = [f"Group {x} IDP" for x in range(1,int(SLOTS_LIMIT // LOBBY_SIZE) + 1)]
 # Match schedule (IST). idt = when the room ID goes out, st = match start.
 # Every lobby plays M1 Rondo, M2 Erangel, M3 Miramar.
 match_schedule = {

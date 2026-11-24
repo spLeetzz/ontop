@@ -535,27 +535,29 @@ class PracticeRegistrationButton(discord.ui.Button):
         team_name = await validate_registration(interaction.user)
         if team_name:
             await interaction.response.send_modal(PracticeRegistrationModal())
-        else: await interaction.response.send_message(f"You are not a part of any team right now, please ask your IGL or yourself enlist your team from <#{constants.ENROLLMENT_CHANNEL_ID}>.", ephemeral=True,delete_after=60)
+        else: await interaction.response.send_message(f"You're not on a team yet. You or your IGL can enroll one in <#{constants.ENROLLMENT_CHANNEL_ID}> (about 2 minutes).", ephemeral=True,delete_after=60)
 
 class PracticeRegistrationModal(discord.ui.Modal):
     def __init__(self):
-        super().__init__(title="Let's fill in a captcha real quick!")
+        super().__init__(title="Practice captcha (nothing is booked)")
         self.word = ''.join(random.choice(ascii_lowercase) for _ in range(random.randint(5, 7)))
         self.nums = [random.randint(10,99) for _ in range(4)]
         
         # Add the captcha input fields
-        self.sentence_input = discord.ui.TextInput(label=f"Type this beneath:\n{self.word}", placeholder=self.word,required=True)
-        self.sum1_input = discord.ui.TextInput(label=f"{self.nums[0]} + {self.nums[1]}", placeholder="Answer this easyyyy summation 1",required=True)
-        self.sum2_input = discord.ui.TextInput(label=f"{self.nums[2]} + {self.nums[3]}", placeholder="Answer this easyyyy summation 2",required=True)
+        self.sentence_input = discord.ui.TextInput(label=f"Type this word: {self.word}", placeholder=self.word, required=True, max_length=20)
+        self.sum1_input = discord.ui.TextInput(label=f"{self.nums[0]} + {self.nums[1]} = ?", placeholder="Numbers only", required=True, max_length=6)
+        self.sum2_input = discord.ui.TextInput(label=f"{self.nums[2]} + {self.nums[3]} = ?", placeholder="Numbers only", required=True, max_length=6)
     
         self.add_item(self.sentence_input)
         self.add_item(self.sum1_input)
         self.add_item(self.sum2_input)
 
     async def on_submit(self, interaction: discord.Interaction):
-        if (self.sentence_input.value.rstrip().lower() == self.word and int(self.sum1_input.value.rstrip()) == int(self.nums[0] + self.nums[1]) and int(self.sum2_input.value.rstrip()) == int(self.nums[2] + self.nums[3])):
-            await interaction.response.send_message("Captcha Passed!", ephemeral=True,delete_after=15)
-        else: await interaction.response.send_message("Invalid captcha 😢 GG! Please try again later.", ephemeral=True, delete_after=30)
+        problem = _captcha_problem(self.sentence_input.value, self.sum1_input.value, self.sum2_input.value, [self.word, *self.nums])
+        if problem:
+            await interaction.response.send_message(f"{problem} Tap TRIAL REG to try another one.", ephemeral=True, delete_after=30)
+        else:
+            await interaction.response.send_message("\u2705 Passed! The real one at 12 PM looks exactly like this, so be quick.", ephemeral=True, delete_after=20)
 
     async def on_error(self, interaction: discord.Interaction, error: Exception):
         if isinstance(error, ValueError):
@@ -614,13 +616,13 @@ async def _booking_block_reason(user, team_name, is_t3):
     """Why this team can't book right now, or None if it can."""
     help_line = f"\nReach out to the support team in case there's an issue via <#{constants.HELP_CHANNEL_ID}>."
     if not team_name:
-        return f"You are not a part of any team right now, please ask your IGL or yourself enlist your team from <#{constants.ENROLLMENT_CHANNEL_ID}>."
+        return f"You're not on a team yet. You or your IGL can enroll one in <#{constants.ENROLLMENT_CHANNEL_ID}> (about 2 minutes)."
     if team_name in constants.banned_team_list:
         return f"{user.mention} Someone from your team is banned{_until_text(constants.ban_until.get(team_name))}.{help_line}"
     if team_name in constants.cd_team_list:
         return f"{user.mention} Someone from your team is on cooldown{_until_text(constants.cd_until.get(team_name))}, please wait for the cooldown period to end.{help_line}"
     if team_name == 'left_server':
-        return f"{user.mention} Someone from your team is not present in this server rn. They need to rejoin before you can book."
+        return f"{user.mention} A teammate isn't in this server right now. They need to rejoin before you can book."
     if is_t3 and any(role.name.startswith("Amateur") for role in getattr(user, "roles", [])):
         return f"{user.mention} You can't register here as you have an Amateur role."
     return None
@@ -662,22 +664,22 @@ class GroupButton(discord.ui.Button):
 
 class GroupCaptchaModal(discord.ui.Modal):
     def __init__(self, group, team_name, is_t3=False):
-        super().__init__(title="Let's fill in a captcha real quick!")
+        super().__init__(title=f"Book Group {group}: quick captcha"[:45])
         self.group = group
         self.team_name = team_name
         self.is_t3 = is_t3
 
         self.sentence_input = discord.ui.TextInput(
-            label=f"Type this beneath:\n{constants.captcha_question_variables[0]}",
-            placeholder=constants.captcha_question_variables[0], required=True
+            label=f"Type this word: {constants.captcha_question_variables[0]}"[:45],
+            placeholder=constants.captcha_question_variables[0], required=True, max_length=20
         )
         self.sum1_input = discord.ui.TextInput(
-            label=f"{constants.captcha_question_variables[1]} + {constants.captcha_question_variables[2]}",
-            placeholder="Answer this easyyyy summation 1", required=True
+            label=f"{constants.captcha_question_variables[1]} + {constants.captcha_question_variables[2]} = ?",
+            placeholder="Numbers only", required=True, max_length=6
         )
         self.sum2_input = discord.ui.TextInput(
-            label=f"{constants.captcha_question_variables[3]} + {constants.captcha_question_variables[4]}",
-            placeholder="Answer this easyyyy summation 2", required=True
+            label=f"{constants.captcha_question_variables[3]} + {constants.captcha_question_variables[4]} = ?",
+            placeholder="Numbers only", required=True, max_length=6
         )
         self.add_item(self.sentence_input)
         self.add_item(self.sum1_input)
@@ -688,13 +690,10 @@ class GroupCaptchaModal(discord.ui.Modal):
         user_id = user.id
         is_t3 = self.is_t3
 
-        if not await validate_captcha(
-            self.sentence_input.value.strip(),
-            int(self.sum1_input.value.strip()),
-            int(self.sum2_input.value.strip())
-        ):
+        problem = _captcha_problem(self.sentence_input.value, self.sum1_input.value, self.sum2_input.value)
+        if problem:
             return await interaction.response.send_message(
-                "That captcha didn't match \U0001f622 Tap the group button again to retry.", ephemeral=True, delete_after=30
+                f"{problem} Tap Group {self.group} again to retry, quickly, slots go fast.", ephemeral=True, delete_after=30
             )
 
         await interaction.response.defer(ephemeral=True, thinking=True)
@@ -761,7 +760,9 @@ class GroupCaptchaModal(discord.ui.Modal):
         task1 = asyncio.create_task(
             interaction.followup.send(
                 f'\u2705 Booked! "{self.team_name}" is in Group {self.group} ({_group_label(self.group, is_t3)}), '
-                f'Lobby {assigned_lobby}, slot {slot_no:02}.\nYour IDP role is being added; the slot list is in {_idp_channel_name(assigned_lobby, is_t3)}.',
+                f'Lobby {assigned_lobby}, slot {slot_no:02}.\n'
+                f'Your slot list and room IDs will be in {_channel_ref(assigned_lobby, is_t3)}. '
+                f'Match 1 starts {_when(get_lobby_m1_start(assigned_lobby, is_t3))}.',
                 ephemeral=True
             )
         )
@@ -899,60 +900,86 @@ class FaqView(discord.ui.View):
         self.add_item(bitInfoButton())
         self.add_item(bitsMoreInfoButton())
 
+def _lobby_role_name(lobby, is_t3):
+    return f"T3 G{lobby} IDP" if is_t3 else f"Group {lobby} IDP"
+
+def _is_idp_role_name(name):
+    return bool(re.fullmatch(r"(Group \d+ IDP|T3 G\d+ IDP)", name or ""))
+
+def _team_member_ids(team_name):
+    """Discord ids (as str) of everyone on this team, from the cached sheet."""
+    for row in (constants.cached_data or []):
+        if len(row) > 1 and row[1] == team_name:
+            return {str(x).strip() for x in row[2::2] if x and str(x).strip()}
+    return set()
+
 class TransferIDPButton(discord.ui.Button):
     def __init__(self):
-        super().__init__(label=f'Transfer IDP role', style=discord.ButtonStyle.grey)
+        super().__init__(label='Transfer IDP role', style=discord.ButtonStyle.grey, emoji="\U0001f501")
 
     async def callback(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
-        matching_roles = [role for role in interaction.user.roles if role.name in constants.idp_role_names]
-
-        if len(matching_roles) == 1:
-            try:
-                result = await isAlreadyEnrolled(interaction.user.id,used2returnrowwithmessage=True,ctx_is_in_team=True)
-                if result:
-                    await interaction.followup.send(f"{result[0]}\nSelect player in the dropdown below whom you wanna transfer this IDP role to.",view=PlayerSelectView(row = result[1],role = matching_roles[0]),ephemeral=True)
-                else:
-                    await interaction.followup.send(f"Unable to retrieve any team associated with you, did you deleted it?",ephemeral=True)
-            except Exception as e:
-                print(e)
-                await interaction.followup.send(f"Some error occured at our end.",ephemeral=True)
-
-        elif len(matching_roles) == 0:
-            await interaction.followup.send(f"You dont Got any role that can be transferred:.",ephemeral=True)
-
-        else:
-            await interaction.followup.send(f"You have like more than one Lobbies roles, i am comfused and can not handle role transfers for you.",ephemeral=True)
+        user = interaction.user
+        held = [r for r in user.roles if _is_idp_role_name(r.name)]
+        here = _lobby_from_channel_name(getattr(interaction.channel, "name", "") or "")
+        if here and len(held) > 1:
+            held = [r for r in held if r.name == _lobby_role_name(*here)] or held
+        if not held:
+            return await interaction.followup.send(
+                "You don't have a lobby role to pass on. Only the player holding this lobby's IDP role can transfer it.", ephemeral=True)
+        if len(held) > 1:
+            return await interaction.followup.send(
+                "You hold roles for more than one lobby. Tap this button in the lobby channel whose role you want to pass on.", ephemeral=True)
+        try:
+            result = await isAlreadyEnrolled(user.id, used2returnrowwithmessage=True, ctx_is_in_team=True)
+        except Exception as e:
+            print(f"[transfer] {e}")
+            result = None
+        if not result:
+            return await interaction.followup.send("Couldn't find your team. If you just deleted or updated it, ask a mod.", ephemeral=True)
+        view = PlayerSelectView(row=result[1], role=held[0], giver_id=user.id)
+        if not view.children[0].options:
+            return await interaction.followup.send("No teammate on your roster to pass it to.", ephemeral=True)
+        await interaction.followup.send(
+            f"{result[0]}\nPick the teammate who should get {held[0].name}. They'll see room IDs in this lobby, and you'll lose access.",
+            view=view, ephemeral=True)
 
 class PlayerSelectDropdown(discord.ui.Select):
-    def __init__(self,row,role):
+    def __init__(self, row, role, giver_id=None):
         options = []
-        dc_ids = row[2::2]
-        igns = row[3::2]
         self.role = role
-        for i, ign in enumerate(igns, 1):
-            if ign and dc_ids[i-1]:  # Ensure both ign and dc_id are not None or empty
-                options.append(discord.SelectOption(label=f"{i}. {ign}", value=f"{dc_ids[i-1]}"))
-        super().__init__(placeholder="Select here", options=options)
+        for i, (dc, ign) in enumerate(zip(row[2::2], row[3::2]), 1):
+            if ign and dc and str(dc).strip() and str(dc).strip() != str(giver_id):
+                options.append(discord.SelectOption(label=f"{i}. {ign}"[:100], value=str(dc).strip()))
+        super().__init__(placeholder="Pick a teammate", options=options or [discord.SelectOption(label="No teammates", value="none")], disabled=not options)
 
     async def callback(self, interaction: discord.Interaction):
-        selected_value = int(self.values[0])
         user = interaction.user
+        await interaction.response.defer(ephemeral=True)
+        if self.role not in user.roles:
+            return await interaction.followup.send(f"You don't hold {self.role.name} anymore, so there's nothing to transfer.", ephemeral=True)
+        mate = bot.get_guild(constants.GUILD_ID).get_member(int(self.values[0]))
+        if mate is None:
+            return await interaction.followup.send("That teammate isn't in the server right now. They need to rejoin first.", ephemeral=True)
         try:
-            await interaction.response.defer(ephemeral=True)
-            benificar = bot.get_guild(constants.GUILD_ID).get_member(selected_value)
-            await user.remove_roles(self.role)
-            await asyncio.sleep(2)
-            await assign_role(benificar,self.role.id)
-            await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"Hey {user.mention}, Your lobby role has been transferred to your teammate {benificar}")
-            await interaction.followup.send("Done.", ephemeral=True)
-            
+            # Give first, then take: if Discord fails halfway, nobody ends up without the role.
+            await mate.add_roles(self.role, reason=f"IDP transfer from {user}")
+            await user.remove_roles(self.role, reason=f"IDP transfer to {mate}")
         except discord.errors.Forbidden:
-            await interaction.followup.send("I do not have permission to manage your roles.", ephemeral=True)
-        except discord.errors.HTTPException:
-            await interaction.followup.send("Failed to remove role due to a Discord API error.", ephemeral=True)
+            return await interaction.followup.send("I'm missing permission to change roles. Please ask a mod.", ephemeral=True)
         except Exception as e:
-            await interaction.followup.send(f"Got some error: {e}", ephemeral=True)
+            print(f"[transfer] {e}")
+            return await interaction.followup.send("Discord didn't accept the change. Please try again in a minute.", ephemeral=True)
+        try:
+            await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(
+                f"{user.mention} passed {self.role.name} to {mate.mention}.",
+                allowed_mentions=discord.AllowedMentions(users=True, roles=False, everyone=False))
+        except Exception:
+            pass
+        for item in self.view.children:
+            item.disabled = True
+        await interaction.edit_original_response(view=self.view)
+        await interaction.followup.send(f"\u2705 Done. {mate.mention} now has {self.role.name}.", ephemeral=True)
 
 class ModToolsButton(discord.ui.Button):
     """In an IDP channel: opens this lobby's desk. Every reply (copy names,
@@ -2236,60 +2263,58 @@ class CancelSlotButton(discord.ui.Button):
         except FileNotFoundError:
             return await interaction.response.send_message("Lobby data not found.", ephemeral=True, delete_after=15)
 
-        # find user's team in this lobby
-        team_name = None
-        for tn, uid in lobby_data.items():
-            try:
-                if int(uid) == user.id:
-                    team_name = tn
-                    break
-            except (ValueError, TypeError):
-                continue  # skip CANCELLED placeholders ("cancelled")
-
+        team_name = _team_in_lobby_for(user, lobby_data, lobby_number, is_t3)
         if not team_name:
             return await interaction.response.send_message(
-                "You are not registered in this lobby.", ephemeral=True, delete_after=15
-            )
+                "Only your team's booker, or the teammate holding this lobby's role, can cancel. "
+                "Tap My status in the registration channel to see where your team is.",
+                ephemeral=True, delete_after=30)
 
-        # show confirmation modal
-        await interaction.response.send_modal(
-            CancelConfirmModal(team_name, lobby_number, group, is_t3)
-        )
+        slot_no = list(lobby_data.keys()).index(team_name) + 3
+        dl = get_lobby_cancel_deadline(lobby_number, is_t3)
+        await interaction.response.send_message(
+            f"Cancel {team_name}'s slot {slot_no:02} in {_reg_kind(is_t3)} Lobby {lobby_number}?\n"
+            f"Another team can claim it right away and you can't get it back. Cancelling closes {_when(dl)}.",
+            view=CancelSlotConfirmView(team_name, lobby_number, group, is_t3), ephemeral=True)
 
 
-class CancelConfirmModal(discord.ui.Modal):
-    """Confirmation modal - user must type their team name to confirm cancellation."""
+def _team_in_lobby_for(user, lobby_data, lobby_number, is_t3):
+    """The team in this lobby that `user` may cancel for: they booked it, or
+    they're on that team and hold the lobby's IDP role (after a transfer)."""
+    for tn, uid in lobby_data.items():
+        if str(uid).isdigit() and int(uid) == user.id:
+            return tn
+    holds_role = any(r.name == _lobby_role_name(lobby_number, is_t3) for r in getattr(user, "roles", []))
+    if holds_role:
+        for tn, uid in lobby_data.items():
+            if str(uid).isdigit() and str(user.id) in _team_member_ids(tn):
+                return tn
+    return None
+
+
+class CancelSlotConfirmView(discord.ui.View):
+    """One-tap confirm for a player's cancel (replaces typing the team name)."""
     def __init__(self, team_name, lobby_number, group, is_t3):
-        super().__init__(title="Confirm Slot Cancellation")
-        self.team_name = team_name
-        self.lobby_number = lobby_number
-        self.group = group
-        self.is_t3 = is_t3
+        super().__init__(timeout=120)
+        self.team_name, self.lobby_number, self.group, self.is_t3 = team_name, lobby_number, group, is_t3
 
-        self.confirm_input = discord.ui.TextInput(
-            label=f'Type "{team_name}" to confirm',
-            placeholder=team_name,
-            required=True
-        )
-        self.add_item(self.confirm_input)
-
-    async def on_submit(self, interaction: discord.Interaction):
-        # validate confirmation text
-        if self.confirm_input.value.strip() != self.team_name:
-            return await interaction.response.send_message(
-                "Team name didn't match. Cancellation aborted.", ephemeral=True, delete_after=15
-            )
-        await interaction.response.defer(ephemeral=True, thinking=True)
-        ok, msg = await cancel_team_slot(self.team_name, self.lobby_number, self.is_t3, post_claim=True,
-                                         enforce_deadline=True, by_label=interaction.user.display_name)
+    @discord.ui.button(label="Yes, cancel our slot", style=discord.ButtonStyle.danger)
+    async def yes(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.edit_message(content="Cancelling...", view=None)
+        try:
+            ok, msg = await cancel_team_slot(self.team_name, self.lobby_number, self.is_t3, post_claim=True,
+                                             enforce_deadline=True, by_label=interaction.user.display_name)
+        except Exception as e:
+            print(f"[cancel] {e}")
+            ok, msg = False, "Something went wrong while cancelling. Tap My status to check, then try again."
         if ok:
-            msg = (f"Your slot in Group {self.group}, Lobby {self.lobby_number} has been cancelled.\n"
-                   f"A claim message has been posted in the registration channel.")
-        await interaction.followup.send(msg, ephemeral=True)
+            msg = (f"\u2705 Cancelled. {self.team_name} is out of {_reg_kind(self.is_t3)} Lobby {self.lobby_number}, "
+                   "and the slot is up for claim in the registration channel.")
+        await interaction.edit_original_response(content=msg)
 
-    async def on_error(self, interaction: discord.Interaction, error: Exception):
-        await _safe_reply(interaction, "Something went wrong during cancellation. Please try again.", delete_after=30)
-        print(f"Error in CancelConfirmModal: {error}")
+    @discord.ui.button(label="Keep it", style=discord.ButtonStyle.secondary)
+    async def keep(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.edit_message(content="OK, your slot is kept.", view=None)
 
 
 async def cancel_team_slot(team_name, lobby_number, is_t3, post_claim=True, enforce_deadline=False, by_label=""):
@@ -2328,12 +2353,18 @@ async def cancel_team_slot(team_name, lobby_number, is_t3, post_claim=True, enfo
 
         guild = bot.get_guild(constants.GUILD_ID)
         role = discord.utils.get(guild.roles, name=f"T3 G{lobby_number} IDP" if is_t3 else f"Group {lobby_number} IDP")
-        booker = guild.get_member(int(booker_id)) if str(booker_id).isdigit() else None
-        if role and booker:
-            try:
-                await booker.remove_roles(role)
-            except Exception as e:
-                print(f"Error removing IDP role: {e}")
+        if role:
+            # The booker may have passed the role to a teammate, so check the whole team.
+            ids = _team_member_ids(team_name) | ({str(booker_id)} if str(booker_id).isdigit() else set())
+            holders = {m.id: m for m in role.members if str(m.id) in ids}
+            booker = guild.get_member(int(booker_id)) if str(booker_id).isdigit() else None
+            if booker and role in booker.roles:
+                holders[booker.id] = booker
+            for member in holders.values():
+                try:
+                    await member.remove_roles(role)
+                except Exception as e:
+                    print(f"Error removing IDP role: {e}")
 
         await update_slot_list_after_cancel(lobby_number, is_t3)
 
@@ -2503,9 +2534,9 @@ async def claim_cancelled_slot(member, lobby_number, group, is_t3, team_name, cl
                   f"Your slot list is in {_idp_channel_name(lobby_number, is_t3)}.")
 
 class PlayerSelectView(discord.ui.View):
-    def __init__(self,row,role):
-        super().__init__(timeout=None)
-        self.add_item(PlayerSelectDropdown(row,role))
+    def __init__(self, row, role, giver_id=None):
+        super().__init__(timeout=300)
+        self.add_item(PlayerSelectDropdown(row, role, giver_id))
 
 class AmateurDetailsButton(discord.ui.Button):
     def __init__(self):
@@ -2561,6 +2592,21 @@ class AmateurDetailsModal(discord.ui.Modal):
     async def on_error(self, interaction: discord.Interaction, error: Exception):
         await _safe_reply(interaction, "An error occurred while processing your request. Please try again later.", delete_after=240)
         print(f"An error occurred during the team name change request for {interaction.user}: {error}")
+
+def _captcha_problem(word, sum1, sum2, q=None):
+    """None if the booking captcha is right, else a short line saying which part is off."""
+    q = q or constants.captcha_question_variables
+    if str(word).strip().lower() != str(q[0]).lower():
+        return f"The word didn't match (it's `{q[0]}`)."
+    try:
+        a, b = int(str(sum1).strip()), int(str(sum2).strip())
+    except ValueError:
+        return "The sums take numbers only."
+    if a != int(q[1]) + int(q[2]):
+        return f"{q[1]} + {q[2]} isn't {a}."
+    if b != int(q[3]) + int(q[4]):
+        return f"{q[3]} + {q[4]} isn't {b}."
+    return None
 
 async def validate_captcha(captcha_phrase : str, sum1_answer : int, sum2_answer : int):
     # Placeholder for actual captcha validation logic
@@ -5212,6 +5258,10 @@ def _lobby_count(is_t3):
     if is_t3:
         return int(constants.SPECIAL_SLOTS_LIMIT) // int(constants.SPECIAL_LOBBY_SIZE)
     return int(constants.SLOTS_LIMIT) // int(constants.LOBBY_SIZE)
+
+def _channel_ref(lobby_number, is_t3):
+    ch = _idp_channel(lobby_number, is_t3)
+    return ch.mention if ch else f"#{_idp_channel_name(lobby_number, is_t3)}"
 
 def _idp_channel(lobby_number, is_t3):
     guild = bot.get_guild(constants.GUILD_ID)
