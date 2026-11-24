@@ -65,13 +65,21 @@ ssh adity '/usr/local/bin/ontop-update'
 
 ## Mod Panel
 
-Run `/modpanel` once in a mod-only channel. It posts a persistent panel
-(buttons keep working across restarts) with: Live status, Find team, Lobby
-lists, Post room ID, Lift ban, Add team, Backup now, Clean
-threads, Close Open reg, Close T3 reg. The panel's location is saved in
-`mod_panel.json`; on every startup it is refreshed, or re-posted in the same
-channel if it was deleted. Running `/modpanel` again moves it.
-Only `roles_for_bot_access` can use it; every answer is ephemeral.
+Run `/modpanel` once in a mod-only channel. Top row: a lobby picker that opens
+that lobby's desk. Then Live status, Find team, Room ID (next ones first),
+Lift ban, Backup, Clean threads, Close Open reg, Close T3 reg. The summary on
+the panel (reg state, bookings, next room IDs) refreshes itself every minute
+when something changed. Its location is saved in `mod_panel.json`; on every
+startup it is refreshed, or re-posted in the same channel if it was deleted.
+
+### Lobby desk
+
+One card per lobby, only visible to the mod who opened it: slots, match times,
+cancel state, and buttons for Copy names, Bookers, Reload, Resync slot list,
+Room ID per match, Add team, Remove team (optionally posts a claim), Message
+lobby (pings the lobby role) and Promote winner (Open lobbies). Mod Tools in an
+IDP channel opens the desk for that lobby, so replies stay in that channel.
+Add, Remove and Promote unlock once that registration closes.
 
 Leftover enroll/update/delete threads are removed on their own: once in
 the background a minute after boot, then every 30 minutes (idle 20 min, never
