@@ -2388,6 +2388,9 @@ async def connect_to_google_sheets(json_keyfile_path, sheet_id,retry_interval=1)
         try:
             credentials = Credentials.from_service_account_file(json_keyfile_path, scopes=['https://www.googleapis.com/auth/spreadsheets'])
             gc = gspread.authorize(credentials)
+            # Cap Sheets calls: no timeout means one lost packet can stall the bot for minutes.
+            # gspread 6.x: timeout lives on the client, not the worksheet. Set here so reconnects get it too.
+            gc.set_timeout((5, 30))
             print("Successfully authenticated with Google Sheets.")
 
             service = build('sheets', 'v4', credentials=credentials)
@@ -5473,9 +5476,6 @@ async def init_sheet():
         constants.ban_sheet, _ = await connect_to_google_sheets(json_keyfile_path, sheet_id=constants.BAN_SHEET_ID)
         constants.blacklist_sheet, _ = await connect_to_google_sheets(json_keyfile_path, sheet_id=constants.BLACKLIST_SHEET_ID)
         constants.cooldown_sheet, _ = await connect_to_google_sheets(json_keyfile_path, sheet_id=constants.COOLDOWN_SHEET_ID)
-        # Cap Sheets calls: no timeout today means one lost packet can stall the bot for minutes.
-        for _sheet in (constants.sheet, constants.ban_sheet, constants.blacklist_sheet, constants.cooldown_sheet):
-            _sheet.set_timeout((5, 30))
     except Exception as e:
         print("Error while connecting to Google Sheets:", e)
 
