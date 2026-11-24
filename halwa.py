@@ -196,7 +196,7 @@ async def _release_process(user_id, token):
 
 async def _stop_user_flow(user_id):
     """Stop whatever enroll/update/delete flow a user has open. Returns the
-    entry that was stopped, or None. Used by the Stop button and mod Unstick."""
+    entry that was stopped, or None. Used by the player's Stop button."""
     async with constants.running_processes_lock:
         entry = constants.running_processes.pop(user_id, None)
     ev = _flow_cancel_events.pop(user_id, None)
@@ -1293,30 +1293,6 @@ class PanelAddTeamView(discord.ui.View):
         self.add_item(PanelLobbySelect())
         self.add_item(AddTeamUserSelect(row=1))
 
-class UnstickUserSelect(discord.ui.UserSelect):
-    def __init__(self):
-        super().__init__(placeholder="Pick the user who is stuck", min_values=1, max_values=1)
-
-    async def callback(self, interaction: discord.Interaction):
-        target = self.values[0]
-        stopped = await _stop_user_flow(target.id)
-        if stopped:
-            kind = stopped.get("kind", "flow") if isinstance(stopped, dict) else "flow"
-            msg = f"Stopped {target.mention}'s {kind}. They can pick an option from the enrollment menu again right away."
-            try:
-                await bot.get_channel(constants.UPDATES_CHANNEL_ID).send(
-                    f"{interaction.user.name} unstuck {target.name} ({kind})", allowed_mentions=discord.AllowedMentions.none())
-            except Exception:
-                pass
-        else:
-            msg = f"{target.mention} has no enroll/update/delete flow open. If they still see an error, ask them to pick the option again."
-        await _safe_reply(interaction, msg, allowed_mentions=discord.AllowedMentions.none())
-
-class UnstickView(discord.ui.View):
-    def __init__(self):
-        super().__init__(timeout=300)
-        self.add_item(UnstickUserSelect())
-
 class ConfirmCloseView(discord.ui.View):
     def __init__(self, is_t3):
         super().__init__(timeout=60)
@@ -1581,7 +1557,6 @@ def mod_panel_embed():
             "**Add team**: lobby, then booker, then name (after reg closes)\n"
             "**Post room ID**: pick lobby and match, type the ID; map, pass and start time are filled in\n"
             "**Lift ban**: removes a ban, cooldown or blacklist from the sheet right away\n"
-            "**Unstick user**: clears a stuck \"another process is running\"\n"
             "**Clean threads**: removes leftover enroll/update/delete threads (also runs on its own)\n"
             "**Backup now**: saves and sends you the crash snapshot\n"
             "**Close Open / Close T3**: same as /break, with a confirm step"
@@ -1622,10 +1597,6 @@ class ModPanelView(discord.ui.View):
     @discord.ui.button(label="Add team", emoji="\u2795", style=discord.ButtonStyle.secondary, custom_id="modpanel:add", row=1)
     async def add(self, interaction: discord.Interaction, button: discord.ui.Button):
         await _safe_reply(interaction, "Add a team to a lobby:", view=PanelAddTeamView(), delete_after=300)
-
-    @discord.ui.button(label="Unstick user", emoji="\U0001f9ef", style=discord.ButtonStyle.secondary, custom_id="modpanel:unstick", row=1)
-    async def unstick(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await _safe_reply(interaction, "Who is stuck?", view=UnstickView(), delete_after=300)
 
     @discord.ui.button(label="Backup now", emoji="\U0001f4be", style=discord.ButtonStyle.secondary, custom_id="modpanel:backup", row=1)
     async def backup(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -3386,7 +3357,7 @@ async def amateur_details_view_error(ctx: commands.Context, error: commands.Comm
     else:
         await ctx.send(f"An error occurred: {error}")
 
-@bot.hybrid_command(name="modpanel", description="Post the Mod Panel (status, find team, add team, unstick, backup) here.")
+@bot.hybrid_command(name="modpanel", description="Post the Mod Panel (status, find team, add team, room ID, backup) here.")
 @commands.has_any_role(*constants.roles_for_bot_access)
 async def modpanel(ctx: commands.Context):
     try:

@@ -67,7 +67,7 @@ ssh adity '/usr/local/bin/ontop-update'
 
 Run `/modpanel` once in a mod-only channel. It posts a persistent panel
 (buttons keep working across restarts) with: Live status, Find team, Lobby
-lists, Post room ID, Lift ban, Add team, Unstick user, Backup now, Clean
+lists, Post room ID, Lift ban, Add team, Backup now, Clean
 threads, Close Open reg, Close T3 reg. The panel's location is saved in
 `mod_panel.json`; on every startup it is refreshed, or re-posted in the same
 channel if it was deleted. Running `/modpanel` again moves it.
