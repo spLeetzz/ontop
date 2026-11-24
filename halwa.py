@@ -903,8 +903,9 @@ class FaqView(discord.ui.View):
 def _lobby_role_name(lobby, is_t3):
     return f"T3 G{lobby} IDP" if is_t3 else f"Group {lobby} IDP"
 
-def _is_idp_role_name(name):
-    return bool(re.fullmatch(r"(Group \d+ IDP|T3 G\d+ IDP)", name or ""))
+def _is_open_idp_role_name(name):
+    """Only Open lobby roles can be transferred; T3 roles stay with the booker."""
+    return bool(re.fullmatch(r"Group \d+ IDP", name or ""))
 
 def _team_member_ids(team_name):
     """Discord ids (as str) of everyone on this team, from the cached sheet."""
@@ -920,13 +921,16 @@ class TransferIDPButton(discord.ui.Button):
     async def callback(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
         user = interaction.user
-        held = [r for r in user.roles if _is_idp_role_name(r.name)]
         here = _lobby_from_channel_name(getattr(interaction.channel, "name", "") or "")
+        if here and here[1]:
+            return await interaction.followup.send(
+                "Role transfers are only for Open lobbies. In T3, the player who booked keeps the lobby role.", ephemeral=True)
+        held = [r for r in user.roles if _is_open_idp_role_name(r.name)]
         if here and len(held) > 1:
             held = [r for r in held if r.name == _lobby_role_name(*here)] or held
         if not held:
             return await interaction.followup.send(
-                "You don't have a lobby role to pass on. Only the player holding this lobby's IDP role can transfer it.", ephemeral=True)
+                "You don't have an Open lobby role to pass on. Only the player holding this lobby's IDP role can transfer it.", ephemeral=True)
         if len(held) > 1:
             return await interaction.followup.send(
                 "You hold roles for more than one lobby. Tap this button in the lobby channel whose role you want to pass on.", ephemeral=True)
@@ -1054,9 +1058,10 @@ class AddTeamUserSelect(discord.ui.UserSelect):
         await _open_add_team_modal(interaction, lobby, is_t3, self.values[0])
 
 class IdpChannelTasksView(discord.ui.View):
-    def __init__(self, cancel_disabled=False):
+    def __init__(self, cancel_disabled=False, is_t3=False):
         super().__init__(timeout=None)
-        self.add_item(TransferIDPButton())
+        if not is_t3:  # T3 slots stay with the player who booked them
+            self.add_item(TransferIDPButton())
         self.add_item(ModToolsButton())
         self.add_item(CancelSlotButton(disabled=cancel_disabled))
 
@@ -2811,7 +2816,7 @@ async def on_ready():
         for k, v in list((constants.temp_json_dict2 or {}).items()):
             try:
                 message = await bot.get_channel(int(v[1])).fetch_message(int(v[0]))
-                await message.edit(view=IdpChannelTasksView(cancel_disabled=t3_cancel_disabled))
+                await message.edit(view=IdpChannelTasksView(cancel_disabled=t3_cancel_disabled, is_t3=True))
                 seen.add(f"t3-{k}")
             except Exception as e:
                 print(f"Got Exception {e} when dealing with live t3 lobby {k}")
@@ -2838,7 +2843,7 @@ async def on_ready():
                     continue
                 try:
                     message = await bot.get_channel(int(v[1])).fetch_message(int(v[0]))
-                    await message.edit(view=IdpChannelTasksView(cancel_disabled=t3_cancel_disabled))
+                    await message.edit(view=IdpChannelTasksView(cancel_disabled=t3_cancel_disabled, is_t3=True))
                 except Exception as e:
                     print(f"Got Exception {e} when dealing with lobby_details2 json file")
     except FileNotFoundError:
@@ -5460,7 +5465,7 @@ async def send_slots_list(team_names, lobby_number, lobby_channel,edit_slots_lis
         if mem_entry:
             try:
                 message = await bot.get_channel(mem_entry[1]).fetch_message(mem_entry[0])
-                await message.edit(embed=embed,view=IdpChannelTasksView(cancel_disabled=cancel_disabled))
+                await message.edit(embed=embed,view=IdpChannelTasksView(cancel_disabled=cancel_disabled, is_t3=use_alt_lobby))
                 return
             except Exception as e:
                 print(f"Got Exception {e} while fetchin' live slot list message for lobby {lobby_number}.")
@@ -5472,7 +5477,7 @@ async def send_slots_list(team_names, lobby_number, lobby_channel,edit_slots_lis
             if lobby_details_json and str(lobby_number) in lobby_details_json:
                 try:
                     message = await bot.get_channel(lobby_details_json[str(lobby_number)][1]).fetch_message(lobby_details_json[str(lobby_number)][0])
-                    await message.edit(embed=embed,view=IdpChannelTasksView(cancel_disabled=cancel_disabled))
+                    await message.edit(embed=embed,view=IdpChannelTasksView(cancel_disabled=cancel_disabled, is_t3=use_alt_lobby))
                     # adopt into memory so later live edits hit it
                     mem_dict[lobby_number] = [message.id, message.channel.id]
                     return
@@ -5497,7 +5502,7 @@ async def send_slots_list(team_names, lobby_number, lobby_channel,edit_slots_lis
     await lobby_channel.send(f"{ping} Your slot list is up above. Room IDs will be posted in this channel.\n\nEvery player's IGN must include your team tag, or they get kicked from the room. Playing from a new ID is fine, as long as it has the tag.")
     try:
         if add_button:
-            await message.edit(view=IdpChannelTasksView(cancel_disabled=cancel_disabled))
+            await message.edit(view=IdpChannelTasksView(cancel_disabled=cancel_disabled, is_t3=use_alt_lobby))
     except Exception as e:
         print(e)
     
