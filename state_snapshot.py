@@ -46,12 +46,14 @@ def _count_lobby_teams(lobbies):
         return 0
 
 
-def save_state_snapshot(suffix=None):
+def save_state_snapshot(suffix=None, allow_empty=False):
     """Write current in-memory registration state to disk atomically. Never raises.
 
-    Refuses to overwrite a good snapshot with an empty one unless the empty
-    state looks intentional. The daily /start clears registrations and then
-    saves; without this guard that save destroys the only recovery copy.
+    Refuses to overwrite a good snapshot with an empty one unless the caller
+    says the empty state is intentional (allow_empty=True). The daily /start
+    takes a "prewipe" copy first and then saves the fresh state with
+    allow_empty=True; otherwise the guard would keep yesterday's teams as the
+    "current" snapshot until the first booking.
     """
     try:
         from constants import constants
@@ -93,10 +95,10 @@ def save_state_snapshot(suffix=None):
 
         path = _snapshot_path(suffix)
 
-        # Guard: never clobber a populated snapshot with an empty one. A real
-        # reset is fine, but it must go through the pre-wipe snapshot instead so
-        # the previous state survives. Skipped for explicit suffixed saves.
-        if not suffix:
+        # Guard: never clobber a populated snapshot with an empty one by
+        # accident. A real reset passes allow_empty=True after taking the
+        # pre-wipe snapshot. Skipped for explicit suffixed saves.
+        if not suffix and not allow_empty:
             new_count = _count_lobby_teams(payload["open"]["lobby_teams"]) + \
                 _count_lobby_teams(payload["t3"]["lobby_teams"])
             if new_count == 0 and os.path.exists(path):

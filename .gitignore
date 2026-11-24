@@ -5,3 +5,4 @@
 .env/
 .env
 bot_logs.txt
+*.tmp

@@ -62,3 +62,18 @@ ssh adity '/usr/local/bin/ontop-update'
 * Only one instance may run per bot token: Discord's gateway allows a
   single session per token, so do not run the bot locally while the VPS
   copy is up.
+
+## Mod Panel
+
+Run `/modpanel` once in a mod-only channel. It posts a persistent panel
+(buttons keep working across restarts) with: Live status, Find team, Lobby
+lists, Add team, Unstick user, Backup now, Close Open reg, Close T3 reg.
+Only `roles_for_bot_access` can use it; every answer is ephemeral.
+
+## Crash safety
+
+Every booking, cancel, claim and mod add is written to `state_snapshot.json`
+(atomic write) the moment it happens, and restored on startup. Lobby and
+claim JSON files are also written atomically. `/start` keeps the previous
+day in `state_snapshot.prewipe.json`; "Backup now" writes
+`state_snapshot.manual-<time>.json` and sends it to you.

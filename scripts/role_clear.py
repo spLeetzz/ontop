@@ -1,5 +1,5 @@
 """
-role_clear.py — Remove stale lobby roles from members not present in the teams JSON.
+role_clear.py: Remove stale lobby roles from members not present in the teams JSON.
 
 For each lobby (open + T3), this script:
   1. Reads the corresponding _teams.json file.
@@ -76,9 +76,9 @@ def build_lobby_map() -> list[dict]:
     """Build a list of dicts describing each lobby to process.
 
     Each dict has:
-        role_name  — the Discord role name to look up
-        json_file  — Path to the corresponding _teams.json
-        label      — human-readable label for logging
+        role_name:  the Discord role name to look up
+        json_file:  Path to the corresponding _teams.json
+        label:      human-readable label for logging
     """
     lobbies = []
 
@@ -125,7 +125,7 @@ async def run(dry_run: bool = True):
         for lobby in lobbies:
             role = discord.utils.get(guild.roles, name=lobby["role_name"])
             if not role:
-                print(f"[{lobby['label']}] Role '{lobby['role_name']}' not found — skipping")
+                print(f"[{lobby['label']}] Role '{lobby['role_name']}' not found, skipping")
                 continue
 
             valid_ids = load_valid_user_ids(lobby["json_file"])
@@ -133,11 +133,11 @@ async def run(dry_run: bool = True):
 
             members_with_role = role.members
             if not members_with_role:
-                print(f"[{lobby['label']}] No members have role '{role.name}' — nothing to do")
+                print(f"[{lobby['label']}] No members have role '{role.name}', nothing to do")
                 continue
 
             if not json_exists:
-                print(f"[{lobby['label']}] {lobby['json_file'].name} not found — "
+                print(f"[{lobby['label']}] {lobby['json_file'].name} not found, "
                       f"will remove role from ALL {len(members_with_role)} members")
 
             print(f"\n[{lobby['label']}] Role: {role.name} | "
@@ -179,6 +179,6 @@ if __name__ == "__main__":
     if dry_run:
         print("🔍 Running in DRY-RUN mode (pass --apply to actually remove roles)\n")
     else:
-        print("⚡ Running in APPLY mode — roles WILL be removed\n")
+        print("⚡ Running in APPLY mode: roles WILL be removed\n")
 
     asyncio.run(run(dry_run=dry_run))
