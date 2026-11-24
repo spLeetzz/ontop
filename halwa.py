@@ -365,17 +365,17 @@ class TournamentDropdown(discord.ui.Select):
             return
 
         if not result:
-            await interaction.response.send_message(f"{user.mention} You aren't enrolled in any team as of now. Please select 'Enroll' to create one.", ephemeral=True, delete_after=15)
+            await interaction.response.send_message(f"{user.mention} You're not on a team yet. Pick Enroll to create one.", ephemeral=True, delete_after=15)
             _reset_enroll_menu(menu_message)
             return
 
         action = "update" if selected_value == "update" else "delete"
         if result[1] in constants.banned_team_list:
-            await interaction.response.send_message(f"Sorry Mate {user.mention}, You can't {action} your team while it is banned.{help_line}", ephemeral=True, delete_after=40)
+            await interaction.response.send_message(f"{user.mention} You can't {action} your team while it's banned.{help_line}", ephemeral=True, delete_after=40)
             _reset_enroll_menu(menu_message)
             return
         if result[1] in constants.cd_team_list:
-            await interaction.response.send_message(f"Sorry Mate {user.mention}, You can't {action} your team while it is under cooldown.{help_line}", ephemeral=True, delete_after=40)
+            await interaction.response.send_message(f"{user.mention} You can't {action} your team while it's on cooldown.{help_line}", ephemeral=True, delete_after=40)
             _reset_enroll_menu(menu_message)
             return
 
@@ -396,13 +396,13 @@ def enrollment_embed():
     return discord.Embed(
         title="Team Enrollment",
         description=(
-            "Select desirable option to create or edit your team details->\n\n"
-            " a. **\"Enroll\"** -> CREATE NEW TEAM\n\n"
-            " b. **\"Update\"** -> UPDATE YOUR TEAM\n\n"
-            " c. **\"Delete\"** -> DELETE YOUR TEAM\n\n"
-            "Use of alt accounts/Fake mentions are strictly prohibited and as you'll Get caught will be titled a Good Enough BAN.\n\n"
-            "*> Atleast 4 players from your team should have **\"Verified\"** role on discord.*\n"
-            "Changed your mind midway? Tap Cancel or type `cancel` in your thread, "
+            "Pick an option from the menu below:\n\n"
+            "Enroll: create a new team (about 2 minutes)\n"
+            "Update: change your roster or team name\n"
+            "Delete: remove your team\n\n"
+            "You need 4 or 5 players, and at least 4 of them must have the Verified role.\n"
+            "Alt accounts and fake mentions get your team banned.\n\n"
+            "Each question waits 5 minutes for a reply. Changed your mind? Tap Cancel or type `cancel` in your thread, "
             "or pick an option here again and tap Stop it and start over."
         ),
         color=0x229db7,
@@ -872,16 +872,16 @@ class CheckVerificationButton(discord.ui.Button):
 
     async def callback(self, interaction: discord.Interaction):
         if any(role.name == constants.REQUIRED_ROLE_NAME for role in interaction.user.roles):
-            await interaction.response.send_message("You have been verified and claimed your discord role as well.",ephemeral=True,delete_after=15)
+            await interaction.response.send_message("\u2705 You're verified and have the Discord role. You're good to go.",ephemeral=True,delete_after=15)
         else:
-            await interaction.response.send_message("You are not verified or havent claimed your role on discord.\n If you're \"Verified\" on website and still this came, follow the Step 2 listed above.",ephemeral=True,delete_after=45)
+            await interaction.response.send_message("You don't have the Verified role on Discord yet.\nIf the website already shows you as Verified, follow Step 2 above to claim the role.",ephemeral=True,delete_after=45)
 
 class bitInfoButton(discord.ui.Button):
     def __init__(self):
         super().__init__(label=f'How can i Go to T1? Schedule?', row = 1,style=discord.ButtonStyle.primary)
 
     async def callback(self, interaction: discord.Interaction):
-        await interaction.response.send_message(f"Checkout <#{constants.INFO_CHANNEL_ID}> channel.\nComplete details have been listed there.",ephemeral=True,delete_after=30)
+        await interaction.response.send_message(f"Everything about tiers and the schedule is in <#{constants.INFO_CHANNEL_ID}>.",ephemeral=True,delete_after=30)
 
 
 class bitsMoreInfoButton(discord.ui.Button):
@@ -889,7 +889,7 @@ class bitsMoreInfoButton(discord.ui.Button):
         super().__init__(label=f"Time Taken for Verification", row = 1,style=discord.ButtonStyle.primary)
 
     async def callback(self, interaction: discord.Interaction):
-        await interaction.response.send_message(f"Website Verification is a manual process and may take upto 7-14 days, you need to wait until its done.",ephemeral=True,delete_after=30)
+        await interaction.response.send_message("Website verification is done by hand and can take 7 to 14 days. You'll get the role once it's approved.",ephemeral=True,delete_after=30)
 
 
 class FaqView(discord.ui.View):
@@ -899,6 +899,34 @@ class FaqView(discord.ui.View):
         self.add_item(CheckVerificationButton())
         self.add_item(bitInfoButton())
         self.add_item(bitsMoreInfoButton())
+
+def _command_error_text(error, ctx=None):
+    """Plain-English reason a mod command failed, with usage when an argument is off."""
+    err = error
+    for _ in range(3):
+        inner = getattr(err, "original", None)
+        if inner is None or inner is err:
+            break
+        err = inner
+    usage = ""
+    cmd = getattr(ctx, "command", None)
+    if cmd is not None:
+        usage = f" Usage: `/{cmd.qualified_name} {cmd.signature}`".rstrip() if cmd.signature else ""
+    if isinstance(err, (commands.MissingPermissions, app_commands.MissingPermissions)):
+        perms = ", ".join(p.replace("_", " ") for p in err.missing_permissions)
+        return f"You need these Discord permissions for this command: {perms}."
+    if isinstance(err, (commands.MissingAnyRole, commands.MissingRole, app_commands.MissingAnyRole, app_commands.MissingRole)):
+        return "This command is only for scrim managers."
+    if isinstance(err, commands.MissingRequiredArgument):
+        return f"You left out `{err.param.name}`.{usage}"
+    if isinstance(err, (commands.BadArgument, commands.BadUnionArgument)):
+        return f"One of the values didn't look right: {err}.{usage}"
+    if isinstance(err, (commands.CommandOnCooldown, app_commands.CommandOnCooldown)):
+        return f"Slow down a little. Try again in {int(err.retry_after) + 1} seconds."
+    if isinstance(err, (commands.CheckFailure, app_commands.CheckFailure)):
+        return "You can't use this command here."
+    print(f"[command] {type(err).__name__}: {err}")
+    return f"That didn't work: {err}"
 
 def _lobby_role_name(lobby, is_t3):
     return f"T3 G{lobby} IDP" if is_t3 else f"Group {lobby} IDP"
@@ -2590,12 +2618,12 @@ class AmateurDetailsModal(discord.ui.Modal):
 
         # Acknowledge the submission to the user
         await interaction.response.send_message(
-            f"Your details have been submitted! Please wait atleast 24 hours and you will be added to the group.",
+            "\u2705 Sent! A mod will add you within 24 hours.",
             ephemeral=True,delete_after=120
         )
 
     async def on_error(self, interaction: discord.Interaction, error: Exception):
-        await _safe_reply(interaction, "An error occurred while processing your request. Please try again later.", delete_after=240)
+        await _safe_reply(interaction, "Couldn't send that right now. Please try again in a minute.", delete_after=240)
         print(f"An error occurred during the team name change request for {interaction.user}: {error}")
 
 def _captcha_problem(word, sum1, sum2, q=None):
@@ -3044,8 +3072,8 @@ async def start(ctx, captcha_phrase: str):
     await start_registration(captcha_phrase)
 
     await ctx.send(
-        f"refresheeeeeeeeeeeeeeeeeeeed\n"
-        f"Current captcha variables: "
+        f"\u2705 Registration started.\n"
+        f"Captcha today: "
         f"{constants.captcha_question_variables[0]}, "
         f"{constants.captcha_question_variables[1]} + "
         f"{constants.captcha_question_variables[2]}, "
@@ -3059,7 +3087,7 @@ async def start_error(ctx, error):
         missing_perms = ', '.join(error.missing_permissions)
         await ctx.send(f"You don't have the required permissions to use this command: {missing_perms}")
     else:
-        await ctx.send(f"An error occurred: {error}")
+        await ctx.send(_command_error_text(error, ctx))
 
 @bot.hybrid_command(name="break", description="**Break Registration in between, Sensitive")
 @app_commands.describe(target="which registration to break")
@@ -3192,7 +3220,7 @@ async def break_reg_error(ctx, error):
         missing_perms = ', '.join(error.missing_permissions)
         await ctx.send(f"You don't have the required permissions to use this command: {missing_perms}")
     else:
-        await ctx.send(f"An error occurred: {error}")
+        await ctx.send(_command_error_text(error, ctx))
 
 
 @bot.hybrid_command(name="show_limits", description="Show the current slots limit and lobby size.")
@@ -3216,7 +3244,7 @@ async def delete_from_sheet(ctx, error):
         missing_perms = ', '.join(error.missing_permissions)
         await ctx.send(f"You don't have the required permissions to use this command: {missing_perms}")
     else:
-        await ctx.send(f"An error occurred: {error}")
+        await ctx.send(_command_error_text(error, ctx))
 
 @bot.tree.command(name="ban_team", description="Ban whole team for x hours and y days")
 @app_commands.checks.has_permissions(view_audit_log=True, manage_roles=True)
@@ -3249,7 +3277,7 @@ async def ban_team_error(interaction: discord.Interaction, error):
     elif isinstance(error, ValueError):
         await _safe_reply(interaction, "You must specify a valid duration.", ephemeral=False)
     else:
-        await _safe_reply(interaction, f"An error occurred: {error}", ephemeral=False)
+        await _safe_reply(interaction, _command_error_text(error), ephemeral=False)
 
 @bot.tree.command(name="blacklist_user", description="Ban whole team for x hours and y days")
 @app_commands.checks.has_permissions(view_audit_log=True, manage_roles=True)
@@ -3279,7 +3307,7 @@ async def blacklist_user_error(interaction: discord.Interaction, error):
     elif isinstance(error, ValueError):
         await _safe_reply(interaction, "You must specify a valid duration.", ephemeral=False)
     else:
-        await _safe_reply(interaction, f"An error occurred: {error}", ephemeral=False)
+        await _safe_reply(interaction, _command_error_text(error), ephemeral=False)
 
 @bot.hybrid_command(name="clear_amateur", description="**Clear Amateur lobby Channels and role**")
 @commands.has_any_role(*constants.roles_for_purge_perm)
@@ -3317,7 +3345,7 @@ async def clear_amateur(ctx):
     except discord.HTTPException as e:
         await ctx.send(f"An HTTP error occurred: {e}")
     except Exception as e:
-        await ctx.send(f"An error occurred: {e}")
+        await ctx.send(f"That didn't work: {e}")
 
 @clear_amateur.error
 async def clear_amateur_error(ctx, error):
@@ -3325,7 +3353,7 @@ async def clear_amateur_error(ctx, error):
         missing_perms = ', '.join(error.missing_permissions)
         await ctx.send(f"You don't have the required permissions to use this command: {missing_perms}")
     else:
-        await ctx.send(f"An error occurred: {error}")
+        await ctx.send(_command_error_text(error, ctx))
 
 @bot.hybrid_command(name="rr", description="Fetch random users who reacted to a message")
 @commands.has_any_role(*constants.roles_for_bot_access)
@@ -3381,7 +3409,7 @@ async def rr(ctx, num: int):
     except discord.HTTPException as e:
         await ctx.send(f"An HTTP error occurred: {e}")
     except Exception as e:
-        await ctx.send(f"An error occurred: {e}")
+        await ctx.send(f"That didn't work: {e}")
 
 @rr.error
 async def rr(ctx, error):
@@ -3389,7 +3417,7 @@ async def rr(ctx, error):
         missing_perms = ', '.join(error.missing_permissions)
         await ctx.send(f"You don't have the required permissions to use this command: {missing_perms}")
     else:
-        await ctx.send(f"An error occurred: {error}")
+        await ctx.send(_command_error_text(error, ctx))
 
 
 @bot.hybrid_command(name="purge", description="Purge a specified number of messages from the channel.")
@@ -3415,18 +3443,18 @@ async def purge(ctx, number_of_messages: int):
         print(f"Purged {number_of_messages} messages from {ctx.channel.name}.")
     except discord.HTTPException as e:
         print(f"An error occurred while purging messages: {e}")
-        await ctx.send(f"An error occurred while purging messages: {e}")
+        await ctx.send(f"Couldn't delete those messages: {e}")
 
 @purge.error
 async def purge_error(ctx, error):
     if isinstance(error, commands.MissingPermissions):
         await ctx.send(f"You don't have the required permissions to use this command.")
     elif isinstance(error, commands.MissingAnyRole): 
-        await ctx.send(f"Sorry this command is pretty limited")
+        await ctx.send("This command is only for a few staff roles.")
     elif isinstance(error, commands.BadArgument):
         await ctx.send("Please specify a valid number of messages to purge.")
     else:
-        await ctx.send(f"An error occurred: {error}")
+        await ctx.send(_command_error_text(error, ctx))
 
 @bot.hybrid_command(name="say", description="""Make the bot say a specified message in a specified channel.""")
 @commands.has_any_role(*constants.roles_for_bot_access)
@@ -3434,7 +3462,7 @@ async def say(ctx: commands.Context, channel: discord.TextChannel, *, message: s
     try:
         await channel.send(message)
     except discord.HTTPException as e:
-        await ctx.send(f"An error occurred while sending the message: {e}")
+        await ctx.send(f"Couldn't send the message: {e}")
 
 @say.error
 async def say_error(ctx: commands.Context, error: commands.CommandError):
@@ -3443,7 +3471,7 @@ async def say_error(ctx: commands.Context, error: commands.CommandError):
     elif isinstance(error, commands.ChannelNotFound):
         await ctx.send("The specified channel was not found.")
     else:
-        await ctx.send(f"An error occurred: {error}")
+        await ctx.send(_command_error_text(error, ctx))
 
 @bot.hybrid_command(name="saythischannel", description="""Make the bot say a specified message in this channel.""")
 @commands.has_any_role(*constants.roles_for_bot_access)
@@ -3451,7 +3479,7 @@ async def saythischannel(ctx: commands.Context, message: str):
     try:
         await ctx.channel.send(message)
     except discord.HTTPException as e:
-        await ctx.send(f"An error occurred while sending the message: {e}")
+        await ctx.send(f"Couldn't send the message: {e}")
 
 @saythischannel.error
 async def saythischannel_error(ctx: commands.Context, error: commands.CommandError):
@@ -3460,7 +3488,7 @@ async def saythischannel_error(ctx: commands.Context, error: commands.CommandErr
     elif isinstance(error, commands.ChannelNotFound):
         await ctx.send("The specified channel was not found.")
     else:
-        await ctx.send(f"An error occurred: {error}")
+        await ctx.send(_command_error_text(error, ctx))
 
 @bot.hybrid_command(name="faq", description="send faq view")
 @commands.has_any_role(*constants.roles_for_bot_access)
@@ -3468,7 +3496,7 @@ async def faq(ctx: commands.Context, channel: discord.TextChannel, *, message: s
     try:
         await channel.send(message, view=FaqView())
     except discord.HTTPException as e:
-        await ctx.send(f"An error occurred while sending the message: {e}")
+        await ctx.send(f"Couldn't send the message: {e}")
 
 @faq.error
 async def faq_error(ctx: commands.Context, error: commands.CommandError):
@@ -3477,7 +3505,7 @@ async def faq_error(ctx: commands.Context, error: commands.CommandError):
     elif isinstance(error, commands.ChannelNotFound):
         await ctx.send("The specified channel was not found.")
     else:
-        await ctx.send(f"An error occurred: {error}")
+        await ctx.send(_command_error_text(error, ctx))
 
 @bot.hybrid_command(name="role_by_reply", description="Assign a specified role to all mentioned users in the replied message.")
 @commands.has_any_role(*constants.roles_for_bot_access)
@@ -3517,7 +3545,7 @@ async def role_by_reply(ctx, role_id: int):
     except discord.NotFound:
         await ctx.send("Couldn't fetch the replied message. It might have been deleted.")
     except discord.HTTPException as e:
-        await ctx.send(f"An error occurred while assigning roles: {e}")
+        await ctx.send(f"Couldn't give the roles: {e}")
 
 @role_by_reply.error
 async def role_by_reply_error(ctx, error):
@@ -3526,7 +3554,7 @@ async def role_by_reply_error(ctx, error):
     elif isinstance(error, commands.BadArgument):
         await ctx.send("Please specify a valid role.")
     else:
-        await ctx.send(f"An error occurred: {error}")
+        await ctx.send(_command_error_text(error, ctx))
         
 
 @bot.hybrid_command(name="inrole", description="inrole users and team names")
@@ -3553,7 +3581,7 @@ async def inrole(ctx: commands.Context, role: discord.Role):
         for chunk in chunks:
             await ctx.send(chunk, allowed_mentions=discord.AllowedMentions.none())
     except discord.HTTPException as e:
-        await ctx.send(f"An error occurred while sending the message: {e}")
+        await ctx.send(f"Couldn't send the message: {e}")
 
 @inrole.error
 async def inrole_error(ctx: commands.Context, error: commands.CommandError):
@@ -3562,7 +3590,7 @@ async def inrole_error(ctx: commands.Context, error: commands.CommandError):
     elif isinstance(error, commands.ChannelNotFound):
         await ctx.send("The specified channel was not found.")
     else:
-        await ctx.send(f"An error occurred: {error}")
+        await ctx.send(_command_error_text(error, ctx))
 
 @bot.hybrid_command(name="inrole_csv", description="Export role members with team names and IGNs to a CSV file.")
 @commands.has_any_role(*constants.roles_for_bot_access)
@@ -3633,11 +3661,11 @@ async def inrole_csv(ctx: commands.Context, role: discord.Role):
         await ctx.send(content=f"{role.name}: {len(out_rows)} members, {with_note} matched to a team.",
                        file=discord.File(filename))
     except discord.HTTPException as e:
-        await ctx.send(f"An error occurred while sending the message: {e}")
+        await ctx.send(f"Couldn't send the message: {e}")
     except Exception as e:
         print(f"Error in inrole_csv command: {e}")
         try:
-            await ctx.send(f"An error occurred: {e}")
+            await ctx.send(f"That didn't work: {e}")
         except Exception:
             pass
 
@@ -3648,7 +3676,7 @@ async def inrole_csv_error(ctx: commands.Context, error: commands.CommandError):
     elif isinstance(error, commands.ChannelNotFound):
         await ctx.send("The specified channel was not found.")
     else:
-        await ctx.send(f"An error occurred: {error}")
+        await ctx.send(_command_error_text(error, ctx))
 
 @bot.hybrid_command(name="amateur_details_view", description="Ask Team Details from Amateur Teams.")
 @commands.has_any_role(*constants.roles_for_bot_access)
@@ -3657,7 +3685,7 @@ async def amateur_details_view(ctx: commands.Context, channel: discord.TextChann
         message = "Click the button below to submit your team details."
         await channel.send(message, view=AmateurDetailsView())
     except discord.HTTPException as e:
-        await ctx.send(f"An error occurred while sending the message: {e}")
+        await ctx.send(f"Couldn't send the message: {e}")
 
 @amateur_details_view.error
 async def amateur_details_view_error(ctx: commands.Context, error: commands.CommandError):
@@ -3666,7 +3694,7 @@ async def amateur_details_view_error(ctx: commands.Context, error: commands.Comm
     elif isinstance(error, commands.ChannelNotFound):
         await ctx.send("The specified channel was not found.")
     else:
-        await ctx.send(f"An error occurred: {error}")
+        await ctx.send(_command_error_text(error, ctx))
 
 @bot.hybrid_command(name="modpanel", description="Post the Mod Panel (status, find team, add team, room ID, backup) here.")
 @commands.has_any_role(*constants.roles_for_bot_access)
@@ -3692,7 +3720,7 @@ async def modpanel_error(ctx: commands.Context, error: commands.CommandError):
     if isinstance(error, (commands.MissingPermissions, commands.MissingAnyRole)):
         await ctx.send("You don't have the required permissions to use this command.")
     else:
-        await ctx.send(f"An error occurred: {error}")
+        await ctx.send(_command_error_text(error, ctx))
 
 @bot.hybrid_command(name="add_team", description="Add team in T3 Slots List.")
 @commands.has_any_role(*constants.roles_for_bot_access)
@@ -3710,7 +3738,7 @@ async def add_team_error(ctx: commands.Context, error: commands.CommandError):
     if isinstance(error, (commands.MissingPermissions, commands.MissingAnyRole)):
         await ctx.send("You don't have the required permissions to use this command.")
     else:
-        await ctx.send(f"An error occurred: {error}")
+        await ctx.send(_command_error_text(error, ctx))
 
 # ──────────────────────────────────────────────────────────────────
 # Team registration report (OPEN lobby vs TIER3) from UPDATES channel
@@ -4097,7 +4125,7 @@ async def report_error(ctx: commands.Context, error: commands.CommandError):
         if isinstance(error, commands.MissingAnyRole) or isinstance(error, commands.MissingRole):
             await ctx.send("You don't have the required permissions to use this command.")
         else:
-            await ctx.send(f"An error occurred: {error}")
+            await ctx.send(_command_error_text(error, ctx))
     except Exception:
         pass
 
@@ -4111,7 +4139,7 @@ async def upload_results(interaction: discord.Interaction, results: str):
 
         lobbies = _lobby_count(False)
         if len(teams) not in (lobbies, 16) or any(t.strip() != "__" for t in teams[lobbies:]):
-            await interaction.channel.send(f"Error: give {lobbies} teams separated by '<>' (one per Open lobby, __ to skip). Tip: Promote winner in each lobby desk does this one lobby at a time.")
+            await interaction.channel.send(f"Give {lobbies} teams separated by '<>' (one per Open lobby, __ to skip). Tip: Promote winner in each lobby desk does this one lobby at a time.")
             return
         teams = teams[:lobbies]
         
@@ -4134,7 +4162,7 @@ async def upload_results(interaction: discord.Interaction, results: str):
                 await interaction.channel.send(f"Could not update Lobby {i} results.")
         
     except Exception as e:
-        await interaction.channel.send(f"An error occurred: {e}")
+        await interaction.channel.send(f"That didn't work: {e}")
 
 
 @upload_results.error
@@ -4338,7 +4366,7 @@ async def clear_lb(ctx):
     except discord.HTTPException as e:
         await ctx.send(f"An HTTP error occurred: {e}")
     except Exception as e:
-        await ctx.send(f"An error occurred: {e}")
+        await ctx.send(f"That didn't work: {e}")
 
 @bot.hybrid_command(name='clearthreads', description='clear enroll team inactive threads > 1 HR')
 @commands.has_any_role(*constants.roles_for_purge_perm)
@@ -4573,14 +4601,14 @@ async def enrollTeam(user, interaction):
 
     except asyncio.TimeoutError:
         try:
-            await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} Enrollment timed out. \nPlease try again later.")
+            await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} Your enrollment stopped because there was no reply for 5 minutes. Start again from <#{constants.ENROLLMENT_CHANNEL_ID}> when you're ready.")
         except Exception:
             pass
         _schedule_thread_delete(thread, 0)
 
     except ValueError as ve:
         try:
-            await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} An error occurred during enrollment: {ve}")
+            await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} Your enrollment stopped: {ve}. Start again from <#{constants.ENROLLMENT_CHANNEL_ID}>.")
         except Exception:
             pass
         _schedule_thread_delete(thread, 0)
@@ -4649,13 +4677,13 @@ async def updateTeam(user, existing_team_message, interaction):
                 pass
         _schedule_thread_delete(thread, 5)
     except asyncio.TimeoutError:
-        await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} Update timed out. Please try again later.")
+        await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} Your update stopped because there was no reply for 5 minutes. Tap My status to check your team; if it's gone, enroll it again from <#{constants.ENROLLMENT_CHANNEL_ID}>.")
         _schedule_thread_delete(thread, 0)
     except ValueError as ve:
-        await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} An error occurred during update: {ve}")
+        await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} Your update stopped: {ve}. Tap My status to check your team.")
         _schedule_thread_delete(thread, 0)
     except Exception as e:
-        await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} An unexpected error occurred during update: {e}")
+        await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} Your update hit a problem on our side ({e}). Tap My status to check your team, or ask in <#{constants.HELP_CHANNEL_ID}>.")
         _schedule_thread_delete(thread, 0)
     finally:
         await _release_process(user.id, token)
@@ -4697,13 +4725,13 @@ async def deleteTeam(user, existing_team_message, interaction):
                 pass
         _schedule_thread_delete(thread, 5)
     except asyncio.TimeoutError:
-        await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} Delete timed out. Please try again later.")
+        await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} Your delete stopped because there was no reply for 5 minutes. Tap My status to check your team.")
         _schedule_thread_delete(thread, 0)
     except ValueError as ve:
-        await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} An error occurred during delete: {ve}")
+        await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} Your delete stopped: {ve}. Tap My status to check your team.")
         _schedule_thread_delete(thread, 0)
     except Exception as e:
-        await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} An unexpected error occurred during delete: {e}")
+        await bot.get_channel(constants.TEAM_RECORDS_CHANNEL_ID).send(f"{user.mention} Your delete hit a problem on our side ({e}). Tap My status to check your team, or ask in <#{constants.HELP_CHANNEL_ID}>.")
         _schedule_thread_delete(thread, 0)
     finally:
         await _release_process(user.id, token)
@@ -5425,6 +5453,19 @@ async def share_lobby_results(lobby_number, team_name):
         await channel.send(f"Results updated in <#{constants.RESULTS_CHANNEL_ID}>\n\n{team_name} : <@{user_id}>\n\nPromoted to Tier 3.")
 
 
+def _slot_list_rules(is_t3, cancel_disabled):
+    transfer = ("" if is_t3 else
+                "\n5. Booker can't play? Tap Transfer IDP role to pass the lobby role to a teammate.")
+    cancel = ("Cancel Slot opens once registration closes." if cancel_disabled
+              else "Can't make it? Tap Cancel Slot before the cancel deadline below so another team can play.")
+    return ("Rules\n"
+            "1. Play every match with at least 3 players, or your team gets banned.\n"
+            "2. Every player's IGN needs your team tag. Players without it get kicked.\n"
+            "3. Can't change your IGN? Play from a new ID with the tag, and keep raw POV ready.\n"
+            f"4. {cancel}"
+            f"{transfer}\n"
+            f"Full schedule: Tier-3 Schedule button in <#{constants.INFO_CHANNEL_ID}>.")
+
 async def send_slots_list(team_names, lobby_number, lobby_channel,edit_slots_list=  False, add_button = True, use_alt_lobby = False, cancel_disabled = False):
     # Prepare the slots list message
     slots_list_message = "```yaml\n"
@@ -5444,9 +5485,7 @@ async def send_slots_list(team_names, lobby_number, lobby_channel,edit_slots_lis
         slots_list_message += f"{formatted_index}. EMPTY\n"
 
     # Close the code block and send the slots list message to the lobby channel
-    slots_list_message += f"```\n**Rules:**\n1. Make sure to checkout your lobbies schedule from the \"Tier-3 Schedule\" button in <#{constants.INFO_CHANNEL_ID}>.\n2. Be available on time and participate in all matches with minimum 3 players in lobbies to avoid a ban.\n3. All players' in-game names (IGN) must include a team acronym as a prefix/suffix (Similar NAME TAG). Players without this will not be allowed and kicked from the lobby.\n4. If there is an issue with changing IGN's (In Game Name), you can participate from a new id but have to ensure that raw pov is available.\n5. Use the button beneath in case you wanna transfer lobby role to teammate, it will be removed from you btw."
-    if cancel_disabled:
-        slots_list_message += "\n6. Cancel buttons open after registrations close."
+    slots_list_message += "```\n" + _slot_list_rules(use_alt_lobby, cancel_disabled)
     group = get_group_for_lobby(int(lobby_number), use_alt_lobby)
     label = _group_label(group, use_alt_lobby) if group else ""
     sched = (constants.match_schedule_t3 if use_alt_lobby else constants.match_schedule).get(int(lobby_number), {})
